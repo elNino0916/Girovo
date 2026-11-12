@@ -92,6 +92,9 @@ export function saysItContinues(question: string): boolean {
   return CONTINUES.test(question.trim());
 }
 
+/** Kinds whose figure means nothing over both ways at once: a ranking, an average, a comparison, the largest. */
+const ONE_WAY_KINDS = new Set<AskQuery['kind']>(['rank', 'average', 'compare', 'largest']);
+
 /** The question read on its own (lib/nano-ask.ts readQuestion), completed from the one before it. */
 export function followUp(prev: AskQuery | null, question: string, read: AskQuery, today: string, readPeriod = false): AskQuery {
   if (!prev || !continuesFrom(question)) return read;
@@ -113,9 +116,13 @@ export function followUp(prev: AskQuery | null, question: string, read: AskQuery
   const kind = namedKind && !before ? read.kind : ASKS_SUM.test(question) ? 'sum' : carriedKind;
   // "Und Ausgaben?" after the income asks for what went out, of no category.
   const leavesIncome = !namedTopic && prev.category === 'income' && dirFromQuestion(question) === 'out';
+  // A list shows both ways; "Wo am meisten?" or "Und im Schnitt?" after it ranks or averages
+  // what went out (both ways would mix the salary in), unless the question names a way itself.
+  let dir = namedDir ? read.dir : prev.dir;
+  if (dir === 'all' && ONE_WAY_KINDS.has(kind)) dir = dirFromQuestion(question) ? read.dir : 'out';
   const next: AskQuery = {
     kind,
-    dir: namedDir ? read.dir : prev.dir,
+    dir,
     category: namedTopic ? read.category : leavesIncome ? null : prev.category,
     search: namedTopic ? read.search : prev.search,
     hint: namedTopic ? read.hint : leavesIncome ? null : prev.hint,

@@ -48,6 +48,8 @@ const MONTH_END = / (?:monatsende|monatsletzten|ende (?:des|diese[ns]) monats|en
 const MONTH_END_ASK = / (?:reicht|reichts|reicht's|bleibt|übrig|uebrig|kontostand|stand|ha(?:b|be|ben) ich|komme? ich|left|enough|last|make it|have|balance|be) /;
 const REACHES = / (?:reicht|reichts|reicht's) (?:\S+ ){0,4}(?:bis|noch|zum|aus) | bis zum (?:nächsten |naechsten )?(?:gehalt|lohn) | (?:prognose|vorhersage|forecast) /;
 const SPENT = / (?:ausgegeben|bezahlt|gezahlt|überwiesen|ueberwiesen|bekommen|spent|paid|received) /;
+/** Spending or eating out at a place: "Wo war ich am Reiseziel essen?" is about the bookings there. */
+const SPENT_AT = / (?:ausgeben|gekostet|spend|essen|gegessen|eat|ate|eaten) /;
 const BALANCE_WORD = / (?:kontostand|kontostände|kontostaende|gesamtsaldo|saldo|salden|guthaben|vermögen|vermoegen|balances?|net worth) /;
 const ON_ACCOUNT = /(?:auf|in|on) (?:dem|meinem|meinen|den|allen|alle|my|all my|the) (?:konto|konten|girokonto|sparkonto|accounts?)/;
 const HAVE_MONEY = new RegExp(
@@ -74,9 +76,9 @@ const FILLER = new Set((
   'was wie viel viele kostet kosten zahle zahl bezahle zahlen gebe geb ich aus mich mir uns im pro per a an each every jahr jahre year years '
   + 'jährlich jaehrlich yearly annually annum in einem für fuer das die der den dem des ein eine einen mein meine meinen meinem meiner my the '
   + 'how much does do did cost costs me i pay spend for what insgesamt eigentlich gerade aktuell so denn total is it bei beim von '
-  + 'noch geld money mal überhaupt ueberhaupt zurzeit derzeit').split(' '));
+  + 'noch geld money mal überhaupt ueberhaupt zurzeit derzeit on to at').split(' '));
 const NO_PERSON = new Set('wer who mir me jemand anyone someone somebody anybody noch irgendwer niemand'.split(' '));
-const GOAL_FILLER = new Set('spar spare sparen mein meine meinem meinen dem den das die der beim bei mit zum zur für fuer my the a savings saving with for on to of our'.split(' '));
+const GOAL_FILLER = new Set('spar spare sparen gespart mein meine meinem meinen dem den das die der beim bei mit zum zur für fuer my the a savings saving with for on to of our'.split(' '));
 // i18n-data-end
 
 /** The words of a folded question that name something, the filler taken out. */
@@ -105,12 +107,19 @@ function goalOf(q: string): string | null {
   return null;
 }
 
-/** What a message asks of the app's own figures; null for anything else (a question about the bookings, mostly). */
-export function factOf(question: string): FactIntent | null {
+/**
+ * What a message asks of the app's own figures; null for anything else (a
+ * question about the bookings, mostly). `contracts`: the names of the live
+ * contracts (Verträge & Abos, as shown and as booked). "Was kostet mich
+ * Netflix im Jahr?" is a contract's year only when Netflix is one of them;
+ * "Was zahle ich im Jahr bei Rewe?" is a sum of the bookings.
+ */
+export function factOf(question: string, contracts: readonly string[] = []): FactIntent | null {
   const q = fold(question);
 
   if (OWE.test(q)) return { kind: 'owed', name: personOf(q) };
-  if (GOAL.test(q) && (GOAL_ASK.test(q) || / (?:sparziel\w*|savings goals?) /.test(q))) return { kind: 'goal', name: goalOf(q) };
+  // "Wie viel habe ich für mein Reiseziel ausgegeben?", "Wo war ich am Reiseziel essen?" ask about the bookings.
+  if (GOAL.test(q) && !SPENT.test(q) && !SPENT_AT.test(q) && (GOAL_ASK.test(q) || / (?:sparziel\w*|savings goals?) /.test(q))) return { kind: 'goal', name: goalOf(q) };
 
   // "Wann kommt das Gehalt?", never "Wann kam das letzte Gehalt?" or "Gehalt im Oktober".
   if (GET_PAID.test(q) || SALARY.test(q) && SALARY_NEXT.test(q) && WHEN.test(q) && !SALARY_PAST.test(q)) return { kind: 'salary' };
@@ -123,7 +132,7 @@ export function factOf(question: string): FactIntent | null {
   if (YEAR_RATE.test(q) && COST_VERB.test(q)) {
     if (CONTRACT_WORD.test(q)) return { kind: 'contractCost', name: null };
     const name = nameWords(q);
-    if (name && !categoryFromQuestion(question)) return { kind: 'contractCost', name };
+    if (name && !categoryFromQuestion(question) && contracts.some((c) => sameName(c, name))) return { kind: 'contractCost', name };
   }
 
   if (!SPENT.test(q) && (BALANCE_WORD.test(q) || HAVE_MONEY.test(q) && NEEDS_MONEY_WORD.test(q))) return { kind: 'balance' };
@@ -164,6 +173,22 @@ export function nextSalary(series: readonly RecurringSeries[]): RecurringSeries 
   const live = series.filter((s) => s.kind === 'income' && !s.ended && !!s.nextDate);
   live.sort((a, b) => Number(b.category === 'income') - Number(a.category === 'income') || Math.abs(b.monthlyAmount) - Math.abs(a.monthlyAmount));
   return live[0] ?? null;
+}
+
+/**
+ * How the salary's next day is said: late (Verträge & Abos count it overdue),
+ * due (its day has passed, still within the few days' grace, so it comes soon),
+ * today, or ahead.
+ */
+export function salaryWhen(s: Pick<RecurringSeries, 'nextDate' | 'overdue'>, today: string): 'late' | 'due' | 'today' | 'ahead' {
+  if (s.overdue) return 'late';
+  if (s.nextDate < today) return 'due';
+  return s.nextDate === today ? 'today' : 'ahead';
+}
+
+/** How many contracts the yearly total of Verträge & Abos adds up: the live expenses in its currency. */
+export function contractsYearCount(expense: readonly Pick<RecurringSeries, 'kind' | 'ended' | 'currency'>[], currency: string): number {
+  return expense.filter((s) => s.kind === 'expense' && !s.ended && s.currency === currency).length;
 }
 
 /** The goals a question is about: the ones with that name, else all; `matched` says whether the name found one. */

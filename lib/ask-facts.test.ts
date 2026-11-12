@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  contractsNamed, factOf, forecastAccount, goalsNamed, isFact, lastFrom, nameCase, nextSalary, priceRises, sameName,
+  contractsNamed, contractsYearCount, factOf, forecastAccount, goalsNamed, isFact, lastFrom, nameCase, nextSalary, priceRises, salaryWhen,
+  sameName,
 } from './ask-facts.ts';
 import { intentOf } from './ask-intents.ts';
 import type { RecurringSeries } from './recurring.ts';
@@ -19,11 +20,27 @@ test('the month-end forecast', () => {
   }
 });
 
+const CONTRACTS = ['Netflix', 'NETFLIX INTERNATIONAL B.V.', 'Spotify', 'Spotify AB'];
+
 test('a contract a year, and every contract', () => {
-  assert.deepEqual(factOf('Was kostet mich Netflix im Jahr?'), { kind: 'contractCost', name: 'netflix' });
-  assert.deepEqual(factOf('wie viel zahle ich im jahr für spotify'), { kind: 'contractCost', name: 'spotify' });
-  assert.deepEqual(factOf('how much does netflix cost me a year'), { kind: 'contractCost', name: 'netflix' });
+  assert.deepEqual(factOf('Was kostet mich Netflix im Jahr?', CONTRACTS), { kind: 'contractCost', name: 'netflix' });
+  assert.deepEqual(factOf('wie viel zahle ich im jahr für spotify', CONTRACTS), { kind: 'contractCost', name: 'spotify' });
+  assert.deepEqual(factOf('how much does netflix cost me a year', CONTRACTS), { kind: 'contractCost', name: 'netflix' });
   assert.deepEqual(factOf('Was kosten mich meine Abos im Jahr?'), { kind: 'contractCost', name: null });
+  assert.deepEqual(intentOf('Was kostet mich Netflix im Jahr?', CONTRACTS), { kind: 'contractCost', name: 'netflix' });
+});
+
+test('a name a year that is no contract is a question about the bookings', () => {
+  for (const q of [
+    'Wie viel gebe ich pro Jahr bei Amazon aus?', 'Wie viel zahle ich pro Jahr an Lea?', 'Was zahle ich im Jahr bei Rewe?',
+    'Was gebe ich im Jahr für Essen aus?', 'Was kostet mich Kaffee im Jahr?', 'What do I spend a year on Amazon?',
+    'How much do I pay to Lea a year?',
+  ]) {
+    assert.equal(factOf(q, CONTRACTS), null, q);
+    assert.equal(intentOf(q, CONTRACTS), null, q);
+  }
+  // Without the contracts loaded, no name is one.
+  assert.equal(factOf('Was kostet mich Netflix im Jahr?'), null);
 });
 
 test('price rises', () => {
@@ -50,6 +67,14 @@ test('Sparziele', () => {
   assert.deepEqual(factOf('Wie weit bin ich beim Urlaubsziel?'), { kind: 'goal', name: 'urlaub' });
   assert.deepEqual(factOf('wie stehen meine sparziele'), { kind: 'goal', name: null });
   assert.deepEqual(factOf('how close am i to the japan goal'), { kind: 'goal', name: 'japan' });
+  // "Gespart" is no goal's name.
+  assert.deepEqual(factOf('Wie viel habe ich für Ziele gespart?'), { kind: 'goal', name: null });
+});
+
+test('spending or eating out at a goal is a question about the bookings', () => {
+  for (const q of ['Wie viel habe ich für mein Reiseziel ausgegeben?', 'Wo war ich am Reiseziel essen?', 'how much did i spend on my travel goal']) {
+    assert.equal(factOf(q), null, q);
+  }
 });
 
 test('questions about the bookings stay with the bookings', () => {
@@ -108,6 +133,19 @@ test('nextSalary: Einnahmen first, then the largest', () => {
   ];
   assert.equal(nextSalary(list)?.name, 'Arbeitgeber GmbH');
   assert.equal(nextSalary([series({})]), null);
+});
+
+test('salaryWhen: a day passed within the grace comes soon, overdue is late', () => {
+  const today = '2026-11-12';
+  assert.equal(salaryWhen({ nextDate: '2026-11-10', overdue: false }, today), 'due');
+  assert.equal(salaryWhen({ nextDate: '2026-11-01', overdue: true }, today), 'late');
+  assert.equal(salaryWhen({ nextDate: today, overdue: false }, today), 'today');
+  assert.equal(salaryWhen({ nextDate: '2026-11-28', overdue: false }, today), 'ahead');
+});
+
+test('contractsYearCount counts what the yearly total adds up', () => {
+  const list = [series({}), series({ name: 'B' }), series({ name: 'USD', currency: 'USD' }), series({ name: 'Alt', ended: true })];
+  assert.equal(contractsYearCount(list, 'EUR'), 2);
 });
 
 test('goalsNamed: by name, else all', () => {

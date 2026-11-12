@@ -113,6 +113,9 @@ export function AskReader() {
   const gemmaReady = gemmaUsable(gemma);
   const { ctx, own } = useAskContext(data?.currency ?? 'EUR');
   const inflight = useRef(new Set<number>());
+  // The live contracts by name: "Was kostet mich Netflix im Jahr?" asks Verträge & Abos only for one of them.
+  const recurring = useRecurringModel();
+  const contracts = useMemo(() => recurring.expense.flatMap((s) => [seriesTitle(s), s.name]), [recurring.expense]);
   const payees = useMemo(
     () => (IS_ANDROID || !data ? [] : [...new Set(data.txs.map((tx) => ctx.payeeOf?.(tx) ?? '').filter(Boolean))]),
     [data, ctx],
@@ -134,7 +137,7 @@ export function AskReader() {
           const q = turn.question;
           const today = dayKey(new Date());
           // Verträge & Abos, a setting, a change: by the rules, before any model reads it.
-          const intent = intentOf(q);
+          const intent = intentOf(q, contracts);
           if (intent) {
             settleTurn(turn.id, { state: 'answered', intent });
             return;
@@ -162,7 +165,7 @@ export function AskReader() {
           // the model reads, the rules decide (lib/ask-read.ts).
           const raw = mobile?.ask ? await mobile.ask(ASK_SYSTEM, askText(q, own), ASK_MAX_TOKENS) : null;
           const reading = mobile?.ask ? parseAskAnswer(raw, own) : await builtInReading(q, payees, askCategory);
-          const read = readAsked(q, prev, { today, own, reading });
+          const read = readAsked(q, prev, { today, own, reading, contracts });
           if ('offTopic' in read) settleTurn(turn.id, { state: 'offTopic' });
           else if ('query' in read) settleTurn(turn.id, { state: 'answered', query: read.query });
           else if ('intent' in read) settleTurn(turn.id, { state: 'answered', intent: read.intent });
@@ -170,7 +173,7 @@ export function AskReader() {
         })().finally(() => inflight.current.delete(turn.id));
       });
     }
-  }, [s, own, payees, askCategory, gemmaReady]);
+  }, [s, own, payees, askCategory, gemmaReady, contracts]);
   return null;
 }
 
@@ -724,6 +727,8 @@ function useNextQuestions(last: AskQuery | null): string[] {
   // An average over one month is its sum: offered only where the period holds several.
   const days = periodDays(last.period, dayKey(new Date()));
   const months = days ? new Set([days.from.slice(0, 7), days.to.slice(0, 7)]).size : 2;
+  // After both ways (a list) an average or "Größte Ausgabe" would be about another set than the answer.
+  if (last.dir === 'all') return out;
   if (last.kind !== 'average' && months > 1) out.push(words.thread.next.perMonth);
   if (last.kind !== 'largest' && last.dir !== 'in') out.push(words.thread.next.largest);
   return out;

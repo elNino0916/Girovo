@@ -14,6 +14,7 @@
 // turn 'reading' until then.
 
 import { useSyncExternalStore } from 'react';
+import { sameQuery } from '@/lib/ask-chips';
 import { isExplainQuestion } from '@/lib/ask-explain';
 import type { AskIntent } from '@/lib/ask-intents';
 import type { SerializedTransaction } from '@/lib/fints-types';
@@ -174,8 +175,13 @@ export function settleWritten(id: number, written: string | false, writtenFor: s
   });
 }
 
-/** A turn's reading changed by a chip: the answer is worked out again, and Gemma's sentences go with the old one. */
+/**
+ * A turn's reading changed by a chip: the answer is worked out again, and Gemma's sentences go with the old one.
+ * The value a chip already shows changes nothing, so Gemma's sentences stay.
+ */
 export function updateTurnQuery(id: number, query: AskQuery): void {
+  const turn = state.conversations.flatMap((c) => c.turns).find((t) => t.id === id);
+  if (turn?.query && sameQuery(turn.query, query)) return;
   set({
     ...state,
     conversations: state.conversations.map((c) => (c.turns.some((t) => t.id === id)

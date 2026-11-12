@@ -99,7 +99,9 @@ export function explainLines(e: Explained, words: ExplainWords): string[] {
 // i18n-data-start (the words a question is recognised by, in either language)
 const ASKS = /^(?:was|wer|worum|wofuer|erklaer|what|who|explain)\b/;
 const POINTED = new RegExp(
-  '\\b(?:diese[rsnm]?|das fuer|das hier(?: fuer)?|das da|this|that)\\s+(?:\\S+\\s+)?'
+  '\\b(?:diese[rsnm]?|das fuer|das hier(?: fuer)?|das da|this|that)\\s+'
+  // One word between at most, never a period: "Wer hat mir diesen Monat Überweisungen geschickt?" is about all of them.
+  + '(?:(?!(?:monate?s?|wochen?|jahre?s?|tage?s?|heute|months?|weeks?|years?|days?|today)\\s)\\S+\\s+)?'
   + '(?:abbuchung|zahlung|buchung|umsatz|umsaetze|lastschrift|ueberweisung|einzug|gutschrift|eingang|dauerauftrag|betrag|posten'
   + '|payment|charge|transaction|debit|transfer|deposit|booking)',
 );

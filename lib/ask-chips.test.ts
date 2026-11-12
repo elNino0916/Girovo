@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  dirChoices, periodChoices, periodLabel, readingChips, samePeriod, sentenceCase, topicChoices, topicLabel, withRank, withTopic,
+  dirChoices, periodChoices, periodLabel, readingChips, samePeriod, sameQuery, sentenceCase, topicChoices, topicLabel, withDir, withRank,
+  withTopic,
 } from './ask-chips.ts';
 import type { AskQuery } from './nano-ask.ts';
 
@@ -69,6 +70,18 @@ test('both ways of money only where one figure still means something', () => {
   assert.deepEqual(dirChoices(base), ['out', 'in', 'all']);
   assert.deepEqual(dirChoices({ ...base, kind: 'average' }), ['out', 'in']);
   assert.deepEqual(dirChoices({ ...base, kind: 'rank', rank: { by: 'payee', metric: 'sum' } }), ['out', 'in']);
+  // A list shows both ways by default: its chip offers "Beides".
+  assert.deepEqual(dirChoices({ ...base, kind: 'list', dir: 'all' }), ['out', 'in', 'all']);
+});
+
+test('sameQuery: the same reading whatever the key order, a changed field is another', () => {
+  const rank: AskQuery = { ...base, kind: 'rank', rank: { by: 'payee', metric: 'sum' } };
+  assert.ok(sameQuery(rank, { rank: { metric: 'sum', by: 'payee' }, period: { kind: 'thisYear' }, search: null, category: null, dir: 'out', kind: 'rank' }));
+  assert.ok(sameQuery(base, { ...base, against: undefined }));
+  assert.ok(sameQuery(base, withDir(base, 'out')));
+  assert.ok(!sameQuery(base, withDir(base, 'in')));
+  assert.ok(!sameQuery(rank, withRank(rank, { metric: 'count' })));
+  assert.ok(!sameQuery(base, { ...base, period: { kind: 'month', month: '2026-10' } }));
 });
 
 test('the topic menu offers the askable categories and then the user\'s own', () => {

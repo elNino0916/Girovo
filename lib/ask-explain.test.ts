@@ -141,5 +141,9 @@ test('the explain question is recognised in both languages, and only about the b
   for (const q of [
     'Was ist die größte Abbuchung?', 'Was ging dieses Jahr an Amazon Payments?', 'Wie oft zahle ich bei Netflix?',
     'Was kam dieses Jahr von Nadine Milleville?', 'Lebensmittel letzten Monat', 'What was my largest payment?',
+    // A period between the pointing word and the booking word: about all of that period's bookings.
+    'Wer hat mir diesen Monat Überweisungen geschickt?', 'Was waren diese Woche Abbuchungen?', 'Who sent me this week deposits?',
+    'Was kam dieses Jahr an Gutschriften?', 'What were this month payments?',
   ]) assert.equal(isExplainQuestion(q), false, q);
+  assert.equal(isExplainQuestion('What is this weird charge?'), true);
 });

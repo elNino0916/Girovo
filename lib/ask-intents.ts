@@ -57,15 +57,18 @@ const REFRESH_VERB = /^ (?:bitte |kannst du |please )?(?:aktualisier\w*|lade?|ru
 const IDLE = / (?:abmelden|abmeldung|automatisch abgemeldet|logout|log out|timeout|abgemeldet) /;
 // i18n-data-end
 
-/** What a message wants, when it is not (only) a question about the bookings' sums; null for those. */
-export function intentOf(question: string): AskIntent | null {
+/**
+ * What a message wants, when it is not (only) a question about the bookings' sums; null for those.
+ * `contracts`: the live contracts' names (lib/ask-facts.ts factOf).
+ */
+export function intentOf(question: string, contracts: readonly string[] = []): AskIntent | null {
   const q = fold(question);
   const asking = ASK_STATE.test(q) || / (?:an|aus|on|off) $/.test(q) && /^ (?:ist|is|sind|are) /.test(q);
 
   if (REFRESH.test(q) && ACCOUNTS.test(q)) return { kind: 'refresh' };
   if (BOOKINGS.test(q) && REFRESH_VERB.test(q)) return { kind: 'refresh' };
   // Balances, the forecast, Verträge & Abos' figures, the salary, Aufteilen, Sparziele.
-  const fact = factOf(question);
+  const fact = factOf(question, contracts);
   if (fact) return fact;
   if (CONTRACTS.test(q) && (QUESTION_WORD.test(q) || / (?:habe|hab|have|zahle|pay) /.test(q))) return { kind: 'contracts' };
 

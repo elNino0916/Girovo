@@ -132,3 +132,18 @@ test('a bare "zeig" is no question about the bookings, "zeig mir alle Umsätze" 
   assert.equal(aboutBookings('Zeig mal, was du kannst', rules('Zeig mal, was du kannst'), null), false);
   assert.equal(aboutBookings('Zeig mir alle Umsätze', rules('Zeig mir alle Umsätze'), null), true);
 });
+
+test('after a list of both ways, a ranking, an average, the largest or a comparison goes on with money out', () => {
+  const list = read('Zeig mir alle Umsätze im Oktober');
+  assert.deepEqual([list.kind, list.dir], ['list', 'all']);
+  for (const [q, kind] of [['Wo am meisten?', 'rank'], ['Und im Schnitt?', 'average'], ['Und die größte?', 'largest']] as const) {
+    const next = followUp(list, q, read(q), today);
+    assert.deepEqual([next.kind, next.dir, next.period], [kind, 'out', list.period], q);
+  }
+  // A way the question names itself stands.
+  const income = followUp(list, 'Und wo am meisten bekommen?', read('Und wo am meisten bekommen?'), today);
+  assert.deepEqual([income.kind, income.dir], ['rank', 'in']);
+  // A sum of both ways still means something: it keeps them.
+  const total = followUp(list, 'Und wie viel insgesamt?', list, today);
+  assert.deepEqual([total.kind, total.dir], ['sum', 'all']);
+});

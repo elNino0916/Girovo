@@ -29,12 +29,14 @@ export type ReadInput = {
   reading: NanoReading | null;
   /** Gemma's plan, already checked against the bookings (lib/ask-planner.ts checkPlan); null when there is none. */
   plan?: AskQuery | null;
+  /** The live contracts' names (Verträge & Abos): "Was kostet mich Netflix im Jahr?" is a contract's year only for one of them. */
+  contracts?: readonly string[];
 };
 
 /** What a message asks, given what the question before it was read as. */
 export function readAsked(question: string, prev: AskQuery | null, input: ReadInput): ReadResult {
   const { today, own, reading } = input;
-  const intent = intentOf(question);
+  const intent = intentOf(question, input.contracts);
   if (intent) return { intent };
   // An order ("Und überweise 500 Euro an Lea") is never read as a question, follow-up or not.
   if (ordersSomething(question)) return { offTopic: true };

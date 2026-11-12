@@ -1,5 +1,6 @@
 {
   "today": "2026-11-12",
+  "contracts": ["Netflix", "Spotify"],
   "items": [
     {"id":"d001","lang":"de","turns":[{"q":"Wo war ich im August Essen","expect":{"kind":"rank","rankBy":"payee","category":"dining","search":null,"period":{"kind":"month","month":"2026-08"}}}],"note":"owner miss 2026-11-11"},
     {"id":"d002","lang":"de","turns":[{"q":"In welchen Restaurants war ich in August","expect":{"kind":"rank","rankBy":"payee","category":"dining","search":null,"period":{"kind":"month","month":"2026-08"}}}],"note":"owner miss 2026-11-11"},

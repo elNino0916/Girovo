@@ -14,7 +14,7 @@ import type { ReactNode } from 'react';
 import { liveValue, overviewFigures, type AccountValue } from '@/lib/account-overview';
 import { bookingDay } from '@/lib/analytics';
 import {
-  contractsNamed, forecastAccount, goalsNamed, lastFrom, nameCase, nextSalary, priceRises, type FactIntent,
+  contractsNamed, contractsYearCount, forecastAccount, goalsNamed, lastFrom, nameCase, nextSalary, priceRises, salaryWhen, type FactIntent,
 } from '@/lib/ask-facts';
 import { namesList } from '@/lib/balances';
 import { counterpartyName } from '@/lib/categories';
@@ -196,11 +196,13 @@ function ContractCostAnswer({ name, onShown }: { name: string | null; onShown: (
   if (model.loading) return <Lines lines={[t.ask.thread.notLoaded]} />;
   const button = <OpenButton label={t.ask.actions.openContracts} onClick={openContracts} />;
   if (!name) {
-    if (!model.expense.length) return <Lines lines={[t.ask.actions.noContracts]} />;
     const { yearlyExpense, currency } = model.totals;
+    // The count of what the total adds up: a contract in another currency is in neither.
+    const counted = contractsYearCount(model.expense, currency);
+    if (!counted) return <Lines lines={[t.ask.actions.noContracts]} />;
     return (
       <>
-        <Lines lines={[words.contractsYear(<Fig><Money value={yearlyExpense} currency={currency} tone="plain" /></Fig>, model.expense.length)]} />
+        <Lines lines={[words.contractsYear(<Fig><Money value={yearlyExpense} currency={currency} tone="plain" /></Fig>, counted)]} />
         {button}
       </>
     );
@@ -269,11 +271,14 @@ function SalaryAnswer({ onShown }: { onShown: () => void }) {
   const s = nextSalary(model.income);
   if (!s) return <Lines lines={[words.noSalary]} />;
   const today = dayKey(new Date());
-  const line = s.overdue
+  const when = salaryWhen(s, today);
+  const line = when === 'late'
     ? words.salaryLate(seriesTitle(s), dayWords(s.nextDate))
+    : when === 'due'
+    ? words.salaryDue(seriesTitle(s), dayWords(s.nextDate))
     : words.salaryNext(
       seriesTitle(s),
-      s.nextDate === today ? null : dayWords(s.nextDate),
+      when === 'today' ? null : dayWords(s.nextDate),
       <Fig><Money value={Math.abs(s.amount)} currency={s.currency} tone="plain" /></Fig>,
       s.variable,
     );

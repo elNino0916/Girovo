@@ -63,6 +63,8 @@ Add an item to `questions.json`. Give it the next free id (`d…` German, `e…`
 | `intent` | contracts, read, set, refresh, with `setting` and `value` where they matter; or one of the app's figures (`lib/ask-facts.ts`): balance, monthEnd, contractCost, priceRises, salary, owed, goal, with `name` (a lowercase piece of the contract, person or goal, or null) where it matters |
 | `offTopic` | true for small talk, nonsense and orders Girovo cannot carry out |
 
+The set's top-level `contracts` lists the Verträge & Abos it assumes (Netflix, Spotify): "was kostet mich netflix im jahr" is a contract's year only for one of them, any other name is a sum of the bookings.
+
 Any field may be a list of values that are all right (`"kind": ["sum", "average"]`). `anyOf` holds whole readings of which any one is right.
 
 Leave out what does not matter. For a question with no period, leave `period` out unless "all time" is the point. For a question about a payee, leave `category` out: the name decides.

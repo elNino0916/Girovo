@@ -70,7 +70,7 @@ const raws = {};
 async function readTurn(question, prevQuery) {
   const prev = prevQuery && lastQuestion ? { question: lastQuestion, query: prevQuery } : null;
   lastQuestion = question;
-  const intent = intentOf(question);
+  const intent = intentOf(question, set.contracts ?? []);
   if (intent) return { intent };
   const ctx = { question, today, own: [], payees: [], prev };
   const t = performance.now();
@@ -80,7 +80,7 @@ async function readTurn(question, prevQuery) {
   const planned = checkPlan(raw, ctx);
   if (planned && 'offTopic' in planned) return { offTopic: true };
   if (planned) return { query: planned.plan, by: 'plan' };
-  return readAsked(question, prevQuery, { today, own: [], reading: null });
+  return readAsked(question, prevQuery, { today, own: [], reading: null, contracts: set.contracts ?? [] });
 }
 
 const only = arg('only')?.split(',') ?? null;

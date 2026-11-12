@@ -23,14 +23,14 @@ import { scoreTurn, summarize } from './score.mjs';
 
 const here = new URL('./', import.meta.url);
 
-/** The question set: { today, items }. `file` is relative to this folder. */
+/** The question set: { today, contracts?, items }. `file` is relative to this folder. */
 export function loadSet(file = 'questions.json') {
   return JSON.parse(readFileSync(path.resolve(fileURLToPath(here), file), 'utf8'));
 }
 
-/** The rules-only reader: what the app reads with no model at all. */
-export function rulesReader(today) {
-  return async (question, prevQuery) => readAsked(question, prevQuery, { today, own: [], reading: null, plan: null });
+/** The rules-only reader: what the app reads with no model at all. `contracts`: the live contracts' names the set assumes. */
+export function rulesReader(today, contracts = []) {
+  return async (question, prevQuery) => readAsked(question, prevQuery, { today, own: [], reading: null, plan: null, contracts });
 }
 
 /**
@@ -41,7 +41,7 @@ export function rulesReader(today) {
  */
 export async function runSet({ readTurn, only = null, onTurn = null, set = loadSet() } = {}) {
   const { today, items } = set;
-  readTurn ??= rulesReader(today);
+  readTurn ??= rulesReader(today, set.contracts ?? []);
   const rows = [];
   for (const item of items) {
     if (only && !only.includes(item.id)) continue;

@@ -121,10 +121,10 @@ export function topicChoices(own: OwnCategories = []): CategoryId[] {
 /**
  * Which ways of money a reading can be switched to. "Beides" only where one
  * figure still means something: a sum, a count, the largest or the latest
- * booking (an average, a ranking or a comparison of both ways adds them up).
+ * booking, a list (an average, a ranking or a comparison of both ways adds them up).
  */
 export function dirChoices(q: AskQuery): AskDir[] {
-  return q.kind === 'sum' || q.kind === 'count' || q.kind === 'largest' || q.kind === 'last' ? ['out', 'in', 'all'] : ['out', 'in'];
+  return q.kind === 'sum' || q.kind === 'count' || q.kind === 'largest' || q.kind === 'last' || q.kind === 'list' ? ['out', 'in', 'all'] : ['out', 'in'];
 }
 
 /**
@@ -141,6 +141,25 @@ export function withTopic(q: AskQuery, category: CategoryId | null): AskQuery {
   if (way === 'out' && q.dir === 'in') next.dir = 'out';
   if (q.kind === 'rank' && q.rank?.by === 'category') next.rank = { ...q.rank, by: 'payee' };
   return next;
+}
+
+/**
+ * Whether two readings are the same, field by field (key order and fields left
+ * undefined aside): a chip set to the value it already shows changes nothing.
+ */
+export function sameQuery(a: AskQuery, b: AskQuery): boolean {
+  return same(a, b);
+}
+
+function same(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  const keys = (o: object) => Object.keys(o).filter((k) => (o as Record<string, unknown>)[k] !== undefined);
+  const ka = keys(a);
+  const kb = keys(b);
+  if (ka.length !== kb.length) return false;
+  return ka.every((k) => same((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));
 }
 
 export function withDir(q: AskQuery, dir: AskDir): AskQuery {
