@@ -46,6 +46,8 @@ const W = {
   de: {
     q: 'Frage', facts: 'Fakten (von Girovo ausgerechnet)', searched: 'Gesucht', out: 'Ausgaben', in: 'Eingänge', all: 'Ausgaben und Eingänge',
     period: 'Zeitraum', spent: 'Ausgegeben', received: 'Bekommen', count: 'Anzahl Umsätze', times: (n: number) => `${n}-mal`, together: 'Zusammen',
+    /** Who paid whom, said so that a name is never read as the one who got the money. */
+    receivedFrom: (n: string) => `Du hast von „${n}“ bekommen`, spentTo: (n: string) => `Du hast an „${n}“ gezahlt`,
     perMonth: 'Im Schnitt pro Monat', basis: (n: number) => `Grundlage: ${n} volle Monate`, noWhole: 'Noch kein voller Monat geladen, daher die Summe',
     largestOut: 'Größte Ausgabe', largestIn: 'Größter Eingang', last: 'Zuletzt', on: 'am', rankBy: { category: 'nach Kategorie', payee: 'nach Empfänger' },
     rank: { sum: 'Rangliste nach Betrag', count: 'Rangliste nach Häufigkeit' }, a: 'Gefragter Zeitraum', b: 'Vergleichszeitraum',
@@ -57,6 +59,7 @@ const W = {
   en: {
     q: 'Question', facts: 'Facts (worked out by Girovo)', searched: 'Searched for', out: 'Spending', in: 'Income', all: 'Spending and income',
     period: 'Period', spent: 'Spent', received: 'Received', count: 'Transactions', times: (n: number) => (n === 1 ? 'once' : `${n} times`), together: 'Together',
+    receivedFrom: (n: string) => `You received from “${n}”`, spentTo: (n: string) => `You paid “${n}”`,
     perMonth: 'On average per month', basis: (n: number) => `Based on ${n} whole months`, noWhole: 'No whole month loaded yet, so the total',
     largestOut: 'Largest expense', largestIn: 'Largest payment in', last: 'Last', on: 'on', rankBy: { category: 'by category', payee: 'by payee' },
     rank: { sum: 'Ranking by amount', count: 'Ranking by how often' }, a: 'Period asked about', b: 'Compared with',
@@ -105,7 +108,11 @@ export type FactNumbers = {
 };
 
 /** What Girovo hands the writer: the prompt (the question and the facts), and the facts' numbers for the guard. */
-export type WriterInput = { prompt: string; numbers: FactNumbers; lang: WriterLang; kind?: AskQuery['kind'] };
+export type WriterInput = {
+  prompt: string; numbers: FactNumbers; lang: WriterLang; kind?: AskQuery['kind'];
+  /** The name asked about: a sentence must not make it the one who got or spent the money. */
+  name?: string;
+};
 
 /** A name from a booking, as data: one line, no longer than a name needs. */
 const asData = (name: string) => name.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
@@ -130,6 +137,9 @@ export function writerInput(question: string, a: AskAnswer, c: FactsContext): Wr
   const q = a.query;
   const lines: string[] = [];
   lines.push(`${w.searched}: ${[w[q.dir], q.category ? c.nameOf(q.category) : null, q.search ? `„${asData(q.search)}“` : null, q.rank ? w.rankBy[q.rank.by] : null].filter(Boolean).join(' · ')}`); // i18n-data
+  // Money in from a name, or out to it: said as who paid whom (the line "Bekommen" under
+  // "Gesucht: „Nadine“" was written as "Nadine hat 586,75 € bekommen").
+  const flow = () => (q.search ? (q.dir === 'in' ? w.receivedFrom : w.spentTo)(asData(q.search)) : q.dir === 'in' ? w.received : w.spent);
   const span = (x: { from: string; to: string }) => `${day(x.from)} ${w.to} ${day(x.to)}`;
   const atLeast = a.partial ? `${w.atLeast} ` : '';
   if (q.kind === 'compare' && a.compare) {
@@ -165,20 +175,20 @@ export function writerInput(question: string, a: AskAnswer, c: FactsContext): Wr
         lines.push(w.basis(count(a.months)));
       } else {
         lines.push(w.noWhole);
-        lines.push(`${q.dir === 'in' ? w.received : w.spent}: ${atLeast}${money(a.cents)}`);
+        lines.push(`${flow()}: ${atLeast}${money(a.cents)}`);
       }
     } else if (q.dir === 'all') {
       lines.push(`${w.spent}: ${atLeast}${money(a.outCents)}`);
       lines.push(`${w.received}: ${atLeast}${money(a.inCents)}`);
       lines.push(`${w.count}: ${count(a.count)}`);
     } else {
-      lines.push(`${q.dir === 'in' ? w.received : w.spent}: ${atLeast}${money(a.cents)}`);
+      lines.push(`${flow()}: ${atLeast}${money(a.cents)}`);
       lines.push(`${w.count}: ${count(a.count)}`);
     }
     if (a.partial) lines.push(w.partial(day(a.from)));
   }
   const prompt = [`${w.q}: ${question.trim()}`, `${w.facts}:`, ...lines.map((l) => `- ${l}`)].join('\n');
-  return { prompt, numbers, lang: c.lang, kind: q.kind };
+  return { prompt, numbers, lang: c.lang, kind: q.kind, name: q.search && q.dir !== 'all' ? asData(q.search) : undefined };
 }
 
 // i18n-data-start — words a sentence must not use: a number or a currency said in words, a percentage
@@ -248,6 +258,13 @@ export function unbacked(sentence: string, input: WriterInput): string[] {
 // i18n-data-next-line
 const PER_MONTH = /schnitt|durchschnitt|pro monat|im monat|monatlich|per month|a month|average|monthly/i;
 
+/** Whether a sentence has the name doing the paying or getting itself: "<Name> hat … bekommen", "<Name> received …". */
+function nameActs(sentence: string, name: string): boolean {
+  const n = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // i18n-data-next-line
+  return new RegExp(`${n}[“”"]?\\s+(?:hat|haben|has|have|received|got|spent|paid|bekam|erhielt|zahlte|gab)\\b`, 'i').test(sentence);
+}
+
 export function usable(sentence: string | null, input: WriterInput): sentence is string {
   if (!sentence) return false;
   const s = sentence.trim();
@@ -257,6 +274,8 @@ export function usable(sentence: string | null, input: WriterInput): sentence is
   if (SPELLED.test(s) || CONTACT.test(s.replace(AMOUNT[input.lang], ''))) return false;
   // An average must say it is one: "Du hast 12,99 € für Netflix ausgegeben" reads as the total.
   if (input.kind === 'average' && !PER_MONTH.test(s)) return false;
+  // "Nadine Milleville hat 586,75 € bekommen" for money that came from her: the name as the subject goes.
+  if (input.name && nameActs(s, input.name)) return false;
   return unbacked(s, input).length === 0;
 }
 

@@ -13,7 +13,7 @@ const de: WriterInput = writerInput('Habe ich im Oktober 12,50 € an Lieferando
 const en: WriterInput = writerInput('How much went to Lieferando in October?', answer, { ...ctx, lang: 'en' });
 
 test('the facts hold their numbers by kind, the question\'s are none of them', () => {
-  assert.match(de.prompt, /Ausgegeben: 112,35 €/);
+  assert.match(de.prompt, /Du hast an „Lieferando“ gezahlt: 112,35 €/);
   assert.match(de.prompt, /„Lieferando“/);
   assert.deepEqual([...de.numbers.amounts], [11235]);
   assert.deepEqual([...de.numbers.counts], [5]);
@@ -73,4 +73,12 @@ test('an average that does not say it is one is not said', () => {
   const avg = writerInput('Netflix pro Monat', { ...answer, query: { ...answer.query, kind: 'average' } } as AskAnswer, { ...ctx, lang: 'de' });
   assert.equal(usable('Du hast 112,35 € für Lieferando ausgegeben.', avg), false);
   assert.equal(usable('Im Schnitt 112,35 € pro Monat bei Lieferando.', avg), true);
+});
+
+test('money from a name is said as from that name, and a sentence that turns it round is not said', () => {
+  const fromNadine = { ...answer, query: { ...answer.query, dir: 'in', search: 'Nadine Milleville', period: { kind: 'thisYear' } }, cents: 58675, partial: true } as unknown as AskAnswer;
+  const input = writerInput('Was kam dieses Jahr von Nadine Milleville?', fromNadine, { ...ctx, lang: 'de' });
+  assert.match(input.prompt, /Du hast von „Nadine Milleville“ bekommen: mindestens 586,75 €/);
+  assert.equal(usable('Nadine Milleville hat mindestens 586,75 € bekommen.', input), false);
+  assert.equal(usable('Von Nadine Milleville hast du mindestens 586,75 € bekommen.', input), true);
 });
