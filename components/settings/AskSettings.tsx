@@ -3,26 +3,27 @@
 // Girovo Next: Einstellungen' page "Frag deine Umsätze" (lib/settings-pages.ts
 // 'ask'), after Datenschutz. The switch turns asking on or off everywhere
 // (vault.askOff, read by components/insights/ask-gate.ts), on the AI wash
-// with its spark. Under it, what answers: on a phone with Gemini Nano, Nano
-// and the state AICore reports; elsewhere (a phone without it, the desktop)
-// Girovo's own language model, whose download is not built yet: its "Laden"
-// stays disabled and says so in one line. No progress, no download. Last, the
-// answers' language, which is the app's: a press opens Sprache & Darstellung.
+// with its spark; it turns on only once the model that answers is here
+// (ask-gate.ts useModelReady), so it never promises answers that cannot come.
+// Under it, what answers: on a phone with Gemini Nano, Nano and the state
+// AICore reports; on the desktop the model's download, its progress and its
+// state; on a phone without Nano a row that says the model is not loadable yet.
+// The answers come in the app's language (Sprache & Darstellung).
 //
 // The page shows on the desktop always, and on Android wherever the runtime
 // can ask at all (window.girovoMobile.ask), Nano or not: a phone without Nano
 // still sees the switch and the honest model row.
 
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { LOCALE_NAMES } from '@/lib/i18n/locale';
 import { useLocale, useT } from '@/lib/i18n/react';
 import { asksWith } from '@/lib/nano-ask';
 import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
-import { CheckCircleIcon, DownloadIcon, AiMarkIcon, GlobeIcon } from '../icons';
+import { CheckCircleIcon, DownloadIcon, AiMarkIcon } from '../icons';
+import { useModelReady } from '../insights/ask-gate';
 import { useGemma } from '../insights/gemma';
 import { Button, Progress } from '../ui';
-import { ActionItem, SettingItem, SettingsGroup, SwitchItem } from './rows';
+import { SettingItem, SettingsGroup, SwitchItem } from './rows';
 
 const noSubscription = () => () => {};
 
@@ -65,10 +66,10 @@ function useNanoStatus(): GirovoNanoStatus | null | undefined {
 export function AskPage() {
   const t = useT();
   const words = t.settings.ask;
-  const { locale } = useLocale();
-  const { vault, updateVault, openSettings } = useFints();
-  // On unless switched off: the field is there only while it is off.
-  const on = !vault?.askOff;
+  const { vault, updateVault } = useFints();
+  // On unless switched off (the field is there only while it is off), and only with the model here.
+  const ready = useModelReady() === true;
+  const on = ready && !vault?.askOff;
   const setOn = (next: boolean) => updateVault((v) => {
     if (!next) return v.askOff ? v : { ...v, askOff: true };
     if (!v.askOff) return v;
@@ -85,20 +86,14 @@ export function AskPage() {
           setting="ask"
           checked={on}
           onChange={setOn}
+          disabled={!ready}
           title={words.title}
-          summary={words.hint}
+          summary={ready ? words.hint : words.needsModel(IS_ANDROID)}
         />
       </SettingsGroup>
 
       <SettingsGroup title={words.group}>
         <ModelRow />
-        <ActionItem
-          icon={<GlobeIcon />}
-          title={words.language}
-          summary={words.languageValue(LOCALE_NAMES[locale])}
-          haspopup={false}
-          onClick={() => openSettings('language')}
-        />
       </SettingsGroup>
     </>
   );
@@ -131,7 +126,7 @@ function ModelRow() {
     );
   }
   // The desktop with the shell's Gemma (src-tauri/src/gemma.rs): its download, for real.
-  if (!IS_ANDROID && typeof window !== 'undefined' && window.electronGemma) return <GemmaRow />;
+  if (!IS_ANDROID && typeof window !== 'undefined' && window.electronGemma) return <ModelDownloadRow />;
   // No Nano that can answer (or a shell without Gemma): the model Girovo will bring, not loadable yet.
   return (
     <SettingItem
@@ -150,11 +145,11 @@ function gb(bytes: number, locale: string): string {
 }
 
 /**
- * The desktop's Gemma: where it comes from before it loads (a download leaves
+ * The desktop's model: where it comes from before it loads (a download leaves
  * the computer, so it is said), its progress while it loads (cancel keeps
  * what came, the next press goes on), "bereit" with Löschen once it is here.
  */
-function GemmaRow() {
+function ModelDownloadRow() {
   const t = useT();
   const words = t.settings.ask;
   const { locale } = useLocale();
@@ -168,7 +163,7 @@ function GemmaRow() {
       <SettingItem
         icon={<CheckCircleIcon className="text-green" strokeWidth={2} />}
         title={words.model}
-        summary={words.gemmaReady}
+        summary={words.aiReady}
         // Loaded, but it would not start on this computer (this run): the shell says so; the templates answer meanwhile.
         below={gemma.unavailable && gemma.error ? <span className="block text-[14px] leading-5 text-ink-2">{gemma.error}</span> : undefined}
         trailing={<Button variant="tertiary" size="sm" onClick={() => void g.remove()}>{words.remove}</Button>}
@@ -181,7 +176,7 @@ function GemmaRow() {
       <SettingItem
         icon={<DownloadIcon />}
         title={words.model}
-        summary={words.gemmaLoading(gb(gemma.received, intl), gb(total, intl))}
+        summary={words.aiLoading(gb(gemma.received, intl), gb(total, intl))}
         below={<Progress className="mt-2 block" value={(gemma.received / total) * 100} label={words.model} />}
         trailing={<Button variant="tertiary" size="sm" onClick={() => void g.cancel()}>{words.cancel}</Button>}
       />
@@ -191,9 +186,9 @@ function GemmaRow() {
     <SettingItem
       icon={<DownloadIcon />}
       title={words.model}
-      summary={words.gemmaSize}
+      summary={words.aiSize}
       // The shell says what went wrong (a full disk, a broken file), not only that it did.
-      below={<span className="block text-[14px] leading-5 text-ink-2">{gemma.state === 'error' ? gemma.error || words.gemmaFailed : words.gemmaSource}</span>}
+      below={<span className="block text-[14px] leading-5 text-ink-2">{gemma.state === 'error' ? gemma.error || words.aiFailed : words.aiSource}</span>}
       trailing={(
         <span className="flex items-center gap-1">
           {/* What already came of a cancelled or failed download can go too. */}

@@ -101,7 +101,7 @@ export const de = {
     notLoaded: 'Die Umsätze werden noch geladen.',
     /** While Girovo works on an answer: what it is doing, so it never looks stuck. */
     thinking: {
-      starting: 'Gemma startet',
+      starting: 'Girovo AI startet',
       reading: 'Liest deine Frage',
       writing: 'Schreibt die Antwort',
       seconds: (n: number) => `${n} s`,
@@ -300,7 +300,7 @@ export const en: typeof de = {
     copied: 'Answer copied',
     notLoaded: 'Your transactions are still loading.',
     thinking: {
-      starting: 'Gemma is starting',
+      starting: 'Girovo AI is starting',
       reading: 'Reading your question',
       writing: 'Writing the answer',
       seconds: (n) => `${n} s`,

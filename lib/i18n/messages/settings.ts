@@ -231,11 +231,13 @@ export const de = {
   /**
    * Girovo Next: the page "Frag deine Umsätze" (components/settings/AskSettings.tsx).
    * The switch writes vault.askOff; the model row is what answers: Gemini Nano
-   * where the phone has it, else Girovo's own model, not loadable yet.
+   * where the phone has it, else the downloaded model. It turns on only once that model is here.
    */
   ask: {
     title: 'Girovo AI',
     hint: 'Antworten in ganzen Sätzen',
+    /** The switch while the model is not here yet: on a phone, on the desktop. */
+    needsModel: (phone: boolean): string => (phone ? 'Geht, sobald Gemini Nano bereit ist' : 'Lade zuerst das Modell unten'),
     group: 'Antworten',
     nano: 'Gemini Nano',
     nanoReady: 'Bereit',
@@ -246,20 +248,17 @@ export const de = {
     modelSize: (phone: boolean): string => (phone ? 'Etwa 2,6 GB' : 'Etwa 3 GB'),
     load: 'Laden',
     later: 'Kommt mit einer der nächsten Versionen.',
-    /** The desktop's Gemma (src-tauri/src/gemma.rs): where it comes from, said before it loads. */
-    gemmaSize: 'Gemma, etwa 3,4 GB',
-    gemmaSource: 'Lädt einmal von Hugging Face und GitHub.',
-    gemmaLoading: (received: string, total: string) => `Lädt: ${received} von ${total}`,
-    gemmaReady: 'Gemma ist bereit',
-    gemmaFailed: 'Das Laden hat nicht geklappt. Versuch es noch einmal.',
+    /** The desktop's model (src-tauri/src/gemma.rs): where it comes from, said before it loads. */
+    aiSize: 'Etwa 3,4 GB',
+    aiSource: 'Lädt einmal von Hugging Face und GitHub.',
+    aiLoading: (received: string, total: string) => `Lädt: ${received} von ${total}`,
+    aiReady: 'Bereit',
+    aiFailed: 'Das Laden hat nicht geklappt. Versuch es noch einmal.',
     retry: 'Erneut laden',
     /** A cancelled download goes on where it stopped. */
     resume: 'Weiter laden',
     cancel: 'Abbrechen',
     remove: 'Löschen',
-    language: 'Sprache der Antworten',
-    /** The app's language name ("Deutsch"): answers follow it. */
-    languageValue: (name: string) => `Wie die App: ${name}`,
   },
 
   /** Einstellungen → Dieses Gerät, the desktop app (components/settings/ResetApp.tsx, src-tauri/src/reset.rs). */
@@ -445,6 +444,7 @@ export const en: typeof de = {
   ask: {
     title: 'Girovo AI',
     hint: 'Answers in full sentences',
+    needsModel: (phone) => (phone ? 'Works once Gemini Nano is ready' : 'Download the model below first'),
     group: 'Answers',
     nano: 'Gemini Nano',
     nanoReady: 'Ready',
@@ -454,17 +454,15 @@ export const en: typeof de = {
     modelSize: (phone) => (phone ? 'About 2.6 GB' : 'About 3 GB'),
     load: 'Download',
     later: 'Coming in one of the next versions.',
-    gemmaSize: 'Gemma, about 3.4 GB',
-    gemmaSource: 'Downloads once from Hugging Face and GitHub.',
-    gemmaLoading: (received, total) => `Downloading: ${received} of ${total}`,
-    gemmaReady: 'Gemma is ready',
-    gemmaFailed: 'The download didn\u2019t work. Try again.',
+    aiSize: 'About 3.4 GB',
+    aiSource: 'Downloads once from Hugging Face and GitHub.',
+    aiLoading: (received, total) => `Downloading: ${received} of ${total}`,
+    aiReady: 'Ready',
+    aiFailed: 'The download didn\u2019t work. Try again.',
     retry: 'Download again',
     resume: 'Continue',
     cancel: 'Cancel',
     remove: 'Delete',
-    language: 'Language of the answers',
-    languageValue: (name) => `Same as the app: ${name}`,
   },
 
   resetApp: {
