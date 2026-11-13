@@ -20,7 +20,7 @@
 import { aboutBookings, continuesFrom, followUp, ordersSomething } from './ask-followup.ts';
 import type { CategoryId } from './categories.ts';
 import {
-  ASKABLE, asksTotal, compareFromQuestion, dirFromQuestion, kindFromQuestion, listDir, nameFromPayees, periodFromQuestion,
+  ASKABLE, asksTotal, compareFromQuestion, dirFromQuestion, kindFromQuestion, listDir, nameFromPayees, perFromQuestion, periodFromQuestion,
   rankByFromQuestion, readQuestion,
   type AskPeriod, type AskQuery, type NanoReading,
 } from './nano-ask.ts';
@@ -65,6 +65,7 @@ export function plannerSystem(today: string, own: readonly { id: string; name: s
     'Felder:',
     '"about": "bookings" wenn es um Umsätze, Ausgaben, Einnahmen, Händler oder Zeiträume geht, sonst "other" (Begrüßung, Smalltalk, anderes).',
     '"kind": "sum" (wie viel), "count" (wie oft), "average" (im Schnitt, pro Monat), "largest" (größte Ausgabe oder größter Eingang), "last" (wann zuletzt), "places" (wo, bei wem, welche Läden oder Restaurants: eine Liste der Empfänger), "categories" (wofür, welche Kategorien), "compare" (mehr oder weniger als ein anderer Zeitraum), "list" (zeig, liste, alle Zahlungen an, von oder bei: die Umsätze selbst).',
+    '"per": "year" bei average pro Jahr (pro Jahr, im Jahr, jährlich, a year), sonst weglassen. "im Jahr 2025", "dieses Jahr" und "letztes Jahr" sind ein period.',
     '"direction": "out" (ausgegeben, bezahlt), "in" (bekommen, Einnahmen, Gehalt), "both".',
     '"category": eine der Kategorien unten, oder null.',
     '"payee": ein Händler oder eine Person genau so, wie die Frage sie schreibt, oder null. Eine Kategorie ist kein payee.',
@@ -77,7 +78,8 @@ export function plannerSystem(today: string, own: readonly { id: string; name: s
     'Frage: Wo war ich im August essen? -> {"about":"bookings","kind":"places","direction":"out","category":"dining","payee":null,"period":{"type":"month","month":"2026-08"},"compare_to":null}',
     'Frage: Wie viel ging letzten Monat an Rewe? -> {"about":"bookings","kind":"sum","direction":"out","category":null,"payee":"Rewe","period":{"type":"last_month"},"compare_to":null}',
     'Frage: Größte Ausgabe dieses Jahr -> {"about":"bookings","kind":"largest","direction":"out","category":null,"payee":null,"period":{"type":"this_year"},"compare_to":null}',
-    'Frage: Zeig alle Zahlungen an Amazon -> {"about":"bookings","kind":"list","direction":"out","category":null,"payee":"Amazon","period":{"type":"all"},"compare_to":null}',
+    'Frage: Was gebe ich pro Jahr für Netflix aus? -> {"about":"bookings","kind":"average","per":"year","direction":"out","category":null,"payee":"Netflix","period":{"type":"all"},"compare_to":null}',
+    'Frage: Zeig alle Zahlungen an Amazon ->{"about":"bookings","kind":"list","direction":"out","category":null,"payee":"Amazon","period":{"type":"all"},"compare_to":null}',
     'Frage: Hallo -> {"about":"other"}',
   ].join('\n');
 }
@@ -85,6 +87,7 @@ export function plannerSystem(today: string, own: readonly { id: string; name: s
 
 const describe = (q: AskQuery) => JSON.stringify({
   kind: q.kind === 'rank' ? (q.rank?.by === 'payee' ? 'places' : 'categories') : q.kind,
+  ...(q.kind === 'average' && q.per === 'year' ? { per: 'year' } : {}),
   direction: q.dir === 'all' ? 'both' : q.dir, category: q.category, payee: q.search, period: q.period,
 });
 
@@ -138,6 +141,8 @@ export function periodOf(raw: unknown, today: string): AskPeriod | null {
 const fold = (s: string) => s.toLocaleLowerCase('de').normalize('NFKD').replace(/\p{M}/gu, '');
 // i18n-data-next-line
 const TIME_WORD = /\b(?:diese[nmrs]?|letzte[nmrs]?|vorige[nmrs]?|ganze[nms]?|jahr|monat|woche|heute|gestern|this|last|whole|year|month|week|today|yesterday)\b/;
+// i18n-data-next-line
+const YEAR_WORD = /\b(?:jahr\w*|jahrlich\w*|year\w*|annual\w*)\b/;
 
 /**
  * Gemma's answer, checked: an AskQuery, a note that the message is not about
@@ -214,6 +219,12 @@ export function checkPlan(raw: string | null, ctx: PlanContext): PlanResult {
   // A ranking whose words name no side: Gemma's places or categories decide it.
   if (merged.kind === 'rank' && merged.rank && !rankByFromQuestion(question) && (o.kind === 'places' || o.kind === 'categories')) {
     merged = { ...merged, rank: { ...merged.rank, by: o.kind === 'places' ? 'payee' : 'category' } };
+  }
+  // An average per year said in words the rules do not know ("aufs ganze Jahr gesehen"): Gemma's, only
+  // where the message has a word for a year and names no period ("im Jahr 2025", "dieses Jahr" are periods).
+  if (o.per === 'year' && !stated && YEAR_WORD.test(q) && !perFromQuestion(question)) {
+    if (merged.kind === 'average') merged = { ...merged, per: 'year' };
+    else if (o.kind === 'average' && merged.kind === 'sum' && !kindFromQuestion(question)) merged = { ...merged, kind: 'average', per: 'year' };
   }
   return { plan: followUp(prev?.query ?? null, question, merged, today, !!planned) };
 }

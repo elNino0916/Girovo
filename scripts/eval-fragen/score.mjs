@@ -3,6 +3,7 @@
 //
 // An expect lists only what matters for its question:
 //   kind, dir, category, search, period, against, rankBy, rankMetric  (a question about bookings)
+//   per: "month" | "year"                                              (an average; none in the reading is "month")
 //   intent (+ setting, value, name)                                     (contracts, read, set, refresh, and the
 //                                                                         app's figures: balance, monthEnd, contractCost,
 //                                                                         priceRises, salary, owed, goal)
@@ -68,6 +69,11 @@ function scoreOne(result, expect, today) {
     if (!(field in expect)) continue;
     const got = query[field] ?? null;
     if (!alts(expect[field]).includes(got)) misses.push(`${field}: want ${show(expect[field])}, got ${show(got)}`);
+  }
+  // An average per month or per year; a reading without `per` is per month.
+  if ('per' in expect) {
+    const got = query.per ?? 'month';
+    if (!alts(expect.per).includes(got)) misses.push(`per: want ${show(expect.per)}, got ${show(got)}`);
   }
   if ('search' in expect) {
     const got = (query.search ?? '').trim().toLocaleLowerCase('de');

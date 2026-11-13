@@ -114,6 +114,8 @@ export type WriterInput = {
   prompt: string; numbers: FactNumbers; lang: WriterLang; kind?: AskQuery['kind'];
   /** The name asked about: a sentence must not make it the one who got or spent the money. */
   name?: string;
+  /** kind 'average': said per year (the facts hold a year's figure), else per month. */
+  per?: 'month' | 'year';
 };
 
 /** A name from a booking, as data: one line, no longer than a name needs. */
@@ -180,7 +182,21 @@ export function writerInput(question: string, a: AskAnswer, c: FactsContext): Wr
       lines.push(`${w.count}: ${atLeast}${times(a.count)}`);
       lines.push(`${w.together}: ${money(a.cents)}`);
     } else if (q.kind === 'average') {
-      if (a.months > 0) {
+      // i18n-data-start — per year: the facts' words as Gemma reads them
+      const perYear = c.lang === 'en'
+        ? { est: 'Over a year', real: 'Per year', basis12: 'Based on the sum of the last 12 whole months' }
+        : { est: 'Auf ein Jahr gerechnet', real: 'Im Schnitt pro Jahr', basis12: 'Grundlage: Summe der letzten 12 vollen Monate' };
+      // i18n-data-end
+      if (a.year) {
+        // The last 12 whole months as they were, or the monthly average over the whole months times 12.
+        lines.push(`${a.year.last12 ? perYear.real : perYear.est}: ${money(a.year.cents)}`);
+        if (a.year.last12) {
+          count(12);
+          lines.push(perYear.basis12);
+        } else {
+          lines.push(w.basis(count(a.months)));
+        }
+      } else if (a.months > 0) {
         lines.push(`${w.perMonth}: ${money(Math.round(a.monthCents / a.months))}`);
         lines.push(w.basis(count(a.months)));
       } else {
@@ -198,7 +214,10 @@ export function writerInput(question: string, a: AskAnswer, c: FactsContext): Wr
     if (a.partial) lines.push(w.partial(day(a.from)));
   }
   const prompt = [`${w.q}: ${question.trim()}`, `${w.facts}:`, ...lines.map((l) => `- ${l}`)].join('\n');
-  return { prompt, numbers, lang: c.lang, kind: q.kind, name: q.search && q.dir !== 'all' ? asData(q.search) : undefined };
+  return {
+    prompt, numbers, lang: c.lang, kind: q.kind, name: q.search && q.dir !== 'all' ? asData(q.search) : undefined,
+    ...(q.kind === 'average' && a.year ? { per: 'year' as const } : {}),
+  };
 }
 
 // i18n-data-start — words a sentence must not use: a number or a currency said in words, a percentage
@@ -267,6 +286,9 @@ export function unbacked(sentence: string, input: WriterInput): string[] {
 /** Whether a written sentence may be said: something written, no number of its own, no number in words, no dash, no link. */
 // i18n-data-next-line
 const PER_MONTH = /schnitt|durchschnitt|pro monat|im monat|monatlich|per month|a month|average|monthly/i;
+/** The same for an average per year: it must say it is a year's ("pro Jahr", "auf ein Jahr gerechnet", "in den letzten 12 vollen Monaten"). */
+// i18n-data-next-line
+const PER_YEAR = /pro jahr|im jahr|jährlich|jaehrlich|auf ein jahr|aufs jahr|letzten 12 vollen monat|per year|a year|yearly|annual|over a year|last 12 whole months/i;
 
 /** Whether a sentence has the name doing the paying or getting itself: "<Name> hat … bekommen", "<Name> received …". */
 function nameActs(sentence: string, name: string): boolean {
@@ -283,7 +305,7 @@ export function usable(sentence: string | null, input: WriterInput): sentence is
   if (/[–—]|\s-\s/.test(s)) return false;
   if (SPELLED.test(s) || CONTACT.test(s.replace(AMOUNT[input.lang], ''))) return false;
   // An average must say it is one: "Du hast 12,99 € für Netflix ausgegeben" reads as the total.
-  if (input.kind === 'average' && !PER_MONTH.test(s)) return false;
+  if (input.kind === 'average' && !(input.per === 'year' ? PER_YEAR : PER_MONTH).test(s)) return false;
   // "Nadine Milleville hat 586,75 € bekommen" for money that came from her: the name as the subject goes.
   if (input.name && nameActs(s, input.name)) return false;
   return unbacked(s, input).length === 0;

@@ -9,8 +9,8 @@
 // Pure: no path aliases, `.ts` on sibling imports.
 
 import {
-  categoryFromQuestion, compareFromQuestion, dirFromQuestion, kindFromQuestion, periodDays, periodFromQuestion, periodsFromQuestion, rankByFromQuestion,
-  rankFromQuestion, saysDirection, searchFromQuestion,
+  categoryFromQuestion, compareFromQuestion, dirFromQuestion, kindFromQuestion, perFromQuestion, periodDays, periodFromQuestion, periodsFromQuestion,
+  rankByFromQuestion, rankFromQuestion, saysDirection, searchFromQuestion,
   type AskPeriod, type AskQuery, type NanoReading,
 } from './nano-ask.ts';
 
@@ -143,7 +143,10 @@ export function followUp(prev: AskQuery | null, question: string, read: AskQuery
     against = periodsFromQuestion(question, today)[0];
     next.period = prev.period;
   }
-  return { ...next, ...(rank ? { rank } : {}), ...(against ? { against } : {}) };
+  // An average keeps per month or per year unless the question says which ("Und pro Jahr?", "Pro Monat").
+  const said = perFromQuestion(question);
+  const per = kind !== 'average' ? undefined : said ?? read.per ?? (prev.kind === 'average' ? prev.per : undefined);
+  return { ...next, ...(rank ? { rank } : {}), ...(against ? { against } : {}), ...(per === 'year' ? { per } : {}) };
 }
 
 /** The month before a query's period, when it is one month: what "Und im Monat davor?" asks about. Null otherwise. */

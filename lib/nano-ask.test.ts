@@ -4,7 +4,7 @@ import type { CategoryResult } from './categories.ts';
 import type { SerializedTransaction } from './fints-types.ts';
 import {
   askText, asksWith, categoryFromQuestion, compareFromQuestion, computeAnswer, dirFromQuestion, kindFromQuestion, nanoGeneration, parseAskAnswer,
-  nameFromPayees, periodDays, periodFromQuestion, periodsFromQuestion, questionTopic, rankFromQuestion, readQuestion, searchAsFilter,
+  nameFromPayees, perFromQuestion, periodDays, periodFromQuestion, periodsFromQuestion, questionTopic, rankFromQuestion, readQuestion, searchAsFilter,
   searchFromQuestion, wholeMonths, LIST_ROWS, newest,
   type AskQuery,
 } from './nano-ask.ts';
@@ -430,4 +430,55 @@ test('"wo … essen" is eating out', () => {
   assert.equal(categoryFromQuestion('Wo war ich im Oktober essen?'), 'dining');
   assert.equal(categoryFromQuestion('wo hab ich gegessen'), 'dining');
   assert.equal(categoryFromQuestion('Was hab ich für Essen ausgegeben'), null);
+});
+
+// ---- an average per year -------------------------------------------------------
+
+test('an average per year: "pro Jahr", "im Jahr", "jährlich", "a year"; "im Jahr 2025" and "dieses Jahr" stay periods', () => {
+  for (const q of [
+    'Was gebe ich pro Jahr bei Amazon aus?', 'Wie viel kostet mich das Auto im Jahr?', 'Was zahle ich jährlich für Strom?',
+    'How much do I spend on groceries per year?', 'How much do I pay at Amazon a year?', 'yearly spending on fuel',
+  ]) {
+    const r = readQuestion(q, null, TODAY);
+    assert.deepEqual([r?.kind, r?.per, r?.period], ['average', 'year', { kind: 'all' }], q);
+  }
+  assert.equal(perFromQuestion('Netflix im Schnitt'), null);
+  assert.equal(perFromQuestion('Netflix pro Monat'), 'month');
+  const y2025 = readQuestion('Was habe ich im Jahr 2025 bei Rewe ausgegeben?', null, TODAY);
+  assert.deepEqual([y2025?.kind, y2025?.per, y2025?.period], ['sum', undefined, { kind: 'year', year: 2025 }]);
+  const thisYear = readQuestion('Wie viel habe ich dieses Jahr bei Rewe ausgegeben?', null, TODAY);
+  assert.deepEqual([thisYear?.kind, thisYear?.per, thisYear?.period], ['sum', undefined, { kind: 'thisYear' }]);
+  const half = readQuestion('What did I spend on eating out in the last half a year?', null, TODAY);
+  assert.deepEqual([half?.kind, half?.period], ['sum', { kind: 'months', months: 6 }]);
+  // A monthly average stays as it was, without the field; "wie oft im Jahr" is a count.
+  assert.equal('per' in readQuestion('Was gebe ich pro Monat für Lebensmittel aus?', null, TODAY)!, false);
+  assert.equal(readQuestion('Wie oft war ich im Jahr bei Rewe?', null, TODAY)?.kind, 'count');
+});
+
+test('per year: the monthly average times 12, or the last 12 whole months as they were', () => {
+  // At REWE on the 5th of every month from March 2025 to November 2026: 100 €, 101 €, 102 € …
+  const monthly: SerializedTransaction[] = [];
+  for (let i = 0; i < 21; i++) {
+    const y = 2025 + Math.floor((2 + i) / 12);
+    const m = ((2 + i) % 12) + 1;
+    monthly.push(tx(`${y}-${String(m).padStart(2, '0')}-05`, -(100 + i), 'REWE Markt GmbH'));
+  }
+  const today = '2026-11-10';
+  const q = readQuestion('Was gebe ich pro Jahr für Lebensmittel aus?', null, today)!;
+  assert.deepEqual([q.kind, q.per, q.category], ['average', 'year', 'groceries']);
+  // Six whole months (May to October 2026, 114 € to 119 €): their average times 12.
+  const six = computeAnswer(q, monthly, CTX, { from: '2026-05-01', to: today }, today);
+  assert.deepEqual([six.months, six.monthCents], [6, 69900]);
+  assert.deepEqual(six.year, { cents: 139800, last12: false });
+  assert.deepEqual([six.filter.from, six.filter.to], ['2026-05-01', '2026-10-31']);
+  // Twenty whole months: the real sum of the last 12 (November 2025 to October 2026, 108 € to 119 €).
+  const twenty = computeAnswer(q, monthly, CTX, { from: '2025-03-01', to: today }, today);
+  assert.equal(twenty.months, 20);
+  assert.deepEqual(twenty.year, { cents: 136200, last12: true });
+  assert.deepEqual([twenty.filter.from, twenty.filter.to], ['2025-11-01', '2026-10-31']);
+  // No whole month: no year's figure, the sum of what is there.
+  const none = computeAnswer(q, monthly, CTX, { from: '2026-10-15', to: today }, today);
+  assert.deepEqual([none.months, none.year, none.cents], [0, undefined, 12000]);
+  // Per month, nothing changes: no year's figure.
+  assert.equal(computeAnswer({ ...q, per: undefined }, monthly, CTX, { from: '2025-03-01', to: today }, today).year, undefined);
 });

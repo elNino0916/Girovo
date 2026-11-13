@@ -476,6 +476,17 @@ function Answer({ answer, scopeAll, onShow, own }: {
         </p>
       </>
     );
+  } else if (q.kind === 'average' && answer.year) {
+    body = (
+      <>
+        <p className="text-[24px] leading-tight font-bold text-ink">
+          <span className="text-[15px] font-normal text-ink-2">{words.approx} </span>
+          <RoundMoney value={answer.year.cents / 100} currency={currency} />
+          <span className="text-[15px] font-normal text-ink-2"> {words.perYear}</span>
+        </p>
+        <p className="mt-0.5 text-[13px] leading-snug text-ink-2">{answer.year.last12 ? words.last12 : words.averageBasis(answer.months)}</p>
+      </>
+    );
   } else if (q.kind === 'average') {
     body = answer.months > 0 ? (
       <>

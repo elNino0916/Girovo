@@ -106,3 +106,24 @@ test('a ranking\'s facts say how many there are', () => {
   assert.match(input.prompt, /Anzahl Empfänger: 3/);
   assert.equal(usable('Im Oktober warst du in 3 Restaurants, am häufigsten bei Pinos Pizza.', input), true);
 });
+
+test('an average per year: the year\'s figure, its basis, and only a sentence that says it is a year\'s', () => {
+  const q = { ...answer.query, kind: 'average', per: 'year' };
+  const est = writerInput('Was gebe ich pro Jahr bei Lieferando aus?', { ...answer, query: q, months: 5, monthCents: 11235, year: { cents: 26964, last12: false } } as unknown as AskAnswer, { ...ctx, lang: 'de' });
+  assert.match(est.prompt, /Auf ein Jahr gerechnet: 269,64 €/);
+  assert.match(est.prompt, /Grundlage: 5 volle Monate/);
+  assert.equal(est.per, 'year');
+  assert.equal(usable('Auf ein Jahr gerechnet sind es etwa 269,64 € bei Lieferando, aus 5 vollen Monaten.', est), true);
+  assert.equal(usable('Bei Lieferando gibst du im Jahr etwa 269,64 € aus.', est), true);
+  assert.equal(usable('Im Schnitt 269,64 € pro Monat bei Lieferando.', est), false);
+  assert.equal(usable('Du hast 269,64 € bei Lieferando ausgegeben.', est), false);
+  const real = writerInput('How much do I spend at Lieferando a year?', { ...answer, query: q, months: 14, monthCents: 30000, year: { cents: 25000, last12: true } } as unknown as AskAnswer, { ...ctx, lang: 'en' });
+  assert.match(real.prompt, /Per year: €250\.00/);
+  assert.match(real.prompt, /last 12 whole months/);
+  assert.equal(usable('In the last 12 whole months you spent €250.00 at Lieferando.', real), true);
+  assert.equal(usable('You spend €250.00 a year at Lieferando.', real), true);
+  // A monthly average is said per month, as before.
+  const monthly = writerInput('Lieferando pro Monat', { ...answer, query: { ...answer.query, kind: 'average' }, months: 5, monthCents: 11235 } as unknown as AskAnswer, { ...ctx, lang: 'de' });
+  assert.equal(monthly.per, undefined);
+  assert.equal(usable('Im Schnitt 22,47 € pro Monat bei Lieferando.', monthly), true);
+});

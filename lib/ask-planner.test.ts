@@ -86,3 +86,21 @@ test('a list: Gemma\'s where the rules read a plain sum, never where the message
   const rules = plan({ about: 'bookings', kind: 'sum', direction: 'in', category: null, payee: 'Lea', period: { type: 'all' } }, ctx('Zeig mir die Buchungen von Lea'));
   assert.deepEqual([rules.kind, rules.dir], ['list', 'all']);
 });
+
+test('an average per year: the rules\' words, or Gemma\'s per where they name no period', () => {
+  const avg = { about: 'bookings', kind: 'average', per: 'year', direction: 'out', compare_to: null };
+  const p = plan({ ...avg, category: null, payee: 'Amazon', period: { type: 'all' } }, ctx('Was gebe ich pro Jahr bei Amazon aus?'));
+  assert.deepEqual([p.kind, p.per, p.search], ['average', 'year', 'Amazon']);
+  // Words the rules do not know, with a word for a year: Gemma's.
+  const loose = plan({ ...avg, category: 'mobility', payee: null, period: { type: 'all' } }, ctx('Was kostet mich Tanken übers Jahr gesehen?'));
+  assert.deepEqual([loose.kind, loose.per, loose.category], ['average', 'year', 'mobility']);
+  // "dieses Jahr" is a period, "pro Monat" says per month: Gemma's per goes.
+  const thisYear = plan({ ...avg, category: 'mobility', payee: null, period: { type: 'this_year' } }, ctx('Was habe ich dieses Jahr für Tanken ausgegeben?'));
+  assert.deepEqual([thisYear.kind, thisYear.per], ['sum', undefined]);
+  const month = plan({ ...avg, category: 'mobility', payee: null, period: { type: 'all' } }, ctx('Was gebe ich pro Monat für Tanken aus?'));
+  assert.deepEqual([month.kind, month.per], ['average', undefined]);
+  assert.match(plannerSystem(today), /"kind":"average","per":"year"/);
+  // A follow-up's question before tells Gemma it was per year.
+  const prev = { question: 'Was gebe ich pro Jahr bei Amazon aus?', query: p as AskQuery };
+  assert.match(plannerInput(ctx('Und bei Rewe?', prev)), /"per":"year"/);
+});

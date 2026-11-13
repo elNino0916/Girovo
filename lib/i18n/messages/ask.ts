@@ -67,6 +67,9 @@ export const de = {
   approx: 'ca.',
   perMonth: 'pro Monat',
   averageBasis: (n: number) => (n === 1 ? 'aus 1 vollen Monat' : `aus ${n} vollen Monaten`),
+  perYear: 'pro Jahr',
+  /** Per year with 12 or more whole months loaded: their real sum, not an estimate. */
+  last12: 'aus den letzten 12 vollen Monaten',
   noWholeMonth: 'Noch kein voller Monat geladen. Das ist die Summe.',
   none: 'Keine passenden Umsätze',
   noneHint: (range: string) => `Keiner der geladenen Umsätze (${range}) passt.`,
@@ -115,6 +118,7 @@ export const de = {
       /** Asked as it reads: the month by its name, so the question is read the same way a typed one is. */
       monthBefore: (month: string) => `Und im ${month}?`,
       perMonth: 'Pro Monat',
+      perYear: 'Pro Jahr',
       largest: 'Größte Ausgabe',
     },
     say: {
@@ -153,6 +157,10 @@ export const de = {
         ? (topic ? [when, ' waren es bei ', topic, ' ', count, ', zusammen ', amount, '.'] : [when, ' waren es ', count, ', zusammen ', amount, '.'])
         : (topic ? ['Bei ', topic, ' waren es ', count, ', zusammen ', amount, '.'] : ['Es waren ', count, ', zusammen ', amount, '.'])),
       average: (amount: ReactNode, basis: string): ReactNode[] => ['Im Schnitt sind es etwa ', amount, ' im Monat, ', basis, '.'],
+      /** Per year: the monthly average times 12, with how many whole months it comes from. */
+      averageYear: (amount: ReactNode, basis: string): ReactNode[] => ['Auf ein Jahr gerechnet sind es etwa ', amount, ', ', basis, '.'],
+      /** Per year with 12 or more whole months loaded: the real sum of the last 12. */
+      averageLast12: (amount: ReactNode): ReactNode[] => ['In den letzten 12 vollen Monaten waren es ', amount, '.'],
       largestOut: (name: string, amount: ReactNode, day: string): ReactNode[] => ['Die größte Ausgabe war ', name, ' mit ', amount, ' am ', day, '.'],
       largestIn: (name: string, amount: ReactNode, day: string): ReactNode[] => ['Der größte Eingang war ', name, ' mit ', amount, ' am ', day, '.'],
       last: (name: string, amount: ReactNode, day: string): ReactNode[] => ['Zuletzt am ', day, ': ', name, ' mit ', amount, '.'],
@@ -232,6 +240,7 @@ export const de = {
       against: 'Vergleich ändern',
       rankBy: 'Nach Ort oder Kategorie ordnen',
       metric: 'Nach Betrag oder Häufigkeit ordnen',
+      per: 'Pro Monat oder pro Jahr',
     },
     allCategories: 'alle Kategorien',
     removeName: (name: string) => `„${name}“ entfernen`,
@@ -244,6 +253,7 @@ export const de = {
     },
     rankBy: { payee: 'nach Ort', category: 'nach Kategorie' },
     metric: { sum: 'nach Betrag', count: 'nach Häufigkeit' },
+    per: { month: 'pro Monat', year: 'pro Jahr' },
   },
 
   /**
@@ -443,6 +453,8 @@ export const en: typeof de = {
   approx: 'approx.',
   perMonth: 'a month',
   averageBasis: (n) => (n === 1 ? 'from 1 whole month' : `from ${n} whole months`),
+  perYear: 'a year',
+  last12: 'from the last 12 whole months',
   noWholeMonth: 'No whole month loaded yet. This is the total.',
   none: 'No matching transactions',
   noneHint: (range) => `None of the loaded transactions (${range}) match.`,
@@ -481,6 +493,7 @@ export const en: typeof de = {
     next: {
       monthBefore: (month) => `And in ${month}?`,
       perMonth: 'Per month',
+      perYear: 'Per year',
       largest: 'Largest expense',
     },
     say: {
@@ -504,6 +517,8 @@ export const en: typeof de = {
         ? [when ? `${when}, at ` : 'At ', topic, ' it was ', count, ', ', amount, ' in total.']
         : [when ? `${when}, it was ` : 'It was ', count, ', ', amount, ' in total.']),
       average: (amount, basis) => ['On average that is about ', amount, ' a month, ', basis, '.'],
+      averageYear: (amount, basis) => ['Over a year that is about ', amount, ', ', basis, '.'],
+      averageLast12: (amount) => ['In the last 12 whole months it was ', amount, '.'],
       largestOut: (name, amount, day) => ['The largest expense was ', name, ' at ', amount, ' on ', day, '.'],
       largestIn: (name, amount, day) => ['The largest payment in was ', name, ' at ', amount, ' on ', day, '.'],
       last: (name, amount, day) => ['Last on ', day, ': ', name, ' at ', amount, '.'],
@@ -568,6 +583,7 @@ export const en: typeof de = {
       against: 'Change comparison',
       rankBy: 'Order by place or category',
       metric: 'Order by amount or frequency',
+      per: 'Per month or per year',
     },
     allCategories: 'all categories',
     removeName: (name) => `Remove \u201c${name}\u201d`,
@@ -580,6 +596,7 @@ export const en: typeof de = {
     },
     rankBy: { payee: 'by place', category: 'by category' },
     metric: { sum: 'by amount', count: 'by frequency' },
+    per: { month: 'per month', year: 'per year' },
   },
   explain: {
     question: 'What is this payment?',
