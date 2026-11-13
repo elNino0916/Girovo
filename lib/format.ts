@@ -719,6 +719,22 @@ const CONNECTORS = new Set([
 const COUNTRY_TAIL = new Set(['DE', 'AT', 'CH', 'NL', 'LU', 'IE', 'FR', 'GB', 'BE', 'IT', 'ES', 'US', 'PL', 'DK', 'SE']);
 
 /**
+ * Whether names are tidied for reading. The desktop shows a booking's name as
+ * the bank sent it until "Namen mit Girovo AI aufräumen" is on (set by the
+ * provider, components/FintsProvider.tsx); the phone always tidies.
+ */
+let tidyNames = true;
+
+export function setNameTidying(on: boolean): void {
+  tidyNames = on;
+}
+
+/** Whether names are tidied for reading right now (see setNameTidying). */
+export function namesTidied(): boolean {
+  return tidyNames;
+}
+
+/**
  * A counterparty name as a person would write it.
  *
  * "DB VERTRIEB GMBH" → "DB Vertrieb GmbH", "STADTWERKE MUENCHEN" → "Stadtwerke
@@ -731,7 +747,7 @@ const COUNTRY_TAIL = new Set(['DE', 'AT', 'CH', 'NL', 'LU', 'IE', 'FR', 'GB', 'B
  */
 export function displayName(raw: string | null | undefined): string {
   const s = String(raw ?? '').replace(/\s+/g, ' ').trim();
-  if (!s || !/\p{Lu}/u.test(s)) return s;
+  if (!s || !tidyNames || !/\p{Lu}/u.test(s)) return s;
   // A brand's own spelling is not a bank's mixed case to respect: "Paypal"
   // is a system's title-casing, never PayPal's.
   if (s !== s.toUpperCase()) return s.replace(/\bPaypal\b/g, 'PayPal');

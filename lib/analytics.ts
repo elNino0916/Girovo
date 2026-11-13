@@ -22,9 +22,9 @@
 import type { SerializedTransaction } from './fints-types';
 import type { CategoryId, CategoryResult } from './categories';
 import type { TxFilter } from './app-types';
-import { categoryDef, categoryLabel, counterpartyKey, counterpartyName, intermediaryName } from './categories.ts';
+import { categoryDef, categoryLabel, counterpartyKey, counterpartyName, intermediaryName, rawCounterparty } from './categories.ts';
 import { foldText } from './categorize.ts';
-import { dayKey, fmtMonth, fmtRange, parseAmount, prettyBookingText, toLocalDate } from './format.ts';
+import { dayKey, fmtMonth, fmtRange, namesTidied, parseAmount, prettyBookingText, toLocalDate } from './format.ts';
 import { activeLocale, intlLocale, msgs } from './i18n/index.ts';
 import { isFacilitatorName, merchantHint } from './merchant-match.ts';
 import { parsePurpose } from './sepa-purpose.ts';
@@ -489,7 +489,8 @@ export function topCounterparties(
   }>();
   for (const { tx, cents: c } of sideEntries(scope(txs, opts).list, opts.categoryOf, opts.dir)) {
     const cash = opts.categoryOf(tx).id === 'cash';
-    const shop = cash ? null : facilitatorShop(tx);
+    // The shop behind PayPal only while names are tidied: shown as the bank sent them, it is one PayPal.
+    const shop = cash || !namesTidied() ? null : facilitatorShop(tx);
     let key = cash ? 'cash' : shop ? `shop:${foldText(shop)}` : counterpartyKey(tx);
     // Nameless bookings (the bank's own Abschluss) would otherwise all land
     // in one "?" group; their booking text tells them apart.
@@ -522,7 +523,9 @@ export function topCounterparties(
   return [...groups.entries()]
     .filter(([, g]) => g.amount > 0)
     .map(([key, g]): Counterparty => {
-      const named = g.cash ? '' : g.shop ?? (counterpartyName(g.newest) || prettyBookingText(g.newest.bookingText));
+      // As the bank sent it until names are tidied (the card payment's descriptor, not the shortened shop).
+      const bank = namesTidied() ? counterpartyName(g.newest) : rawCounterparty(g.newest);
+      const named = g.cash ? '' : g.shop ?? (bank || prettyBookingText(g.newest.bookingText));
       return {
         key,
         get name() {

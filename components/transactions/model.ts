@@ -19,7 +19,7 @@ import { bookingKind, foldText, isBusinessCredit, type BookingKind } from '@/lib
 import { counterpartyKey, counterpartyName, intermediaryName, rawCounterparty, txCreditorId, type CategoryId } from '@/lib/categories';
 import type { Merchant, SerializedTransaction } from '@/lib/fints-types';
 import {
-  dayKey, displayName, fmtAmountInput, fmtDate, fmtDayHeader, fmtIban, ibanValid, isFutureDate, prettyBookingText,
+  dayKey, displayName, fmtAmountInput, fmtDate, fmtDayHeader, fmtIban, ibanValid, isFutureDate, namesTidied, prettyBookingText,
   prettyPurpose, repairBankText, toLocalDate,
 } from '@/lib/format';
 import { aiNameKey } from '@/lib/ai-names-store';
@@ -202,7 +202,11 @@ export function txText(tx: SerializedTransaction): TxText {
   // A purchase through a payment service (PayPal) is the shop's, as the
   // purpose names it ("Ihr Einkauf bei ZALANDO SE"); the service is named on
   // the second line and in the drawer, which keeps the bank's name.
-  const shop = facilitatorShop(tx);
+  // Without "Namen mit Girovo AI aufräumen" the desktop shows the bank's own name: the
+  // descriptor of a card payment ("DISCORD.COM//NITROMONTHLY/…", never the card processor
+  // "Landesbank Hessen-Thüringen"), a PayPal purchase as PayPal, nothing re-cased.
+  const tidy = namesTidied();
+  const shop = tidy ? facilitatorShop(tx) : null;
   // Nano's brand first, where it found one in the bank's text ("eBay") — but
   // never over the shop behind a payment service, whose key every purchase
   // through it shares. The drawer keeps `rawName` and `bankName`, and the
@@ -210,7 +214,10 @@ export function txText(tx: SerializedTransaction): TxText {
   const brand = shop ? undefined : brands.get(counterpartyKey(tx));
   // Girovo AI's cleaned name on the desktop, the shop behind a payment
   // service included (its key carries the shop).
-  const plainName = brand || (shop && displayName(repairBankText(shop))) || displayName(rawName) || bookingText || words.fallbackName;
+  const bankName = repairBankText(rawCounterparty(tx)).replace(/\s+/g, ' ').trim();
+  const plainName = (tidy
+    ? brand || (shop && displayName(repairBankText(shop))) || displayName(rawName)
+    : bankName) || bookingText || words.fallbackName;
   const name = aiNameOf(tx) || plainName;
   // The second line repeats nothing the first already says: a purpose that
   // is just the payee's name again gives way to the booking text.
@@ -348,7 +355,8 @@ export function merchantFor(merchants: Record<string, Merchant | null>, tx: Seri
   // A purchase through a payment service whose shop the row names (from the purpose, or Girovo
   // AI's clean name): the shop's own logo or none, never the service's in its place. "Strato"
   // showed PayPal's logo, taken from the PayPal bookings that name no shop.
-  const shopNamed = key !== name || (!!aiNameOf(tx) && isFacilitatorName(name));
+  // Only while names are tidied: shown as the bank sent it, a PayPal purchase is PayPal's.
+  const shopNamed = namesTidied() && (key !== name || (!!aiNameOf(tx) && isFacilitatorName(name)));
   const own = merchants[key] ?? (shopNamed ? null : merchants[name]) ?? null;
   if (own && shopNamed && !own.via && isFacilitatorName(own.label)) return null;
   return own;

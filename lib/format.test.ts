@@ -5,7 +5,7 @@ import {
   addBusinessDays, addDaysKey, dayKey, dayNumber, displayName, easterSunday, expectedCreditDate, fmtAmountInput,
   fmtDayHeader, fmtMonth, fmtRange, fmtShortIban, fmtSignedDecimal, fmtSignedMoney, initials, isTargetBusinessDay,
   nextTargetBusinessDay, parseAmount, presetRange, prettyBookingText, prettyPurpose, splitMoney, toLocalDate,
-  fmtBytes, fmtDate, fmtMoney, translateType,
+  fmtBytes, fmtDate, fmtMoney, namesTidied, setNameTidying, translateType,
 } from './format.ts';
 import { mt940Date } from './__fixtures__/transactions.ts';
 import { withLocale } from './i18n/server.ts';
@@ -485,4 +485,16 @@ test('fmtBytes states a download size the way a dialog does', async () => {
   assert.equal(fmtBytes(860_000, { unitOf: 104_919_142, bare: true }), '0,9');
   assert.equal(fmtBytes(-1), '');
   assert.equal(fmtBytes(Number.NaN), '');
+});
+
+test('names stay as the bank sent them while tidying is off (the desktop without Namen mit Girovo AI aufräumen)', () => {
+  setNameTidying(false);
+  try {
+    assert.equal(namesTidied(), false);
+    assert.equal(displayName('REWE MARKT GMBH-ZWNL 4711'), 'REWE MARKT GMBH-ZWNL 4711');
+    assert.equal(displayName('DISCORD.COM//NITROMONTHLY'), 'DISCORD.COM//NITROMONTHLY');
+  } finally {
+    setNameTidying(true);
+  }
+  assert.equal(displayName('REWE MARKT GMBH'), 'REWE Markt GmbH');
 });

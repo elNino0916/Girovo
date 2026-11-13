@@ -69,7 +69,7 @@ import { bankAllowed, reminderDue, type PlusStatus } from '@/lib/plus';
 import { reviewMoment } from './android/review';
 import { parsePurpose } from '@/lib/sepa-purpose';
 import {
-  bankDay, compactIban, dayKey, fmtDate, fmtMoney, ibanValid, isoDate, repairBankText, toLocalDate, translateType,
+  bankDay, compactIban, dayKey, fmtDate, fmtMoney, ibanValid, isoDate, repairBankText, setNameTidying, toLocalDate, translateType,
   fmtRange,
 } from '@/lib/format';
 import { getMerchantKey, isBusinessBooking } from '@/lib/merchant-match';
@@ -5222,7 +5222,11 @@ function useFintsState() {
   // Girovo AI's cleaned names on the desktop (components/insights/ai/useAiNames.ts):
   // shown through the same txText path as Nano's brands, asked in the background.
   const aiNames = useAiNames({ vault, updateVault, txByAccount, pending: pendingFetched, noted: notedFetched });
-  useMemo(() => setAiNames(aiNames), [aiNames]);
+  // Until they are on, the desktop shows every name as the bank sent it (lib/format.ts setNameTidying); the phone tidies.
+  useMemo(() => {
+    setNameTidying(IS_ANDROID || aiNames !== null);
+    setAiNames(aiNames);
+  }, [aiNames]);
   // The lists' names as one value: a new map when either kind changes, so rows and rankings redraw.
   const shownNames = useMemo(() => (aiNames ? new Map(brandNames) : brandNames), [brandNames, aiNames]);
 
