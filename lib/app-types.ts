@@ -9,6 +9,7 @@ import type { AccountGrouping } from './account-overview';
 import type { CategoryId, CustomCategory } from './categories';
 import type { KeptBalance, NetWorthDay } from './kept-balances';
 import type { SavingsGoal } from './savings-goal';
+import type { SplitRequest } from './split-requests';
 import type { SerializedTransaction, StatementBlock } from './fints-types';
 import type { SavedPart } from './history';
 import type { OrderSchedule } from './order-schedule';
@@ -236,6 +237,8 @@ export type VaultData = {
   keepBookings?: true;
   /** Sparziele: one per savings account (lib/savings-goal.ts). Absent while there are none. */
   goals?: SavingsGoal[];
+  /** Aufteilen's requests: who was asked for how much, from which booking, and whether it came (lib/split-requests.ts). Absent while there are none. */
+  splitRequests?: SplitRequest[];
   /**
    * "Konten anordnen" (lib/account-overview.ts): the accounts in the user's
    * order, by accountNumber, and how the overview groups them. Absent while

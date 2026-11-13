@@ -220,6 +220,21 @@
     {"id":"e033","lang":"en","turns":[{"q":"how much money do i have","expect":{"intent":"balance"}}],"note":"app figures (lib/ask-facts.ts)"},
     {"id":"e034","lang":"en","turns":[{"q":"will my money last until the end of the month","expect":{"intent":"monthEnd"}}],"note":"app figures (lib/ask-facts.ts)"},
     {"id":"e035","lang":"en","turns":[{"q":"how much does lea owe me","expect":{"intent":"owed","name":"lea"}}],"note":"app figures (lib/ask-facts.ts)"},
-    {"id":"e036","lang":"en","turns":[{"q":"which subscriptions got more expensive","expect":{"intent":"priceRises"}}],"note":"app figures (lib/ask-facts.ts)"}
+    {"id":"e036","lang":"en","turns":[{"q":"which subscriptions got more expensive","expect":{"intent":"priceRises"}}],"note":"app figures (lib/ask-facts.ts)"},
+    {"id":"d200","lang":"de","turns":[{"q":"Wie hoch war mein Kontostand im August?","expect":{"intent":"balanceAt","day":"2026-08-31"}}],"note":"past balance (lib/ask-facts.ts balanceAt)"},
+    {"id":"d201","lang":"de","turns":[{"q":"Kontostand am 1. Oktober","expect":{"intent":"balanceAt","day":"2026-10-01"}}],"note":"past balance (lib/ask-facts.ts balanceAt)"},
+    {"id":"d202","lang":"de","turns":[{"q":"Wie viel Geld hatte ich am 15.9.?","expect":{"intent":"balanceAt","day":"2026-09-15"}}],"note":"past balance (lib/ask-facts.ts balanceAt)"},
+    {"id":"d203","lang":"de","turns":[{"q":"Kontostand Ende letzten Monats","expect":{"intent":"balanceAt","day":"2026-10-31"}}],"note":"past balance (lib/ask-facts.ts balanceAt)"},
+    {"id":"d204","lang":"de","turns":[{"q":"Kontostand Anfang Oktober","expect":{"intent":"balanceAt","day":"2026-09-30"}}],"note":"past balance (lib/ask-facts.ts balanceAt)"},
+    {"id":"d205","lang":"de","turns":[{"q":"Was war mein Kontostand gestern?","expect":{"intent":"balanceAt","day":"2026-11-11"}}],"note":"past balance (lib/ask-facts.ts balanceAt)"},
+    {"id":"d206","lang":"de","turns":[{"q":"Kontostand im November","expect":{"intent":"balance"}}],"note":"past balance (lib/ask-facts.ts balanceAt)"},
+    {"id":"d207","lang":"de","turns":[{"q":"Wie viel schuldet mir Max noch?","expect":{"intent":"owed","name":"max"}}],"note":"Aufteilen requests (lib/split-requests.ts)"},
+    {"id":"d208","lang":"de","turns":[{"q":"Wer schuldet mir noch Geld?","expect":{"intent":"owed","name":null}}],"note":"Aufteilen requests (lib/split-requests.ts)"},
+    {"id":"d209","lang":"de","turns":[{"q":"Schuldet mir Lea noch was?","expect":{"intent":"owed","name":"lea"}}],"note":"Aufteilen requests (lib/split-requests.ts)"},
+    {"id":"e040","lang":"en","turns":[{"q":"What was my balance at the end of September?","expect":{"intent":"balanceAt","day":"2026-09-30"}}],"note":"past balance (lib/ask-facts.ts balanceAt)"},
+    {"id":"e041","lang":"en","turns":[{"q":"balance on October 1st","expect":{"intent":"balanceAt","day":"2026-10-01"}}],"note":"past balance (lib/ask-facts.ts balanceAt)"},
+    {"id":"e042","lang":"en","turns":[{"q":"How much money did I have in July?","expect":{"intent":"balanceAt","day":"2026-07-31"}}],"note":"past balance (lib/ask-facts.ts balanceAt)"},
+    {"id":"e043","lang":"en","turns":[{"q":"Who still owes me money?","expect":{"intent":"owed","name":null}}],"note":"Aufteilen requests (lib/split-requests.ts)"},
+    {"id":"e044","lang":"en","turns":[{"q":"How much does Max still owe me?","expect":{"intent":"owed","name":"max"}}],"note":"Aufteilen requests (lib/split-requests.ts)"}
 ]
 }

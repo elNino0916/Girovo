@@ -18,6 +18,7 @@
 import { useId, useMemo, useRef, useState } from 'react';
 import { canRequest, resplit, type SplitPerson } from '@/lib/bill-split';
 import type { SharePrefill } from '@/lib/app-types';
+import type { SplitRequest } from '@/lib/split-requests';
 import { fmtAmountInput, parseAmount } from '@/lib/format';
 import { useT } from '@/lib/i18n/react';
 import { AMOUNT_MASK } from '@/lib/mask';
@@ -33,7 +34,7 @@ const MAX_PURPOSE = 140;
 const tone = (index: number) => (index < 0 ? 'var(--md-outline)' : `var(--chart-${(index % 6) + 1})`);
 
 export function BillSplit({
-  name, meta, cents, glyph, defaultPurpose, onClose, onRequest,
+  name, meta, cents, glyph, defaultPurpose, asked = [], onClose, onRequest,
 }: {
   /** The booking's counterparty, as the row shows it. */
   name: string;
@@ -43,6 +44,8 @@ export function BillSplit({
   cents: number;
   glyph: React.ReactNode;
   defaultPurpose: string;
+  /** What was asked for from this booking before (lib/split-requests.ts), said in one line. */
+  asked?: SplitRequest[];
   onClose: () => void;
   /** One request per person, and the user's own share in cents. */
   onRequest: (list: SharePrefill[], own: number) => void;
@@ -127,6 +130,11 @@ export function BillSplit({
           </div>
           <Money value={-total / 100} signed tone="credit" className="text-[18px] font-medium text-ink" />
         </div>
+        {asked.length > 0 && (
+          <p className="mt-3 text-[14px] leading-5 text-ink-2">
+            {words.asked(asked.map((r) => (r.paid ? words.askedPaid(r.name) : words.askedOpen(r.name))).join(', '))}
+          </p>
+        )}
 
         <h3 className="mt-7 text-[16px] leading-6 text-ink-2">{words.who}</h3>
 

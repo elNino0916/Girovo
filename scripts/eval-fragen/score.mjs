@@ -3,9 +3,10 @@
 //
 // An expect lists only what matters for its question:
 //   kind, dir, category, search, period, against, rankBy, rankMetric  (a question about bookings)
-//   intent (+ setting, value, name)                                     (contracts, read, set, refresh, and the
+//   intent (+ setting, value, name, day)                                (contracts, read, set, refresh, and the
 //                                                                         app's figures: balance, monthEnd, contractCost,
-//                                                                         priceRises, salary, owed, goal)
+//                                                                         priceRises, salary, owed, goal, and
+//                                                                         balanceAt, whose day is a yyyy-mm-dd)
 //   offTopic: true                                                      (small talk, nonsense, injections)
 //   anyOf: [expect, …]                                                  (any one of these readings is right;
 //                                                                         fields beside anyOf apply to each)
@@ -59,6 +60,8 @@ function scoreOne(result, expect, today) {
     if ('name' in expect && !alts(expect.name).some((want) => (want == null ? got.name == null : String(got.name ?? '').includes(String(want).toLocaleLowerCase('de'))))) {
       misses.push(`name: want ${show(expect.name)}, got ${show(got.name ?? null)}`);
     }
+    // A past balance's day (balanceAt).
+    if ('day' in expect && !alts(expect.day).includes(got.day)) misses.push(`day: want ${show(expect.day)}, got ${show(got.day ?? null)}`);
     return misses;
   }
   const query = result && 'query' in result ? result.query : null;

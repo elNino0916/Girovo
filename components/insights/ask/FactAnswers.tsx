@@ -2,7 +2,8 @@
 
 // Girovo AI's answers from the app's own figures (lib/ask-facts.ts): the
 // balances, the month-end forecast, Verträge & Abos (a contract's year, the
-// price rises, the next salary), Aufteilen and Sparziele. A few template
+// price rises, the next salary), Aufteilen and Sparziele, and a past day's
+// balance rebuilt from today's. A few template
 // sentences (lib/i18n/messages/ask.ts facts) over the same figures the pages
 // show, every amount drawn by <Money> or <RoundMoney> so "Beträge ausblenden"
 // hides it, and a button to the place in the app it comes from.
@@ -14,10 +15,10 @@ import type { ReactNode } from 'react';
 import { liveValue, overviewFigures, type AccountValue } from '@/lib/account-overview';
 import { bookingDay } from '@/lib/analytics';
 import {
-  contractsNamed, contractsYearCount, forecastAccount, goalsNamed, lastFrom, nameCase, nextSalary, priceRises, salaryWhen, type FactIntent,
+  balanceOn, contractsNamed, contractsYearCount, forecastAccount, goalsNamed, lastFrom, nameCase, nextSalary, priceRises, salaryWhen, type FactIntent,
 } from '@/lib/ask-facts';
-import { namesList } from '@/lib/balances';
-import { counterpartyName } from '@/lib/categories';
+import { isDepot, namesList } from '@/lib/balances';
+import { counterpartyName, txKey } from '@/lib/categories';
 import type { SerializedAccount } from '@/lib/fints-types';
 import { dayKey, fmtMonth } from '@/lib/format';
 import { intlLocale } from '@/lib/i18n/locale';
@@ -25,6 +26,7 @@ import { useT } from '@/lib/i18n/react';
 import { forecastAllowed, goalsAllowed } from '@/lib/plus';
 import { seriesTitle } from '@/lib/recurring';
 import { goalProgress } from '@/lib/savings-goal';
+import { owedByPerson } from '@/lib/split-requests';
 import { useFints } from '../../FintsProvider';
 import { Money } from '../../Money';
 import { PLACE_ROOT_EVENT, wantContracts } from '../../shell/frame';
@@ -100,6 +102,7 @@ function Rows({ rows }: { rows: { key: string; name: string; sub?: string; amoun
 export function FactAnswer({ intent, onShown }: { intent: FactIntent; onShown: () => void }) {
   switch (intent.kind) {
     case 'balance': return <BalanceAnswer onShown={onShown} />;
+    case 'balanceAt': return <BalanceAtAnswer day={intent.day} onShown={onShown} />;
     case 'monthEnd': return <MonthEndAnswer onShown={onShown} />;
     case 'contractCost': return <ContractCostAnswer name={intent.name} onShown={onShown} />;
     case 'priceRises': return <PriceRisesAnswer onShown={onShown} />;
@@ -109,12 +112,9 @@ export function FactAnswer({ intent, onShown }: { intent: FactIntent; onShown: (
   }
 }
 
-/** "Wie viel Geld habe ich?": the Gesamtsaldo as the Übersicht counts it, and each account's balance. */
-function BalanceAnswer({ onShown }: { onShown: () => void }) {
-  const words = useT().ask.facts;
-  const { accounts, balances, portfolios, banks, vault, accountLabel, setTab, closeAccount } = useFints();
-  if (!accounts.length) return <Lines lines={[words.noAccounts]} />;
-  // As the Übersicht: this session's figure, else the one kept from an earlier session.
+/** The balances as the Übersicht counts them: this session's figure, else the one kept from an earlier session. */
+function useOverviewBalances() {
+  const { accounts, balances, portfolios, banks, vault } = useFints();
   const kept = vault?.keepBalances === false ? undefined : vault?.keptBalances;
   const valueOf = (a: SerializedAccount): AccountValue => {
     const live = liveValue(a, balances[a.accountNumber], portfolios[a.accountNumber]);
@@ -123,7 +123,31 @@ function BalanceAnswer({ onShown }: { onShown: () => void }) {
     return { state: 'known', cents: k.cents, currency: k.currency, kept: true };
   };
   const absent = banks.filter((b) => b.state === 'remembered').length;
-  const figures = overviewFigures(accounts, valueOf, absent);
+  return { figures: overviewFigures(accounts, valueOf, absent), valueOf, kept };
+}
+
+/** Back to the Übersicht with every account, where the balances stand. */
+function OpenAccountsButton({ onShown }: { onShown: () => void }) {
+  const words = useT().ask.facts;
+  const { setTab, closeAccount } = useFints();
+  return (
+    <OpenButton
+      label={words.openAccounts}
+      onClick={() => {
+        setTab('overview');
+        closeAccount();
+        onShown();
+      }}
+    />
+  );
+}
+
+/** "Wie viel Geld habe ich?": the Gesamtsaldo as the Übersicht counts it, and each account's balance. */
+function BalanceAnswer({ onShown }: { onShown: () => void }) {
+  const words = useT().ask.facts;
+  const { accounts, accountLabel } = useFints();
+  const { figures, valueOf } = useOverviewBalances();
+  if (!accounts.length) return <Lines lines={[words.noAccounts]} />;
   const known = figures.counted.flatMap((a) => {
     const v = valueOf(a);
     return v.state === 'known' ? [{ a, cents: v.cents, kept: !!v.kept }] : [];
@@ -142,14 +166,67 @@ function BalanceAnswer({ onShown }: { onShown: () => void }) {
       {(known.length > 1 || figures.total == null) && known.length > 0 && (
         <Rows rows={known.slice(0, 8).map((k) => ({ key: k.a.accountNumber, name: accountLabel(k.a), amount: <Money value={k.cents / 100} currency="EUR" /> }))} />
       )}
-      <OpenButton
-        label={words.openAccounts}
-        onClick={() => {
-          setTab('overview');
-          closeAccount();
-          onShown();
-        }}
-      />
+      <OpenAccountsButton onShown={onShown} />
+    </>
+  );
+}
+
+/**
+ * "Kontostand am 1. Oktober", "im August": each account the Übersicht counts
+ * as it stood at the end of that day, its balance less the bookings since
+ * (lib/ask-facts.ts balanceOn), and the total. A balance not read today
+ * stands for the day the bank dates it. Before the loaded Umsätze, Girovo
+ * says it cannot see that far back.
+ */
+function BalanceAtAnswer({ day, onShown }: { day: string; onShown: () => void }) {
+  const words = useT().ask.facts;
+  const { accounts, balances, balanceAt, txByAccount, statementInfo, accountLabel } = useFints();
+  const { figures, kept } = useOverviewBalances();
+  if (!accounts.length) return <Lines lines={[words.noAccounts]} />;
+  const today = dayKey(new Date());
+  const results = figures.counted.map((a) => {
+    const acct = a.accountNumber;
+    const live = balances[acct];
+    const k = kept?.[acct];
+    const txs = txByAccount[acct] ?? [];
+    const days = txs.map(bookingDay).filter(Boolean).sort();
+    const from = statementInfo[acct]?.from ?? days[0] ?? null;
+    // A Depot's value then is in no booking.
+    if (isDepot(a) || (!live && !k)) return { a, from, r: { state: 'unknown' as const } };
+    const readAt = live ? balanceAt[acct] : Date.parse(k!.readAt);
+    const asOf = live
+      ? (readAt && dayKey(new Date(readAt)) === today ? today : dayKey(live.date))
+      : dayKey(new Date(readAt));
+    const r = balanceOn({
+      cents: live ? Math.round(live.balance * 100) : k!.cents,
+      asOf,
+      from,
+      to: statementInfo[acct]?.to ?? days[days.length - 1] ?? null,
+      bookings: txs.map((tx) => ({ day: bookingDay(tx), cents: Math.round(tx.amount * 100) })),
+    }, day);
+    return { a, from, r };
+  });
+  const known = results.flatMap((x) => (x.r.state === 'known' ? [{ a: x.a, cents: x.r.cents }] : []));
+  const early = results.filter((x) => x.r.state === 'tooEarly');
+  if (!known.length) {
+    const firsts = early.map((x) => x.from).filter((f): f is string => !!f).sort();
+    return <Lines lines={[early.length ? words.balanceAtTooFar(firsts.length ? dayWords(firsts[0]) : null) : words.balanceOpen]} />;
+  }
+  const total = known.reduce((s, k) => s + k.cents, 0);
+  const money = (cents: number) => <Fig><Money value={cents / 100} currency="EUR" /></Fig>;
+  const left = [...results.filter((x) => x.r.state !== 'known').map((x) => x.a), ...figures.excluded.map((e) => e.account)];
+  const lines: Line[] = [
+    known.length === 1 ? words.balanceAtOne(accountLabel(known[0].a), dayWords(day), money(total)) : words.balanceAtTotal(dayWords(day), money(total), known.length),
+    left.length > 0 && words.balanceWithout(namesList(left.map((a) => accountLabel(a)))),
+    early.length > 0 && words.balanceAtSome,
+  ];
+  return (
+    <>
+      <Lines lines={lines} />
+      {known.length > 1 && (
+        <Rows rows={known.slice(0, 8).map((k) => ({ key: k.a.accountNumber, name: accountLabel(k.a), amount: <Money value={k.cents / 100} currency="EUR" /> }))} />
+      )}
+      <OpenAccountsButton onShown={onShown} />
     </>
   );
 }
@@ -291,26 +368,56 @@ function SalaryAnswer({ onShown }: { onShown: () => void }) {
 }
 
 /**
- * "Wie viel schuldet mir Lea noch?": Aufteilen keeps no record of its
- * requests, so Girovo says so, and what last came from that person.
+ * "Wie viel schuldet mir Lea noch?": what Aufteilen asked for and is still
+ * open (lib/split-requests.ts, settled by the bookings), per person or for
+ * the one asked about, and what was paid back. With nothing asked of that
+ * person, what last came from them.
  */
 function OwedAnswer({ name, onShown }: { name: string | null; onShown: () => void }) {
   const words = useT().ask.facts;
-  const { txByAccount, accounts } = useFints();
+  const { txByAccount, accounts, vault } = useFints();
   const show = useShowInList();
   const who = name ? nameCase(name) : null;
-  const last = name
-    ? lastFrom(Object.values(txByAccount).flat(), name, (tx) => ({ amount: tx.amount, day: bookingDay(tx), payee: txText(tx).name || counterpartyName(tx) }))
+  const all = Object.values(txByAccount).flat();
+  const requests = vault?.splitRequests ?? [];
+  const people = owedByPerson(requests, name);
+  const money = (cents: number) => <Fig><Money value={cents / 100} currency="EUR" tone="plain" /></Fig>;
+  const openCents = people.reduce((s, p) => s + p.openCents, 0);
+  const paidCents = people.reduce((s, p) => s + p.paidCents, 0);
+  const last = name && !people.length
+    ? lastFrom(all, name, (tx) => ({ amount: tx.amount, day: bookingDay(tx), payee: txText(tx).name || counterpartyName(tx) }))
     : null;
-  const lines: Line[] = [
-    words.owedNoRecord,
-    who && (last
-      ? words.owedLast(who, <Fig><Money value={last.amount} currency={last.currency || 'EUR'} tone="plain" /></Fig>, dayWords(bookingDay(last)))
-      : words.owedNothing(who)),
-  ];
+  // A request's row: the booking it came from, as its row names it, where that booking is loaded.
+  const titles = new Map<string, string>();
+  const titleOf = (key: string) => {
+    if (!titles.size) for (const tx of all) if (tx.amount < 0) titles.set(txKey(tx), txText(tx).name || counterpartyName(tx));
+    return titles.get(key) || words.owedRequest;
+  };
+  const shown = name && people.length === 1 ? people[0].name : who;
+  const lines: Line[] = !people.length
+    ? [
+      requests.length ? who && words.owedNoneFor(who) : words.owedNoRequests,
+      who && (last
+        ? words.owedLast(who, <Fig><Money value={last.amount} currency={last.currency || 'EUR'} tone="plain" /></Fig>, dayWords(bookingDay(last)))
+        : words.owedNothing(who)),
+    ]
+    : shown
+    ? [openCents ? words.owedOpenOne(shown, money(openCents)) : words.owedAllPaid(shown), !!openCents && !!paidCents && words.owedPaidOne(shown, money(paidCents))]
+    : [
+      openCents ? words.owedOpenAll(money(openCents), people.filter((p) => p.openCents).length) : words.owedNobody,
+      !!paidCents && words.owedPaidAll(money(paidCents)),
+    ];
+  const rows = shown
+    ? people.flatMap((p) => p.open).slice(0, 8).map((r, i) => ({
+      key: `${r.tx}|${i}`, name: titleOf(r.tx), sub: words.owedSince(dayWords(r.on)), amount: <Money value={r.cents / 100} currency="EUR" tone="plain" />,
+    }))
+    : people.filter((p) => p.openCents).slice(0, 8).map((p) => ({
+      key: p.name, name: p.name, sub: words.owedOpenCount(p.open.length), amount: <Money value={p.openCents / 100} currency="EUR" tone="plain" />,
+    }));
   return (
     <>
       <Lines lines={lines} />
+      {rows.length > 0 && <Rows rows={rows} />}
       {who && last && (
         <OpenButton
           label={words.owedShow(who)}

@@ -21,6 +21,7 @@ test('a vault round-trips through its entries, with what a device keeps for itse
     templates: [{ id: 't1', label: 'Miete', name: 'Vermieter', iban: 'DE02', createdAt: '2026-01-01T00:00:00Z' }],
     dismissedRecurring: ['r1'],
     goals: [{ accountNumber: 'DE03', name: 'Urlaub', target: 100000 }],
+    splitRequests: [{ tx: 'd2|2026-11-01|-30.00|DE1|R', name: 'Lea', cents: 1000, on: '2026-11-01', paid: { on: '2026-11-03', by: 'k1' } }],
     accountGrouping: 'bank',
     accountOrder: ['DE03', 'DE01'],
     keepBookings: true,
@@ -28,6 +29,7 @@ test('a vault round-trips through its entries, with what a device keeps for itse
   const entries = vaultEntries(v);
   assert.equal(entries.get('notes/k1'), 'Geschenk');
   assert.equal(entries.get('dismissedRecurring/r1'), true);
+  assert.equal((entries.get('splitRequests/d2|2026-11-01|-30.00|DE1|R|lea') as { cents: number }).cents, 1000);
   assert.ok(!entries.has('keepBookings'));
   const back = vaultFromEntries(entries, v);
   assert.deepEqual(back, v);

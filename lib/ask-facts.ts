@@ -2,11 +2,12 @@
 // sum of bookings (components/insights/ask/FactAnswers.tsx says them):
 //
 // - balance       "Wie viel Geld habe ich?", "Kontostand": every account's balance and the total
+// - balanceAt     "Kontostand am 1. Oktober", "im August": the balance then, today's less the bookings since
 // - monthEnd      "Reicht es bis Monatsende?": the month-end forecast (lib/forecast.ts)
 // - contractCost  "Was kostet mich Netflix im Jahr?": one contract a year, or all of them
 // - priceRises    "Welche Abos sind teurer geworden?": the price changes of Verträge & Abos
 // - salary        "Wann kommt das Gehalt?": the next expected salary of the regular payments
-// - owed          "Wie viel schuldet mir Lea noch?": Aufteilen keeps no record, so what came from her
+// - owed          "Wie viel schuldet mir Lea noch?": Aufteilen's open requests (lib/split-requests.ts)
 // - goal          "Wie weit bin ich beim Urlaubsziel?": Sparziele and their progress
 //
 // factOf reads the question by rules (lib/ask-intents.ts intentOf asks it
@@ -24,6 +25,8 @@ import type { SavingsGoal } from './savings-goal.ts';
 
 export type FactIntent =
   | { kind: 'balance' }
+  /** day: the yyyy-mm-dd whose balance at its end is asked for, before today; a month's last day for a month. */
+  | { kind: 'balanceAt'; day: string }
   | { kind: 'monthEnd' }
   /** name: the contract asked about, folded; null for all of them. */
   | { kind: 'contractCost'; name: string | null }
@@ -34,7 +37,7 @@ export type FactIntent =
   /** name: the goal, folded ("urlaub" for "Urlaubsziel"); null for every goal. */
   | { kind: 'goal'; name: string | null };
 
-export const FACT_KINDS = ['balance', 'monthEnd', 'contractCost', 'priceRises', 'salary', 'owed', 'goal'] as const;
+export const FACT_KINDS = ['balance', 'balanceAt', 'monthEnd', 'contractCost', 'priceRises', 'salary', 'owed', 'goal'] as const;
 
 /** Whether an intent is one of these (and FactAnswers says it). */
 export function isFact<I extends { kind: string }>(intent: I): intent is Extract<I, FactIntent> {
@@ -78,6 +81,29 @@ const FILLER = new Set((
   + 'how much does do did cost costs me i pay spend for what insgesamt eigentlich gerade aktuell so denn total is it bei beim von '
   + 'noch geld money mal überhaupt ueberhaupt zurzeit derzeit on to at').split(' '));
 const NO_PERSON = new Set('wer who mir me jemand anyone someone somebody anybody noch irgendwer niemand'.split(' '));
+/** A balance in the past: "Kontostand", "Guthaben", "Wie viel Geld hatte ich" ("Saldo" may be a month's net, left to the bookings). */
+const BALANCE_AT_WORD = / (?:kontostand|kontostände|kontostaende|guthaben|balances?) /;
+const HAD_MONEY = / (?:wie ?viel|was) (?:geld )?(?:hatte ich|war (?:auf|in) (?:dem|meinem|meinen|den|allen) (?:konto|konten|girokonto)|lag (?:auf|in) )| how much (?:money )?(?:did i have|had i|was (?:in|on) my accounts?) /;
+const MONTH_WORDS: Record<string, number> = {
+  januar: 1, jänner: 1, january: 1, februar: 2, february: 2, märz: 3, maerz: 3, march: 3, april: 4, mai: 5, may: 5, juni: 6, june: 6,
+  juli: 7, july: 7, august: 8, september: 9, oktober: 10, october: 10, november: 11, dezember: 12, december: 12,
+};
+/** Written short, only next to a day: "1. Okt", "Oct 1st". */
+const MONTH_SHORT: Record<string, number> = { jan: 1, feb: 2, mär: 3, mar: 3, apr: 4, jun: 6, jul: 7, aug: 8, sep: 9, sept: 9, okt: 10, oct: 10, nov: 11, dez: 12, dec: 12 };
+const MONTH_ALT = Object.keys(MONTH_WORDS).join('|');
+const MONTH_ANY = `${MONTH_ALT}|${Object.keys(MONTH_SHORT).join('|')}`;
+const AT_NUMERIC = / (\d{1,2})\.(\d{1,2})\.(\d{4}|\d{2})?(?=[ .])| (\d{4})-(\d{2})-(\d{2}) /;
+const AT_DAY_MONTH = new RegExp(` (\\d{1,2})(?:\\.|st|nd|rd|th)? (?:of )?(${MONTH_ANY})\\.?(?: (\\d{4}))?(?= )`);
+const AT_MONTH_DAY = new RegExp(` (${MONTH_ANY})\\.? (\\d{1,2})(?:st|nd|rd|th)?(?:,? (\\d{4}))?(?= )`);
+const AT_START = new RegExp(` (?:anfang|beginning of|start of|the start of)(?: des| dem)? (${MONTH_ALT})(?: (\\d{4}))? `);
+const AT_END = new RegExp(` (?:ende|end of|the end of)(?: des| dem)? (${MONTH_ALT})(?: (\\d{4}))? `);
+const AT_MONTH = new RegExp(` (${MONTH_ALT})(?: (\\d{4}))? `);
+const AT_LAST_MONTH = / (?:(?:ende )?(?:des )?(?:letzten|vorigen|vergangenen) monats|(?:letzten|vorigen|vergangenen) monat|vormonat|(?:the )?end of last month|last month) /;
+const AT_LAST_YEAR = / (?:(?:ende )?(?:des )?(?:letzten|vorigen|vergangenen) jahres|letztes jahr|vorjahr|jahresende|silvester|(?:the )?end of last year|last year) /;
+const AT_YEAR_END = / (?:ende|end of) ((?:19|20)\d{2}) /;
+const AT_YESTERDAY = / (?:vorgestern|day before yesterday) | (?:gestern|yesterday) /;
+const AT_AGO = / vor (\d+|einer|einem|zwei|drei|vier) (tag|tagen|woche|wochen|monat|monaten) | (\d+|a|one|two|three|four) (days?|weeks?|months?) ago /;
+const COUNT_WORDS: Record<string, number> = { einer: 1, einem: 1, a: 1, one: 1, zwei: 2, two: 2, drei: 3, three: 3, vier: 4, four: 4 };
 const GOAL_FILLER = new Set('spar spare sparen gespart mein meine meinem meinen dem den das die der beim bei mit zum zur für fuer my the a savings saving with for on to of our'.split(' '));
 // i18n-data-end
 
@@ -107,14 +133,90 @@ function goalOf(q: string): string | null {
   return null;
 }
 
+const pad = (n: number) => String(n).padStart(2, '0');
+const lastDayOf = (y: number, m: number) => new Date(Date.UTC(y, m, 0)).getUTCDate();
+
+/** `day` moved by `n` days (yyyy-mm-dd). */
+export function addDays(day: string, n: number): string {
+  const d = new Date(`${day}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Today on this device, yyyy-mm-dd. */
+function localToday(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/**
+ * The day a question about a past balance names, and whether it named the
+ * end of a month: "am 1. Oktober", "1.10.", "October 1st", "Anfang Oktober"
+ * (the day before), "Ende September", "im August" (its last day), "letzten
+ * Monat", "Ende letzten Jahres", "gestern", "vor zwei Wochen". A day or month
+ * without its year is the last one up to today. Null for none.
+ */
+export function balanceDayOf(question: string, today: string): { day: string; end: boolean } | null {
+  const s = ` ${question.toLocaleLowerCase('de').replace(/[?!,;:„“"'()]/g, ' ').replace(/\s+/g, ' ').trim()} `;
+  const [ty, tm] = today.split('-').map(Number);
+  const monthOf = (w: string) => MONTH_WORDS[w] ?? MONTH_SHORT[w];
+  const yearOf = (y: string | undefined) => (!y ? null : y.length === 2 ? 2000 + Number(y) : Number(y));
+  const dayIn = (d: number, m: number, y: number | null): string | null => {
+    if (m < 1 || m > 12) return null;
+    const year = y ?? (`${ty}-${pad(m)}-${pad(d)}` > today ? ty - 1 : ty);
+    return d >= 1 && d <= lastDayOf(year, m) ? `${year}-${pad(m)}-${pad(d)}` : null;
+  };
+  const monthEnd = (m: number, y: number | null) => {
+    const year = y ?? (m > tm ? ty - 1 : ty);
+    return `${year}-${pad(m)}-${pad(lastDayOf(year, m))}`;
+  };
+  let m: RegExpExecArray | null;
+  if ((m = AT_NUMERIC.exec(s))) {
+    const day = m[1] ? dayIn(Number(m[1]), Number(m[2]), yearOf(m[3])) : dayIn(Number(m[6]), Number(m[5]), Number(m[4]));
+    return day ? { day, end: false } : null;
+  }
+  if ((m = AT_DAY_MONTH.exec(s))) {
+    const day = dayIn(Number(m[1]), monthOf(m[2]), yearOf(m[3]));
+    return day ? { day, end: false } : null;
+  }
+  if ((m = AT_MONTH_DAY.exec(s))) {
+    const day = dayIn(Number(m[2]), monthOf(m[1]), yearOf(m[3]));
+    return day ? { day, end: false } : null;
+  }
+  if ((m = AT_START.exec(s))) {
+    const month = MONTH_WORDS[m[1]];
+    const y = yearOf(m[2]) ?? (month > tm ? ty - 1 : ty);
+    return { day: addDays(`${y}-${pad(month)}-01`, -1), end: false };
+  }
+  if ((m = AT_END.exec(s))) return { day: monthEnd(MONTH_WORDS[m[1]], yearOf(m[2])), end: true };
+  if (AT_LAST_MONTH.test(s)) return { day: addDays(`${ty}-${pad(tm)}-01`, -1), end: true };
+  if ((m = AT_YEAR_END.exec(s))) return { day: `${m[1]}-12-31`, end: true };
+  if (AT_LAST_YEAR.test(s)) return { day: `${ty - 1}-12-31`, end: true };
+  if ((m = AT_YESTERDAY.exec(s))) return { day: addDays(today, / (?:vorgestern|day before yesterday) /.test(m[0]) ? -2 : -1), end: false };
+  if ((m = AT_AGO.exec(s))) {
+    const n = Number(m[1] ?? m[3]) || COUNT_WORDS[m[1] ?? m[3]] || 1;
+    const unit = (m[2] ?? m[4]).replace(/s$/, '');
+    if (/^(?:tag|tagen|day)$/.test(unit)) return { day: addDays(today, -n), end: false };
+    if (/^(?:woche|wochen|week)$/.test(unit)) return { day: addDays(today, -7 * n), end: false };
+    const total = ty * 12 + (tm - 1) - n;
+    const y = Math.floor(total / 12);
+    const mo = (total % 12) + 1;
+    return { day: `${y}-${pad(mo)}-${pad(Math.min(Number(today.slice(8)), lastDayOf(y, mo)))}`, end: false };
+  }
+  // "im November" of this November is the balance now, not its forecast.
+  if ((m = AT_MONTH.exec(s))) return { day: monthEnd(MONTH_WORDS[m[1]], yearOf(m[2])), end: false };
+  return null;
+}
+
 /**
  * What a message asks of the app's own figures; null for anything else (a
  * question about the bookings, mostly). `contracts`: the names of the live
  * contracts (Verträge & Abos, as shown and as booked). "Was kostet mich
  * Netflix im Jahr?" is a contract's year only when Netflix is one of them;
- * "Was zahle ich im Jahr bei Rewe?" is a sum of the bookings.
+ * "Was zahle ich im Jahr bei Rewe?" is a sum of the bookings. `today`: for
+ * a past balance's day ("Kontostand im August").
  */
-export function factOf(question: string, contracts: readonly string[] = []): FactIntent | null {
+export function factOf(question: string, contracts: readonly string[] = [], today: string = localToday()): FactIntent | null {
   const q = fold(question);
 
   if (OWE.test(q)) return { kind: 'owed', name: personOf(q) };
@@ -123,6 +225,14 @@ export function factOf(question: string, contracts: readonly string[] = []): Fac
 
   // "Wann kommt das Gehalt?", never "Wann kam das letzte Gehalt?" or "Gehalt im Oktober".
   if (GET_PAID.test(q) || SALARY.test(q) && SALARY_NEXT.test(q) && WHEN.test(q) && !SALARY_PAST.test(q)) return { kind: 'salary' };
+
+  // "Kontostand am 1. Oktober", "Wie viel Geld hatte ich im August?": a past day's balance. Today's or
+  // a day to come is the balance as it is, or the month-end forecast for this month's end.
+  if ((BALANCE_AT_WORD.test(q) || HAD_MONEY.test(q)) && !SPENT.test(q)) {
+    const at = balanceDayOf(question, today);
+    if (at && at.day < today) return { kind: 'balanceAt', day: at.day };
+    if (at) return at.end && at.day > today ? { kind: 'monthEnd' } : { kind: 'balance' };
+  }
 
   if (!SPENT.test(q) && (MONTH_END.test(q) && (MONTH_END_ASK.test(q) || BALANCE_WORD.test(q)) || REACHES.test(q))) return { kind: 'monthEnd' };
 
@@ -221,6 +331,34 @@ export function lastFrom<T>(
     }
   }
   return best;
+}
+
+/**
+ * One account's figure for balanceOn: its balance in cents and the day it
+ * stands for, how far its loaded Umsätze reach (first and last day), and
+ * those Umsätze (booked, by the bank's day, in cents).
+ */
+export type BalanceBase = {
+  cents: number;
+  asOf: string;
+  from: string | null;
+  to: string | null;
+  bookings: readonly { day: string; cents: number }[];
+};
+
+/**
+ * The balance at the end of `day`: the one given, less every booking after
+ * that day up to the day it stands for. tooEarly when the loaded Umsätze do
+ * not reach back to the day after; unknown when they stop before the
+ * balance's day (the bookings between are not known).
+ */
+export function balanceOn(base: BalanceBase, day: string): { state: 'known'; cents: number } | { state: 'tooEarly' | 'unknown' } {
+  if (day >= base.asOf) return { state: 'known', cents: base.cents };
+  if (!base.from || addDays(day, 1) < base.from) return { state: 'tooEarly' };
+  if (base.to && base.to < base.asOf) return { state: 'unknown' };
+  let cents = base.cents;
+  for (const b of base.bookings) if (b.day > day && b.day <= base.asOf) cents -= b.cents;
+  return { state: 'known', cents };
 }
 
 /** A folded name as it is said: "lea" as „Lea“'s first letter up. */

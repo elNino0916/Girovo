@@ -57,6 +57,7 @@ import { sanitizeLinkedBanks } from './linked-banks.ts';
 import { sanitizeGoals } from './savings-goal.ts';
 import { moveAside, removeFamily, serialized, writeFileAtomic } from './sealed-file.ts';
 import { sanitizeSentOrders } from './sent-orders.ts';
+import { sanitizeSplitRequests, splitRequestId } from './split-requests.ts';
 import { categoryValidator, sanitizeCustomCategories, sanitizeSplits } from './splits.ts';
 import { STATE_DIR } from './state-store.ts';
 
@@ -242,6 +243,7 @@ export function sanitizeVault(input: unknown, now = Date.now()): VaultData | nul
   // else an entry carries (a PIN, say) never reaches the file.
   const linkedBanks = sanitizeLinkedBanks(input.linkedBanks);
   const goals = sanitizeGoals(input.goals);
+  const splitRequests = sanitizeSplitRequests(input.splitRequests);
   const accountOrder = sanitizeAccountOrder(input.accountOrder, VAULT_LIMITS.accountKey);
   const accountsHidden = sanitizeAccountOrder(input.accountsHidden, VAULT_LIMITS.accountKey);
   // Switched off, nothing of them is kept, whatever the file says.
@@ -282,6 +284,8 @@ export function sanitizeVault(input: unknown, now = Date.now()): VaultData | nul
     ...(input.keepBookings === true ? { keepBookings: true as const } : {}),
     // One goal per savings account, well formed and within the caps (lib/savings-goal.ts).
     ...(goals.length ? { goals } : {}),
+    // Aufteilen's requests, one per booking and person, within the caps (lib/split-requests.ts).
+    ...(splitRequests.length ? { splitRequests } : {}),
     // "Konten anordnen" (lib/account-overview.ts): account keys each once, and one of the three groupings.
     ...(accountOrder.length ? { accountOrder } : {}),
     ...(isGrouping(input.accountGrouping) ? { accountGrouping: input.accountGrouping } : {}),
@@ -579,6 +583,12 @@ export function mergeVaults(current: VaultData, fromBackup: VaultData): VaultDat
       const here = new Set((current.goals ?? []).map((g) => g.accountNumber));
       const goals = [...(current.goals ?? []), ...(backup.goals ?? []).filter((g) => !here.has(g.accountNumber))];
       return goals.length ? { goals } : {};
+    })(),
+    // Aufteilen's requests: this computer's where both have one, the backup's for the rest.
+    ...(() => {
+      const here = new Set((current.splitRequests ?? []).map(splitRequestId));
+      const splitRequests = [...(backup.splitRequests ?? []).filter((r) => !here.has(splitRequestId(r))), ...(current.splitRequests ?? [])];
+      return splitRequests.length ? { splitRequests } : {};
     })(),
     aliases: { ...backup.aliases, ...current.aliases },
     customCategories: [...current.customCategories, ...added],

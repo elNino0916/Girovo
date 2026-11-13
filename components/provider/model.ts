@@ -27,6 +27,7 @@ import { type LinkedBankRef, sanitizeLinkedBanks } from '@/lib/linked-banks';
 import { sanitizeNotes } from '@/lib/notes';
 import type { OrderSchedule } from '@/lib/order-schedule';
 import { sanitizeGoals } from '@/lib/savings-goal';
+import { sanitizeSplitRequests } from '@/lib/split-requests';
 import { sanitizeSentOrders, type SentOrder } from '@/lib/sent-orders';
 import { categoryValidator, nameKey, sanitizeCustomCategories, sanitizeSplits } from '@/lib/splits';
 import type { TaxYear } from '@/lib/tax-year';
@@ -680,6 +681,8 @@ export function normalizeVault(raw: VaultData | null | undefined): VaultData {
   // Kept, or the next save would forget the linked banks.
   const linkedBanks = sanitizeLinkedBanks(raw.linkedBanks);
   const goals = sanitizeGoals(raw.goals);
+  // Kept too, or a login (and every sync round) would forget Aufteilen's requests.
+  const splitRequests = sanitizeSplitRequests(raw.splitRequests);
   const accountOrder = sanitizeAccountOrder(raw.accountOrder);
   const accountsHidden = sanitizeAccountOrder(raw.accountsHidden);
   // As the vault does (lib/vault.ts sanitizeVault): switched off, none are kept.
@@ -720,6 +723,7 @@ export function normalizeVault(raw: VaultData | null | undefined): VaultData {
     ...(raw.keepBookings === true ? { keepBookings: true as const } : {}),
     // Kept too, or the next save would drop the Sparziele.
     ...(goals.length ? { goals } : {}),
+    ...(splitRequests.length ? { splitRequests } : {}),
     // Kept too, or the next save would forget Konten anordnen, the last
     // balances and the Gesamtsaldo's days, and read "Letzte Salden behalten"
     // as on again after it was switched off.
