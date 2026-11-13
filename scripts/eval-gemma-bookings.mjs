@@ -27,6 +27,7 @@ const { NANO_SYSTEM, NANO_CATEGORY_LIST, nanoBookingText, parseNanoAnswer } = aw
 const { NAME_SYSTEM, NAME_SHOTS, nameText, parseNameAnswer } = await lib('nano-names.ts');
 const { displayName } = await lib('format.ts');
 const { CLEAN_SYSTEM, CLEAN_SHOTS, cleanText, parseCleanAnswer } = await lib('ai-names.ts');
+const { aiPrompt } = await lib('ai-categorize.ts');
 
 const args = process.argv.slice(2);
 const arg = (name) => { const i = args.indexOf(`--${name}`); return i >= 0 ? args[i + 1] : null; };
@@ -71,7 +72,9 @@ async function categories(label, set) {
   let right = 0, wrong = 0, none = 0, falseGuess = 0, nulls = 0;
   const misses = [];
   for (const [name, purpose, expect] of set) {
-    const raw = await prompt(NANO_SYSTEM, NANO_CATEGORY_LIST + nanoBookingText(name, purpose), 8);
+    // The desktop's prompt (lib/ai-categorize.ts): the phone's list with its own additions.
+    const p = aiPrompt({ name, purpose: purpose ?? '' });
+    const raw = await prompt(p.system, p.user, p.maxTokens);
     const got = parseNanoAnswer(raw);
     const what = `"${name}${purpose ? ` – ${purpose}` : ''}"`;
     if (expect === null) {

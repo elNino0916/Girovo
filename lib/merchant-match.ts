@@ -135,7 +135,8 @@ const GIVEN_NAMES = new Set(
   sophie stefan stefanie steffen stephan stephanie susanne sven svenja sybille tanja
   thea theo theresa thomas thorsten tim timo tina tobias torben torsten udo ulf ulrich
   ulrike ursula ute uwe valentin vanessa veit vera verena veronika viktor viktoria
-  volker waldemar walter waltraud werner wiebke wilhelm willi wolfgang wolfram yvonne 
+  volker waldemar walter waltraud werner wiebke wilhelm willi wolfgang wolfram yvonne
+  lea lina mia sofia amelie ida maja mila emily noah ben finn elias luca luis louis tom jonathan mario oliver
   `
     .split(/\s+/)
     .filter(Boolean),

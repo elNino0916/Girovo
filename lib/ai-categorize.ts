@@ -91,14 +91,29 @@ export function aiGroups(txs: readonly SerializedTransaction[], categoryOf: Cate
     || (bankDay(a.txs[0]) === bankDay(b.txs[0]) ? 0 : bankDay(a.txs[0]) < bankDay(b.txs[0]) ? 1 : -1));
 }
 
+// i18n-data-start — the desktop model's additions to the phone's list (lib/nano-categories.ts stays Nano's, as calibrated)
+/**
+ * The phone's category list with two boundaries Gemma got wrong in the demo:
+ * a sports club is Freizeit, a town's Kita or waste fee is Steuern & Abgaben.
+ */
+export const AI_CATEGORY_LIST = NANO_CATEGORY_LIST
+  .replace('Fitnessstudio, Sport;', 'Fitnessstudio, Sport, Sportverein und Vereinsbeitrag;')
+  .replace('Gebühren, Bußgeld;', 'Gebühren wie Kita-, Schul- oder Müllgebühren der Stadt, Bußgeld;')
+  + 'Empfänger: SV Grün-Weiß 1921 e.V. · Verwendungszweck: Mitgliedsbeitrag → leisure\n'
+  + 'Empfänger: Gemeinde Talheim · Verwendungszweck: Kita-Gebühr Oktober → taxes\n';
+// i18n-data-end
+
+/** Raised with every change to AI_CATEGORY_LIST: answers remembered under another version are asked again. */
+export const AI_CATEGORY_VERSION = `${NANO_PROMPT_VERSION}.g1`;
+
 /** The key an answer is remembered under: the same prompt gets the same answer. */
 export function answerKey(group: Pick<AiGroup, 'name' | 'purpose'>): string {
-  return `${NANO_PROMPT_VERSION}\u0000${group.name}\u0000${group.purpose}`;
+  return `${AI_CATEGORY_VERSION}\u0000${group.name}\u0000${group.purpose}`;
 }
 
-/** The prompt for one counterparty, byte for byte the benchmark's. */
+/** The prompt for one counterparty, as scripts/eval-gemma-bookings.mjs measures it. */
 export function aiPrompt(group: Pick<AiGroup, 'name' | 'purpose'>): { system: string; user: string; maxTokens: number } {
-  return { system: NANO_SYSTEM, user: NANO_CATEGORY_LIST + nanoBookingText(group.name, group.purpose), maxTokens: 8 };
+  return { system: NANO_SYSTEM, user: AI_CATEGORY_LIST + nanoBookingText(group.name, group.purpose), maxTokens: 8 };
 }
 
 /** Gemma's answer as a category, or null for NONE and anything unreadable. */
