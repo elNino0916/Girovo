@@ -43,3 +43,4 @@ dist/
 
 # Girovo AI question-set runs (scripts/eval-fragen)
 /scripts/eval-fragen/results/
+/scripts/eval-gemma-vision/set/
