@@ -21,6 +21,7 @@ import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
 import { CheckCircleIcon, DownloadIcon, AiMarkIcon } from '../icons';
 import { AiCategorizeRow } from '../insights/ai/AiCategorize';
+import { AiNamesRow } from '../insights/ai/AiNamesSetting';
 import { useModelReady } from '../insights/ask-gate';
 import { useGemma } from '../insights/gemma';
 import { Button, Progress } from '../ui';
@@ -91,6 +92,8 @@ export function AskPage() {
           title={words.title}
           summary={ready ? words.hint : words.needsModel(IS_ANDROID)}
         />
+        {/* The desktop only: the phone shows Gemini Nano's brands as before. */}
+        {!IS_ANDROID && <AiNamesRow />}
       </SettingsGroup>
 
       {/* The desktop with Gemma: the bookings in Sonstiges, read once the user asks (components/insights/ai/AiCategorize.tsx). */}

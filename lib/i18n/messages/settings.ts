@@ -292,6 +292,15 @@ export const de = {
     apply: 'Übernehmen',
     applied: (n: number): string => (n === 1 ? '1 Umsatz neu kategorisiert' : `${n} Umsätze neu kategorisiert`),
   },
+
+  /** Einstellungen → Girovo AI, the desktop: cleaned names in the lists (components/insights/ai/AiNamesSetting.tsx). */
+  aiNames: {
+    title: 'Namen mit Girovo AI aufräumen',
+    hint: 'Zeigt Rewe statt REWE MARKT GMBH 4711',
+    needsModel: 'Lade zuerst das Modell unten',
+    /** While the names are cleaned in the background. */
+    progress: (done: number, total: number) => `${done} von ${total} Namen aufgeräumt`,
+  },
 };
 
 export const en: typeof de = {
@@ -513,5 +522,11 @@ export const en: typeof de = {
     pickFor: (name) => `Category for ${name}`,
     apply: 'Apply',
     applied: (n) => (n === 1 ? '1 transaction recategorised' : `${n} transactions recategorised`),
+  },
+  aiNames: {
+    title: 'Tidy names with Girovo AI',
+    hint: 'Shows Rewe instead of REWE MARKT GMBH 4711',
+    needsModel: 'Download the model below first',
+    progress: (done, total) => `${done} of ${total} names tidied`,
   },
 };

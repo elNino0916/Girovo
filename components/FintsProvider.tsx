@@ -63,7 +63,8 @@ import {
   withoutCategory, type SplitPart,
 } from '@/lib/splits';
 import { isCardPurpose, parseCardAcceptor } from '@/lib/card-purpose';
-import { setBrandNames } from './transactions/model';
+import { setAiNames, setBrandNames } from './transactions/model';
+import { useAiNames } from './insights/ai/useAiNames';
 import { bankAllowed, reminderDue, type PlusStatus } from '@/lib/plus';
 import { reviewMoment } from './android/review';
 import { parsePurpose } from '@/lib/sepa-purpose';
@@ -5207,6 +5208,13 @@ function useFintsState() {
     if (own.includes('leisure')) toast(msgs().provider.diningSplit, 'info', 9000);
   }, [vault, toast]);
 
+  // Girovo AI's cleaned names on the desktop (components/insights/ai/useAiNames.ts):
+  // shown through the same txText path as Nano's brands, asked in the background.
+  const aiNames = useAiNames({ vault, updateVault, txByAccount, pending: pendingFetched, noted: notedFetched });
+  useMemo(() => setAiNames(aiNames), [aiNames]);
+  // The lists' names as one value: a new map when either kind changes, so rows and rankings redraw.
+  const shownNames = useMemo(() => (aiNames ? new Map(brandNames) : brandNames), [brandNames, aiNames]);
+
   // Gemini Nano's clean names for the lists (lib/nano-names.ts) — Android
   // only, where Nano is; the desktop's route answers "unavailable". Card
   // payments and direct debits only: their other side is a business, never a
@@ -6022,7 +6030,7 @@ function useFintsState() {
     categoryOf, setCategory, setSplit,
     removeCategoryRule,
     addCustomCategory, renameCustomCategory, deleteCustomCategory,
-    modelGuesses, brandNames,
+    modelGuesses, brandNames: shownNames,
     // Girovo Plus (lib/plus.ts)
     plus, plusOpen, openPlus, closePlus,
     categoryGuessOf, setBudgets, setGoal, recordSplitRequests, noteOf, setNote,

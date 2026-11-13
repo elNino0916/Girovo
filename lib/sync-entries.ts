@@ -140,6 +140,9 @@ export function vaultFromEntries(entries: ReadonlyMap<string, unknown>, base: Va
   // Girovo Next: asking switched off, and its sheet seen, are this device's too.
   if (base.askOff) out.askOff = true;
   if (base.askIntroSeen) out.askIntroSeen = true;
+  // Girovo AI's cleaned names (lib/ai-names-store.ts): this desktop's, never entries. The phone keeps Nano's.
+  if (base.aiNamesOn) out.aiNamesOn = true;
+  if (base.aiNames) out.aiNames = base.aiNames;
   // A reminder set on one device reminds on all; what this one's Mitteilungen showed is its own.
   if (Object.keys(maps.contractReminders).length) out.contractReminders = maps.contractReminders as NonNullable<VaultData['contractReminders']>;
   if (Object.keys(maps.contractNames).length) out.contractNames = maps.contractNames as NonNullable<VaultData['contractNames']>;

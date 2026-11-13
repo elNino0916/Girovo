@@ -9,7 +9,7 @@ import { ClockIcon, RefreshIcon } from '../icons';
 import { Money } from '../Money';
 import { Button, IconButton, Spinner } from '../ui';
 import { fmtSince } from '../shell/session';
-import { merchantFor, newestFirst, rowKey, searchText } from './model';
+import { aiNameOf, merchantFor, newestFirst, rowKey, searchText } from './model';
 import { TxDetailHost, openTxDetail } from './detail-host';
 import { activeFilterCount } from './TxFilterBar';
 import { TxRow, TxRowSkeleton } from './TxRow';
@@ -180,7 +180,7 @@ export function PendingPanel({ account, named = false }: { account?: SerializedA
                   data-pending-match={matches.has(tx) || undefined}
                   className="relative after:pointer-events-none after:absolute after:right-0 after:bottom-0 after:left-[68px] after:h-px after:bg-line last:after:hidden"
                 >
-                  <TxRow tx={tx} merchant={merchantFor(merchants, tx)} userNote={noteOf(tx)} pending compact onOpen={onOpen} />
+                  <TxRow tx={tx} brand={aiNameOf(tx)} merchant={merchantFor(merchants, tx)} userNote={noteOf(tx)} pending compact onOpen={onOpen} />
                 </li>
               ))}
             </ul>

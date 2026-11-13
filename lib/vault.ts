@@ -39,6 +39,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { isGrouping, sanitizeAccountOrder } from './account-overview.ts';
 import { isRecord } from './guards.ts';
+import { mergeAiNames, sanitizeAiNames } from './ai-names-store.ts';
 import { sanitizeContractNames, sanitizeNoticed, sanitizeReminders } from './contract-watch.ts';
 import { sanitizeManual, sanitizeManualDays } from './manual-contracts.ts';
 import { sanitizeKeptBalances, sanitizeNetWorth } from './kept-balances.ts';
@@ -298,6 +299,9 @@ export function sanitizeVault(input: unknown, now = Date.now()): VaultData | nul
     // Girovo Next: asking switched off, and its sheet seen once.
     ...(input.askOff === true ? { askOff: true as const } : {}),
     ...(input.askIntroSeen === true ? { askIntroSeen: true as const } : {}),
+    // Girovo AI's cleaned names on the desktop (lib/ai-names-store.ts): the switch, and the names within their cap.
+    ...(input.aiNamesOn === true ? { aiNamesOn: true as const } : {}),
+    ...(sanitizeAiNames(input.aiNames) ? { aiNames: sanitizeAiNames(input.aiNames)! } : {}),
     updatedAt: iso(input.updatedAt) ?? EMPTY_VAULT.updatedAt,
   };
 }
@@ -615,6 +619,8 @@ export function mergeVaults(current: VaultData, fromBackup: VaultData): VaultDat
       ? { linkedBanks: [...(current.linkedBanks ?? []), ...(backup.linkedBanks ?? [])] }
       : {}),
     ...(current.keepBookings || backup.keepBookings ? { keepBookings: true as const } : {}),
+    // Girovo AI's cleaned names: this computer's, the backup's added where they are of the same prompt version.
+    ...(mergeAiNames(current.aiNames, backup.aiNames) ? { aiNames: mergeAiNames(current.aiNames, backup.aiNames)! } : {}),
     // How the accounts are arranged is this computer's while it says anything; else the backup's.
     ...(current.accountOrder || !backup.accountOrder ? {} : { accountOrder: backup.accountOrder }),
     ...(current.accountGrouping || !backup.accountGrouping ? {} : { accountGrouping: backup.accountGrouping }),

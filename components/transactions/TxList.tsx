@@ -9,7 +9,7 @@ import { IS_ANDROID } from '@/lib/platform';
 import { Money } from '../Money';
 import { ClockIcon, LockIcon } from '../icons';
 import { Button } from '../ui';
-import { rowKey, type DayGroup } from './model';
+import { aiNameOf, rowKey, type DayGroup } from './model';
 import { TxRow } from './TxRow';
 
 /**
@@ -168,7 +168,7 @@ export function TxList({
                 >
                   <TxRow
                     tx={tx}
-                    brand={brandNames?.get(counterpartyKey(tx))}
+                    brand={brandNames?.get(counterpartyKey(tx)) ?? aiNameOf(tx)}
                     merchant={merchantOf(tx)}
                     category={categoryOf(tx).id}
                     parts={categoryOf(tx).parts}

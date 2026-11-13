@@ -22,6 +22,7 @@ import {
   dayKey, displayName, fmtAmountInput, fmtDate, fmtDayHeader, fmtIban, ibanValid, isFutureDate, prettyBookingText,
   prettyPurpose, repairBankText, toLocalDate,
 } from '@/lib/format';
+import { aiNameKey } from '@/lib/ai-names-store';
 import { activeLocale, intlLocale, msgs, type Locale } from '@/lib/i18n';
 import { facilitatorOf, getMerchantKey } from '@/lib/merchant-match';
 import { condenseRefs, parsePurpose, purposeLines, type ParsedPurpose } from '@/lib/sepa-purpose';
@@ -86,6 +87,24 @@ export function setBrandNames(next: ReadonlyMap<string, string>): void {
   if (next === brands) return;
   brands = next;
   textCaches.clear();
+}
+
+/**
+ * Girovo AI's cleaned names on the desktop (lib/ai-names-store.ts), by
+ * aiNameKey: "Rewe" for "REWE MARKT GMBH-ZWNL 4711". Null while switched
+ * off; set by the provider (components/insights/ai/useAiNames.ts).
+ */
+let aiNames: ReadonlyMap<string, string> | null = null;
+
+export function setAiNames(next: ReadonlyMap<string, string> | null): void {
+  if (next === aiNames) return;
+  aiNames = next;
+  textCaches.clear();
+}
+
+/** The booking's cleaned name, if Girovo AI's names are on and it has one. */
+export function aiNameOf(tx: SerializedTransaction): string | undefined {
+  return (aiNames?.size && aiNames.get(aiNameKey(tx))) || undefined;
 }
 
 function textCache(): WeakMap<SerializedTransaction, TxText> {
@@ -183,7 +202,9 @@ export function txText(tx: SerializedTransaction): TxText {
   // through it shares. The drawer keeps `rawName` and `bankName`, and the
   // search reads all of them.
   const brand = shop ? undefined : brands.get(counterpartyKey(tx));
-  const name = brand || (shop && displayName(repairBankText(shop))) || displayName(rawName) || bookingText || words.fallbackName;
+  // Girovo AI's cleaned name on the desktop, the shop behind a payment
+  // service included (its key carries the shop).
+  const name = aiNameOf(tx) || brand || (shop && displayName(repairBankText(shop))) || displayName(rawName) || bookingText || words.fallbackName;
   // The second line repeats nothing the first already says: a purpose that
   // is just the payee's name again gives way to the booking text.
   const kind = bookingKind(tx);
