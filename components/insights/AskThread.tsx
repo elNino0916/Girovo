@@ -49,6 +49,7 @@ import { openTxDetail } from '../transactions/detail-host';
 import { useScopeData, type ScopeData } from './analysis-model';
 import { AskTile } from './Ask';
 import { ExplainAnswer } from './ask/ExplainAnswer';
+import { AskNotes, thisMonth } from './ask/Notes';
 import { ListLine, ListRows, RankLine, RankRows } from './ask/ListAnswer';
 import { useCanAsk } from './ask-gate';
 import { FactAnswer } from './ask/FactAnswers';
@@ -704,6 +705,7 @@ function TurnView({ turn, data, ctx, own, onShown, latest }: {
       )}
       <GirovoTile phase={turn.state === 'reading' ? 'reading' : writer.pending ? 'writing' : null}>
         {turn.seed && (recap ? <RecapText recap={recap} own={own} onShown={onShown} /> : <p className="text-[16px] leading-6 sm:text-[14px]">{data ? words.outside : words.thread.notLoaded}</p>)}
+        {turn.seed && recap && <AskNotes data={data} ctx={ctx} own={own} month={recap.month} onShown={onShown} />}
         {turn.state === 'failed' && <p className="text-[16px] leading-6 sm:text-[14px]">{words.failed}</p>}
         {turn.state === 'notUnderstood' && <p className="text-[16px] leading-6 sm:text-[14px]">{IS_ANDROID ? words.notUnderstood : words.desktop.notUnderstood}</p>}
         {turn.state === 'offTopic' && <p className="text-[16px] leading-6 sm:text-[14px]">{words.thread.offTopic}</p>}
@@ -829,7 +831,10 @@ function Thread({ face, onClose }: { face: 'screen' | 'panel'; onClose: () => vo
 
       <div ref={listRef} className={cx('min-h-0 flex-1 overflow-y-auto overscroll-contain', face === 'screen' ? 'px-4' : 'px-5')}>
         {turns.length === 0 ? (
+          <>
+          <AskNotes data={data} ctx={ctx} own={own} month={thisMonth()} tile onShown={onShown} />
           <p className="mt-6 max-w-[34ch] text-[16px] leading-6 text-ink-2 sm:text-[14px] sm:leading-5">{words.empty}</p>
+          </>
         ) : (
           <ol aria-live="polite" className="flex flex-col gap-5 pt-1 pb-4">
             {turns.map((turn, i) => <TurnView key={turn.id} turn={turn} data={data} ctx={ctx} own={own} onShown={onShown} latest={i === turns.length - 1} />)}
@@ -990,6 +995,7 @@ export function MonthRecap({ narrower = false }: { narrower?: boolean }) {
         </IconButton>
       </div>
       <RecapText recap={recap} own={own} />
+      <AskNotes data={data} ctx={ctx} own={own} month={month} />
       <div className="mt-3 flex flex-wrap gap-2">
         <Button variant="secondary" size="sm" onClick={() => openAskWithRecap(month, words.conversation(name))}>{words.more}</Button>
       </div>
