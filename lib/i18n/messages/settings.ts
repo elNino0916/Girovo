@@ -272,6 +272,15 @@ export const de = {
     failed: 'Girovo konnte nicht zurückgesetzt werden.',
     left: 'Girovo konnte nicht alles löschen. Versuch es gleich noch einmal.',
   },
+
+  /** Einstellungen → Girovo AI, the desktop: cleaned names in the lists (components/insights/ai/AiNamesSetting.tsx). */
+  aiNames: {
+    title: 'Namen mit Girovo AI aufräumen',
+    hint: 'Zeigt Rewe statt REWE MARKT GMBH 4711',
+    needsModel: 'Lade zuerst das Modell unten',
+    /** While the names are cleaned in the background. */
+    progress: (done: number, total: number) => `${done} von ${total} Namen aufgeräumt`,
+  },
 };
 
 export const en: typeof de = {
@@ -474,5 +483,12 @@ export const en: typeof de = {
     confirm: 'Reset',
     failed: 'Girovo couldn’t be reset.',
     left: 'Girovo couldn’t delete everything. Try again in a moment.',
+  },
+
+  aiNames: {
+    title: 'Tidy names with Girovo AI',
+    hint: 'Shows Rewe instead of REWE MARKT GMBH 4711',
+    needsModel: 'Download the model below first',
+    progress: (done, total) => `${done} of ${total} names tidied`,
   },
 };

@@ -12,6 +12,7 @@ import { isAvatarChoice, isAvatarImage, OWN_PICTURE } from '@/lib/avatars';
 import { sanitizeBudgets } from '@/lib/budgets';
 import { sanitizeContractNames, sanitizeNoticed, sanitizeReminders } from '@/lib/contract-watch';
 import { sanitizeManual, sanitizeManualDays } from '@/lib/manual-contracts';
+import { sanitizeAiNames } from '@/lib/ai-names-store';
 import type { CategoryId } from '@/lib/categories';
 import { post } from '@/lib/client-api';
 import type { KeptDoc } from '@/lib/docs';
@@ -736,6 +737,9 @@ export function normalizeVault(raw: VaultData | null | undefined): VaultData {
     // Girovo Next: asking switched off, and its sheet seen once.
     ...(raw.askOff === true ? { askOff: true as const } : {}),
     ...(raw.askIntroSeen === true ? { askIntroSeen: true as const } : {}),
+    // Kept too, or a login would switch Girovo AI's names off and forget them.
+    ...(raw.aiNamesOn === true ? { aiNamesOn: true as const } : {}),
+    ...(sanitizeAiNames(raw.aiNames) ? { aiNames: sanitizeAiNames(raw.aiNames)! } : {}),
     updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : EMPTY_VAULT.updatedAt,
   };
 }

@@ -20,6 +20,7 @@ import type { LinkedBankRef } from './linked-banks';
 import type { SplitPart } from './splits';
 import type { ContractReminder } from './contract-watch';
 import type { ManualContract, ManualDay } from './manual-contracts';
+import type { AiNamesCache } from './ai-names-store';
 
 export type { CategoryId };
 
@@ -265,6 +266,10 @@ export type VaultData = {
   askOff?: true;
   /** Girovo Next: the sheet that explains asking was seen once. */
   askIntroSeen?: true;
+  /** Girovo Next on the desktop: "Namen mit Girovo AI aufräumen" switched on. This device's own, never synced. */
+  aiNamesOn?: true;
+  /** Girovo AI's cleaned counterparty names (lib/ai-names-store.ts), kept while switched off. This device's own, never synced. */
+  aiNames?: AiNamesCache;
   /** ISO */
   updatedAt: string;
 };
