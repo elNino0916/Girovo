@@ -63,7 +63,7 @@ import {
   withoutCategory, type SplitPart,
 } from '@/lib/splits';
 import { isCardPurpose, parseCardAcceptor } from '@/lib/card-purpose';
-import { setAiNames, setBrandNames } from './transactions/model';
+import { merchantFor, setAiNames, setBrandNames } from './transactions/model';
 import { useAiNames } from './insights/ai/useAiNames';
 import { bankAllowed, reminderDue, type PlusStatus } from '@/lib/plus';
 import { reviewMoment } from './android/review';
@@ -5322,7 +5322,7 @@ function useFintsState() {
     return (tx: SerializedTransaction): CategoryResult => {
       const hit = memo.get(tx);
       if (hit) return hit;
-      const merchant = merchants[getMerchantKey(tx)] ?? merchants[counterpartyName(tx)] ?? null;
+      const merchant = merchantFor(merchants, tx);
       let result: CategoryResult;
       try {
         result = categorize(tx, {
@@ -5351,7 +5351,7 @@ function useFintsState() {
     return (tx: SerializedTransaction): CategoryGuess => {
       const hit = memo.get(tx);
       if (hit) return hit;
-      const merchant = merchants[getMerchantKey(tx)] ?? merchants[counterpartyName(tx)] ?? null;
+      const merchant = merchantFor(merchants, tx);
       let result: CategoryGuess;
       try {
         result = explainGuess(tx, { ownIbans: own, merchantLabel: merchant?.label ?? null, modelGuesses });
@@ -6160,8 +6160,8 @@ export function useFints(): FintsApi {
  */
 export function useMerchant(tx: SerializedTransaction): Merchant | null {
   const { merchants } = useFints();
-  const key = useMemo(() => getMerchantKey(tx), [tx]);
-  return useMemo(() => merchants[key] ?? merchants[counterpartyName(tx)] ?? null, [merchants, key, tx]);
+  // One lookup for every face of a booking (components/transactions/model.ts merchantFor).
+  return useMemo(() => merchantFor(merchants, tx), [merchants, tx]);
 }
 
 /** Convenience: the logo filename for a brand, or undefined for a monogram. */

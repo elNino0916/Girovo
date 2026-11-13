@@ -24,7 +24,7 @@ import {
 } from '@/lib/format';
 import { aiNameKey } from '@/lib/ai-names-store';
 import { activeLocale, intlLocale, msgs, type Locale } from '@/lib/i18n';
-import { facilitatorOf, getMerchantKey } from '@/lib/merchant-match';
+import { facilitatorOf, getMerchantKey, isFacilitatorName } from '@/lib/merchant-match';
 import { condenseRefs, parsePurpose, purposeLines, type ParsedPurpose } from '@/lib/sepa-purpose';
 
 const cents = (v: number) => Math.round(Number(v) * 100);
@@ -343,7 +343,15 @@ export function rowKey(tx: SerializedTransaction): number {
  * subscribing each row to the provider.
  */
 export function merchantFor(merchants: Record<string, Merchant | null>, tx: SerializedTransaction): Merchant | null {
-  return merchants[getMerchantKey(tx)] ?? merchants[counterpartyName(tx)] ?? null;
+  const key = getMerchantKey(tx);
+  const name = counterpartyName(tx);
+  // A purchase through a payment service whose shop the row names (from the purpose, or Girovo
+  // AI's clean name): the shop's own logo or none, never the service's in its place. "Strato"
+  // showed PayPal's logo, taken from the PayPal bookings that name no shop.
+  const shopNamed = key !== name || (!!aiNameOf(tx) && isFacilitatorName(name));
+  const own = merchants[key] ?? (shopNamed ? null : merchants[name]) ?? null;
+  if (own && shopNamed && !own.via && isFacilitatorName(own.label)) return null;
+  return own;
 }
 
 // ---------------------------------------------------------------------------
