@@ -387,7 +387,8 @@ export function usePalette({ onClose, steerFromStart = !IS_ANDROID }: { onClose:
   const q = query.trim();
   const searchCtx = useMemo(
     () => ({ categoryOf: f.categoryOf, shownText: searchText, noteOf: f.noteOf }),
-    [f.categoryOf, f.noteOf],
+    // brandNames: the shown names (Girovo AI's or Nano's) are what the search reads.
+    [f.categoryOf, f.noteOf, f.brandNames],
   );
   const txMatches = useMemo(() => {
     if (q.length < MIN_TX_QUERY) return { list: [] as { tx: SerializedTransaction; account: SerializedAccount }[], total: 0, inActive: 0 };

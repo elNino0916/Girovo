@@ -298,6 +298,7 @@ export const de = {
     title: 'Namen mit Girovo AI aufräumen',
     hint: 'Zeigt Rewe statt REWE MARKT GMBH 4711',
     needsModel: 'Lade zuerst das Modell unten',
+    isOff: 'Geht, wenn Girovo AI an ist',
     /** While the names are cleaned in the background. */
     progress: (done: number, total: number) => `${done} von ${total} Namen aufgeräumt`,
   },
@@ -527,6 +528,7 @@ export const en: typeof de = {
     title: 'Tidy names with Girovo AI',
     hint: 'Shows Rewe instead of REWE MARKT GMBH 4711',
     needsModel: 'Download the model below first',
+    isOff: 'Works when Girovo AI is on',
     progress: (done, total) => `${done} of ${total} names tidied`,
   },
 };

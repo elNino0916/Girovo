@@ -4825,6 +4825,17 @@ function useFintsState() {
     return { pendingCache: cache, pendingInfo: info };
   }, [notedFetched, pendingFetched, statementInfo, txCache]);
 
+  /**
+   * Every loaded booking a category rule reaches: the statements' and every
+   * Vorgemerkte as read, the ones the bank booked since included (setCategory
+   * lifts their choices too, and "Mit Girovo AI kategorisieren" checks them).
+   */
+  const loadedTxs = useMemo(() => [
+    ...Object.values(txCache).flatMap((e) => e.txs),
+    ...Object.values(pendingFetched).flatMap((e) => e.txs),
+    ...Object.values(notedFetched).flatMap((e) => e.txs),
+  ], [txCache, pendingFetched, notedFetched]);
+
   const ownIbans = useMemo(
     () => [...new Set(accounts.map((a) => compactIban(a.iban)).filter(Boolean))],
     [accounts],
@@ -5589,14 +5600,9 @@ function useFintsState() {
     // A counterparty with neither IBAN, creditor ID nor name cannot carry a rule.
     if (opts.rule && who !== 'name:?') {
       const stale = new Set([key, ...olds]);
-      const loaded = [
-        ...Object.values(txCache).flatMap((e) => e.txs),
-        ...Object.values(pendingFetched).flatMap((e) => e.txs),
-        ...Object.values(notedFetched).flatMap((e) => e.txs),
-      ];
       // Every loaded booking the rule files, in either spelling.
       const reach = { ...vaultRef.current?.categoryRules, [who]: id };
-      for (const t of loaded) {
+      for (const t of loadedTxs) {
         if (counterpartyRuleKey(reach, t) !== who) continue;
         stale.add(txKey(t));
         for (const k of leadingRef.current(txKey(t))) stale.add(k);
@@ -5614,7 +5620,7 @@ function useFintsState() {
       const overrides = dropKeys(v.txCategories, olds);
       return v.txCategories[key] === id && overrides === v.txCategories ? v : { ...v, txCategories: { ...overrides, [key]: id } };
     });
-  }, [txCache, pendingFetched, notedFetched, updateVault]);
+  }, [loadedTxs, updateVault]);
 
   /**
    * Splits one booking across categories (lib/splits.ts) — `parts` in whole
@@ -5981,7 +5987,7 @@ function useFintsState() {
     view, meta, popularBanks, logoFiles, bank, sessionId, userId,
     bankChecking, staleBank,
     tanMethods, selectedMethod, mediaChoice, tanMethodError,
-    accounts, activeAccount, balances, transactions, pendingCache, pendingInfo, txError, merchants,
+    accounts, activeAccount, balances, transactions, pendingCache, pendingInfo, loadedTxs, txError, merchants,
     txErrors, balanceErrors, balanceLoading, loadingAllBalances,
     portfolios, portfolioErrors, portfolioLoading, loadPortfolio,
     docs, docsLocked, docsResettable, loadDocs, resetDocs, readDoc, openDoc, removeDoc, keepReceipt, receiptsOf, receiptKeys,

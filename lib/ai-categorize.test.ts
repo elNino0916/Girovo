@@ -23,6 +23,12 @@ const rewe = mt940({ day: '2026-09-02', amount: -23.4, gvc: '106', text: 'KARTEN
 const refund = mt940({ day: '2026-09-04', amount: 12, gvc: '166', text: 'GUTSCHRIFT', name: 'Atelier Nadelstich', iban: IBAN.kfz });
 const toSavings = mt940({ day: '2026-09-01', amount: -300, gvc: '116', text: 'UEBERWEISUNG', name: 'Nino Muster', iban: OWN_SAVINGS });
 const nameless = camt({ day: '2026-09-28', amount: -3, code: 'XXXX', text: '' });
+// One payee by IBAN: the rent the keywords know, a bill still in Sonstiges, and money coming in.
+const payee = (day: string, amount: number, purpose: string) =>
+  mt940({ day, amount, gvc: amount < 0 ? '116' : '166', text: amount < 0 ? 'UEBERWEISUNG' : 'GUTSCHRIFT', name: 'Max Mustermann', iban: IBAN.kfz, purpose });
+// One shop, its name with and without the umlauts spelled out.
+const atelier = (day: string, name = 'Atelier Grün', amount = -18) =>
+  camt({ day, amount, code: 'POSD', text: 'Kartenzahlung', name });
 // i18n-data-end
 
 const categoryOf = (rules: Record<string, CategoryId> = {}, overrides: Record<string, CategoryId> = {}) =>
@@ -106,4 +112,45 @@ test('Übernehmen files the checked rows, with how many bookings each moves', ()
     { key: 'iban:gone', category: 'shopping', checked: true },
   ]);
   assert.deepEqual(list, [{ tx: b, category: 'groceries', count: 2 }]);
+});
+
+test('a payee is left out when the rule would also move a booking the review does not show', () => {
+  const bill = payee('2026-09-15', -45, 'Rechnung 4711');
+  const of = categoryOf();
+  assert.equal(qualifies(bill, of), true);
+  // Rent the keywords filed: the rule would take it out of Wohnen.
+  const rent = payee('2026-09-01', -800, 'Miete September');
+  assert.notEqual(of(rent).id, 'other');
+  assert.deepEqual(aiGroups([rent, bill], of), []);
+  // Money coming in: the rule files both directions.
+  const pocket = payee('2026-09-20', 120, 'Taschengeld');
+  assert.deepEqual(aiGroups([bill, pocket], of), []);
+  // A Vorgemerkte the user filed, loaded but no longer listed.
+  const early = payee('2026-09-25', -12, 'Rechnung 4712');
+  assert.deepEqual(aiGroups([bill], categoryOf({}, { [txKey(early)]: 'shopping' }), [early]), []);
+  // Without them, the bill alone is asked about, and Übernehmen counts it once.
+  const groups = aiGroups([bill], of, [bill]);
+  assert.equal(groups.length, 1);
+  assert.deepEqual(applyList(groups, [{ key: groups[0].key, category: 'shopping', checked: true }]), [{ tx: bill, category: 'shopping', count: 1 }]);
+});
+
+test('the rule reaches the other spelling of the name: a filed one keeps it out, open ones join the group', () => {
+  const dotted = atelier('2026-09-10');
+  const spelled = atelier('2026-09-20', 'ATELIER GRUEN', -22);
+  const of = categoryOf();
+  assert.equal(qualifies(dotted, of), true);
+  assert.equal(qualifies(spelled, of), true);
+  assert.notEqual(counterpartyKey(dotted), counterpartyKey(spelled));
+  // Filed by hand in one spelling: a rule for the other would lift that choice.
+  assert.deepEqual(aiGroups([dotted, spelled], categoryOf({}, { [txKey(spelled)]: 'shopping' })), []);
+  // Both open: one group with both bookings, not two that move the same ones twice.
+  const groups = aiGroups([dotted, spelled], of);
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].txs.length, 2);
+  // The rule is set on a booking whose own key is the group's, so it lands where the review counted.
+  assert.equal(counterpartyKey(groups[0].anchor), groups[0].key);
+  const [apply] = applyList(groups, [{ key: groups[0].key, category: 'shopping', checked: true }]);
+  assert.equal(apply.count, 2);
+  const rules = { [counterpartyKey(apply.tx)]: apply.category };
+  for (const tx of [dotted, spelled]) assert.equal(categoryOf(rules)(tx).id, 'shopping');
 });

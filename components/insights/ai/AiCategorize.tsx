@@ -43,14 +43,18 @@ const GIVE_UP_AFTER = 3;
 /** Whether the way in shows, whether it works now, and what it would read. */
 function useAiCategorize() {
   const gemma = useGemma();
-  const { vault, txByAccount, categoryOf } = useFints();
+  const { vault, txByAccount, pendingCache, loadedTxs, categoryOf } = useFints();
   // Only where the shell has Gemma for this system: null in a browser and on Android.
   const shown = !IS_ANDROID && !!gemma?.supported;
   const modelReady = shown && gemmaUsable(gemma);
   const off = !!vault?.askOff;
+  // The listed bookings, Vorgemerkte included: the rule moves them too. The
+  // rest of what is loaded is only checked (lib/ai-categorize.ts aiGroups).
   const groups = useMemo(
-    () => (shown ? aiGroups(Object.values(txByAccount).flat(), categoryOf) : []),
-    [shown, txByAccount, categoryOf],
+    () => (shown
+      ? aiGroups([...Object.values(txByAccount).flat(), ...Object.values(pendingCache).flat()], categoryOf, loadedTxs)
+      : []),
+    [shown, txByAccount, pendingCache, loadedTxs, categoryOf],
   );
   const count = useMemo(() => groups.reduce((n, g) => n + g.txs.length, 0), [groups]);
   return { shown, ready: modelReady && !off, why: !modelReady ? 'model' as const : off ? 'off' as const : null, groups, count };

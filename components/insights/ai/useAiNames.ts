@@ -9,7 +9,7 @@
 // lists, the search, rankings and Girovo AI's answers read the same name. A
 // booking's details keep the bank's own text ("Name laut Bank").
 //
-// On (vault.aiNamesOn, the model downloaded): every counterparty of the loaded
+// On (vault.aiNamesOn, Girovo AI on, the model downloaded): every counterparty of the loaded
 // bookings not cleaned yet is asked, one at a time, so a question to Girovo AI
 // waits for one name at most; new bookings are asked as they load. Answers go
 // to the vault in small batches (lib/ai-names-store.ts). Off: no names, at
@@ -64,7 +64,8 @@ type Lists = {
 export function useAiNames({ vault, updateVault, txByAccount, pending, noted }: Lists): ReadonlyMap<string, string> | null {
   const gemma = useGemma();
   // As components/insights/ask-gate.ts useModelReady says it on the desktop: the model is on the disk.
-  const on = !IS_ANDROID && !!vault?.aiNamesOn && !!gemma?.supported && gemma.state === 'ready';
+  // Girovo AI switched off (vault.askOff): the bank's names, and nothing asked.
+  const on = !IS_ANDROID && !!vault?.aiNamesOn && !vault.askOff && !!gemma?.supported && gemma.state === 'ready';
   // Asking needs more: not given up on in this run.
   const usable = on && gemmaUsable(gemma);
   const cache = vault?.aiNames;
@@ -105,9 +106,15 @@ export function useAiNames({ vault, updateVault, txByAccount, pending, noted }: 
       if (!found.length) return;
       const batch = found.splice(0);
       const keepNow = keep.current;
-      updateRef.current((v) => (v.aiNamesOn
-        ? { ...v, aiNames: withCleanedNames(v.aiNames, CLEAN_PROMPT_VERSION, batch, keepNow) }
-        : v));
+      updateRef.current((v) => {
+        if (!v.aiNamesOn) return v;
+        const aiNames = withCleanedNames(v.aiNames, CLEAN_PROMPT_VERSION, batch, keepNow);
+        // A name the cap just dropped is not asked again in this session.
+        if (v.aiNames?.version === CLEAN_PROMPT_VERSION) {
+          for (const k of Object.keys(v.aiNames.names)) if (!Object.hasOwn(aiNames.names, k)) asked.current.add(k);
+        }
+        return { ...v, aiNames };
+      });
     };
     let failures = 0;
     try {

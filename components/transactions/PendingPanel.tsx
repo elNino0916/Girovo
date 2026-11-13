@@ -43,7 +43,7 @@ export const PENDING_PANEL_ID = 'vorgemerkt';
 export function PendingPanel({ account, named = false }: { account?: SerializedAccount; named?: boolean } = {}) {
   const {
     activeAccount, pendingCache, pendingInfo, pendingLoading, loadPending, busy, merchants, txFilter, categoryOf,
-    pendingErrors, noteOf, accountLabel,
+    pendingErrors, noteOf, accountLabel, brandNames,
   } = useFints();
   const a = account ?? activeAccount;
   // `tr`, not `t`: here `t` is a booking.
@@ -58,7 +58,8 @@ export function PendingPanel({ account, named = false }: { account?: SerializedA
   // A new context on a change of language: the search caches each booking's
   // text per context, and that text holds what the rows show in words (and
   // the user's notes, so a changed note makes a new one too).
-  const searchCtx = useMemo(() => ({ categoryOf, shownText: searchText, noteOf }), [categoryOf, noteOf, tr]);
+  // The shown names (brandNames: Girovo AI's or Nano's) too: the search reads them.
+  const searchCtx = useMemo(() => ({ categoryOf, shownText: searchText, noteOf }), [categoryOf, noteOf, brandNames, tr]);
   const narrowed = activeFilterCount(txFilter) > 0;
   // The rows the Umsätze filter matches, first — the rest after them.
   const { txs, matches } = useMemo(() => {

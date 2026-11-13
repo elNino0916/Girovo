@@ -316,6 +316,17 @@ export function counterpartyRuleKey(
 }
 
 /**
+ * Every key a rule can stand under and file this booking: its own
+ * counterpartyKey() first, then its name's other spellings. A rule under K
+ * reaches the booking when K is one of these (and no rule under its own key
+ * comes first).
+ */
+export function counterpartyRuleKeys(tx: Parameters<typeof counterpartyKey>[0]): string[] {
+  const key = counterpartyKey(tx);
+  return [key, ...otherSpellings(tx, key)];
+}
+
+/**
  * The key a rule for a booking's counterparty is set, changed and removed
  * under: the key of the rule that files it now — its own, or the one found
  * through the other spelling — else its own counterpartyKey(). Removing by

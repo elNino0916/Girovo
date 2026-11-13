@@ -72,8 +72,43 @@ test('the vault keeps only a well formed cache', () => {
     { version: 2, names: { REWE: 'Rewe', EMPTY: '' } },
   );
   const many: Record<string, string> = {};
-  for (let i = 0; i < AI_NAMES_LIMITS.entries + 20; i++) many[`N${i}`] = 'x';
-  assert.equal(Object.keys(sanitizeAiNames({ version: 2, names: many })!.names).length, AI_NAMES_LIMITS.entries);
+  for (let i = 0; i < AI_NAMES_LIMITS.stored + 20; i++) many[`N${i}`] = 'x';
+  assert.equal(Object.keys(sanitizeAiNames({ version: 2, names: many })!.names).length, AI_NAMES_LIMITS.stored);
+  // More than `entries` names the loaded bookings needed come back whole.
+  const needed: Record<string, string> = {};
+  for (let i = 0; i < AI_NAMES_LIMITS.entries + 20; i++) needed[`N${i}`] = 'x';
+  assert.equal(Object.keys(sanitizeAiNames({ version: 2, names: needed })!.names).length, AI_NAMES_LIMITS.entries + 20);
+});
+
+test('over the cap, a name the loaded bookings need is never dropped: the cap gives way', () => {
+  // 600 counterparties loaded, answered in batches of 20 over three starts.
+  const keep = new Set(Array.from({ length: 600 }, (_, i) => `Shop ${i}`));
+  let cache: ReturnType<typeof withCleanedNames> | undefined;
+  for (let start = 0; start < 3; start++) {
+    const todo = [...keep].filter((k) => !cache || !Object.hasOwn(cache.names, k));
+    assert.equal(todo.length, start === 0 ? 600 : 0, 'nothing is asked again after the first start');
+    for (let i = 0; i < todo.length; i += 20) cache = withCleanedNames(cache, 2, todo.slice(i, i + 20).map((k) => [k, 'X'] as const), keep);
+  }
+  assert.equal(Object.keys(cache!.names).length, 600);
+
+  // Names nobody needs any more go, and only they, the oldest first.
+  const old: Record<string, string> = {};
+  for (let i = 0; i < AI_NAMES_LIMITS.entries; i++) old[`OLD${i}`] = 'x';
+  const mixed = withCleanedNames({ version: 2, names: { ...old, ...cache!.names } }, 2, [['NEW', 'n']], new Set([...keep, 'NEW']));
+  const keys = Object.keys(mixed.names);
+  assert.equal(keys.length, 601);
+  assert.ok(!keys.some((k) => k.startsWith('OLD')));
+
+  // Fewer needed than the cap: the cap stays at `entries`.
+  const few = withCleanedNames({ version: 2, names: old }, 2, [['NEW', 'n']], new Set(['NEW']));
+  assert.equal(Object.keys(few.names).length, AI_NAMES_LIMITS.entries);
+  assert.ok(!Object.hasOwn(few.names, 'OLD0') && Object.hasOwn(few.names, 'NEW'));
+
+  // More needed than the vault holds at all: the oldest needed ones go too.
+  const huge = new Set(Array.from({ length: AI_NAMES_LIMITS.stored + 5 }, (_, i) => `K${i}`));
+  const capped = withCleanedNames(undefined, 2, [...huge].map((k) => [k, 'x'] as const), huge);
+  assert.equal(Object.keys(capped.names).length, AI_NAMES_LIMITS.stored);
+  assert.ok(!Object.hasOwn(capped.names, 'K0') && Object.hasOwn(capped.names, `K${AI_NAMES_LIMITS.stored + 4}`));
 });
 
 test('a backup adds its names of the same version; this device wins', () => {

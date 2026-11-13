@@ -14,8 +14,8 @@
 //
 // Kept in the vault, which is sealed with the PIN, on this device only: the
 // field never syncs (lib/sync-entries.ts), so the phone keeps its own names.
-// Capped (AI_NAMES_LIMITS), the oldest names the loaded bookings no longer
-// need going first.
+// Capped (AI_NAMES_LIMITS): only names the loaded bookings no longer need
+// go, the oldest first; the cap gives way to the ones they need.
 //
 // Pure: no path aliases, `.ts` on sibling imports.
 
@@ -31,6 +31,8 @@ export type AiNamesCache = { version: number; names: Record<string, string> };
 export const AI_NAMES_LIMITS = {
   /** Names kept: a year of an ordinary account has a few hundred counterparties. */
   entries: 500,
+  /** Names kept at most, while the loaded bookings need more than `entries` (a long kept history). */
+  stored: 2000,
   /** A key's characters: the SEPA name (70), a separator and the shop from the purpose. */
   key: 120,
   shop: 40,
@@ -93,8 +95,10 @@ export function namesToClean(
 
 /**
  * The cache with `found` added, under `version` (a cache of another version
- * starts empty). Over the cap, the oldest names go first, those not in `keep`
- * (the loaded bookings' keys) before any that are.
+ * starts empty). Over the cap, only names the loaded bookings no longer need
+ * go, the oldest first: a name in `keep` (the loaded bookings' keys) stays,
+ * and the cap gives way to as many as they need, up to AI_NAMES_LIMITS.stored.
+ * Dropping one the lists still show would have it asked again at every start.
  */
 export function withCleanedNames(
   cache: AiNamesCache | undefined,
@@ -109,18 +113,18 @@ export function withCleanedNames(
     delete names[k];
     names[k] = String(v ?? '').slice(0, AI_NAMES_LIMITS.name);
   }
-  let keys = Object.keys(names);
-  let over = keys.length - AI_NAMES_LIMITS.entries;
-  if (over > 0) {
-    for (const k of keys) {
-      if (over <= 0) break;
-      if (keep.has(k)) continue;
-      delete names[k];
-      over--;
-    }
-    keys = Object.keys(names);
-    for (const k of keys.slice(0, Math.max(0, keys.length - AI_NAMES_LIMITS.entries))) delete names[k];
+  const keys = Object.keys(names);
+  const kept = keys.reduce((n, k) => (keep.has(k) ? n + 1 : n), 0);
+  const cap = Math.min(AI_NAMES_LIMITS.stored, Math.max(AI_NAMES_LIMITS.entries, kept));
+  let over = keys.length - cap;
+  for (const k of keys) {
+    if (over <= 0) break;
+    if (keep.has(k)) continue;
+    delete names[k];
+    over--;
   }
+  // More loaded names than the vault holds at all: the oldest of them go.
+  if (over > 0) for (const k of Object.keys(names).slice(0, over)) delete names[k];
   return { version, names };
 }
 
@@ -137,7 +141,8 @@ export function sanitizeAiNames(raw: unknown): AiNamesCache | null {
     entries.push([k, v]);
   }
   if (!entries.length) return null;
-  return { version: raw.version, names: Object.fromEntries(entries.slice(-AI_NAMES_LIMITS.entries)) };
+  // Up to `stored`: withCleanedNames keeps more than `entries` while the loaded bookings need them.
+  return { version: raw.version, names: Object.fromEntries(entries.slice(-AI_NAMES_LIMITS.stored)) };
 }
 
 /** Both caches as one (restoring a backup): this device's names win; another version's are dropped. */

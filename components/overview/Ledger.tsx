@@ -82,7 +82,8 @@ export function Ledger() {
   }, [layers, txByAccount, accountLabel]);
   const searchCtx = useMemo<SearchContext & { categoryOf: typeof categoryOf }>(
     () => ({ categoryOf, shownText: searchText, noteOf }),
-    [categoryOf, noteOf, t],
+    // brandNames: the shown names (Girovo AI's or Nano's) are what the search reads.
+    [categoryOf, noteOf, brandNames, t],
   );
   const sorted = useMemo(() => newestFirst([...layerOf.keys()]), [layerOf]);
   const filtered = useMemo(() => filterTransactions(sorted, txFilter, searchCtx), [sorted, txFilter, searchCtx]);

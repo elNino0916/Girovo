@@ -44,6 +44,12 @@ const compactIban = (s: string | null | undefined) => String(s ?? '').replace(/\
 export type TxText = {
   /** The counterparty as a person would write it ("DB VERTRIEB GMBH" → "DB Vertrieb GmbH"). */
   name: string;
+  /**
+   * `name` without Girovo AI's cleaned one (lib/ai-names-store.ts): what is
+   * stored and synced, such as an added contract's label. The cleaned names
+   * stay on this device.
+   */
+  plainName: string;
   /** Exactly as the bank stored it (mis-decoded umlauts repaired) — for the detail view and prefills. */
   rawName: string;
   /**
@@ -204,7 +210,8 @@ export function txText(tx: SerializedTransaction): TxText {
   const brand = shop ? undefined : brands.get(counterpartyKey(tx));
   // Girovo AI's cleaned name on the desktop, the shop behind a payment
   // service included (its key carries the shop).
-  const name = aiNameOf(tx) || brand || (shop && displayName(repairBankText(shop))) || displayName(rawName) || bookingText || words.fallbackName;
+  const plainName = brand || (shop && displayName(repairBankText(shop))) || displayName(rawName) || bookingText || words.fallbackName;
+  const name = aiNameOf(tx) || plainName;
   // The second line repeats nothing the first already says: a purpose that
   // is just the payee's name again gives way to the booking text.
   const kind = bookingKind(tx);
@@ -254,6 +261,7 @@ export function txText(tx: SerializedTransaction): TxText {
   if (where && !card && kind === 'karte' && summary && !summary.includes(where)) summary = `${summary} · ${where}`;
   const out: TxText = {
     name,
+    plainName,
     rawName,
     via,
     bankName: repairBankText(rawCounterparty(tx)).replace(/\s+/g, ' ').trim(),

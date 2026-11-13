@@ -86,7 +86,8 @@ export function Transactions() {
   // is then said in it, and when a note does.
   const searchCtx = useMemo<SearchContext & { categoryOf: typeof categoryOf }>(
     () => ({ categoryOf, shownText: searchText, noteOf }),
-    [categoryOf, noteOf, tr],
+    // brandNames: the shown names (Girovo AI's or Nano's) are what the search reads.
+    [categoryOf, noteOf, brandNames, tr],
   );
   const sorted = useMemo(() => newestFirst(transactions ?? []), [transactions]);
   const filtered = useMemo(() => filterTransactions(sorted, txFilter, searchCtx), [sorted, txFilter, searchCtx]);

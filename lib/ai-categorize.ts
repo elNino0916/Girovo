@@ -15,23 +15,25 @@
 import type { CategoryId, CategoryResult } from './categories';
 import type { SerializedTransaction } from './fints-types';
 import type { GuessableCategory } from './category-guess';
-import { counterpartyKey, counterpartyName, isCategoryId, txCreditorId } from './categories.ts';
+import { counterpartyName, counterpartyRuleKeys, isCategoryId, txCreditorId } from './categories.ts';
 import { isCardPurpose } from './card-purpose.ts';
 import { bankDay } from './format.ts';
 import { isBusinessBooking, looksLikePerson } from './merchant-match.ts';
 import { NANO_CATEGORY_LIST, NANO_PROMPT_VERSION, NANO_SYSTEM, nanoBookingText, parseNanoAnswer } from './nano-categories.ts';
 import { parsePurpose } from './sepa-purpose.ts';
 
-/** One counterparty whose outgoing bookings are all still in Sonstiges. */
+/** One counterparty whose bookings a rule would reach are all outgoing and still in Sonstiges. */
 export type AiGroup = {
   /** counterpartyKey(): what the rule is filed under. */
   key: string;
-  /** The counterparty's name, as the lists show it (of the newest booking). */
+  /** The counterparty's name, as the lists show it (of the anchor). */
   name: string;
-  /** The Verwendungszweck the prompt carries (of the newest booking); empty for a card payment. */
+  /** The Verwendungszweck the prompt carries (of the anchor); empty for a card payment. */
   purpose: string;
-  /** Newest first. */
+  /** Every listed booking the rule moves, newest first: its own and those under another spelling of the name. */
   txs: SerializedTransaction[];
+  /** The booking the rule is set on: the newest whose own key is `key`, so the rule lands under it. */
+  anchor: SerializedTransaction;
   /** Reads as a private person: the review leaves it unchecked. */
   person: boolean;
 };
@@ -50,45 +52,72 @@ export function promptPurpose(tx: Pick<SerializedTransaction, 'purpose'>): strin
   return isCardPurpose(tx.purpose) ? '' : parsePurpose(tx.purpose).text.trim();
 }
 
+const newestFirst = (a: SerializedTransaction, b: SerializedTransaction) =>
+  (bankDay(a) === bankDay(b) ? 0 : bankDay(a) < bankDay(b) ? 1 : -1);
+
 /**
- * The counterparties to ask about, most bookings first, then the newest. A
- * counterparty that cannot carry a rule (no IBAN, creditor ID or name) is
- * left out, and so is one the user already filed a booking of: a rule would
- * lift that choice. Each booking counts once, however many lists hold it.
+ * The counterparties to ask about, most bookings first, then the newest.
+ *
+ * Übernehmen sets a rule for the counterparty (setCategory with `rule`), and
+ * a rule files every booking it reaches: both directions, Vorgemerkte too,
+ * and the name in its other spelling ("BAECKEREI MUELLER" beside "Bäckerei
+ * Müller"). So the review must hold all of them, or it would move bookings
+ * nobody saw. A counterparty is asked about only when every booking the rule
+ * reaches is an outgoing one nobody filed and the app left in Sonstiges; one
+ * with money coming in, a booking the user filed (the rule would lift that
+ * choice) or one the app put in another category is left out. So is one that
+ * cannot carry a rule (no IBAN, creditor ID or name).
+ *
+ * `txs` are the listed bookings, which the review counts; `alsoLoaded` are
+ * further loaded ones the rule reaches but no list shows (Vorgemerkte the
+ * bank has booked since): they are checked, not counted. Each booking counts
+ * once, however many lists hold it.
  */
-export function aiGroups(txs: readonly SerializedTransaction[], categoryOf: CategoryOf): AiGroup[] {
-  const groups = new Map<string, AiGroup>();
-  const touched = new Set<string>();
-  const seen = new Set<SerializedTransaction>();
-  for (const tx of txs) {
-    if (seen.has(tx)) continue;
-    seen.add(tx);
-    const key = counterpartyKey(tx);
-    if (key === 'name:?') continue;
-    if (categoryOf(tx).source !== 'auto') {
-      touched.add(key);
-      continue;
+export function aiGroups(
+  txs: readonly SerializedTransaction[],
+  categoryOf: CategoryOf,
+  alsoLoaded: readonly SerializedTransaction[] = [],
+): AiGroup[] {
+  const listed = new Set(txs);
+  // Every loaded booking under each key a rule could reach it by.
+  const reachedBy = new Map<string, SerializedTransaction[]>();
+  const ownKey = new Map<SerializedTransaction, string>();
+  for (const tx of new Set([...txs, ...alsoLoaded])) {
+    const keys = counterpartyRuleKeys(tx);
+    ownKey.set(tx, keys[0]);
+    for (const k of keys) {
+      const list = reachedBy.get(k);
+      if (list) list.push(tx);
+      else reachedBy.set(k, [tx]);
     }
-    if (!qualifies(tx, categoryOf)) continue;
-    const g = groups.get(key);
-    if (g) g.txs.push(tx);
-    else groups.set(key, { key, name: '', purpose: '', txs: [tx], person: false });
   }
-  const out: AiGroup[] = [];
-  for (const g of groups.values()) {
-    if (touched.has(g.key)) continue;
-    g.txs.sort((a, b) => (bankDay(a) === bankDay(b) ? 0 : bankDay(a) < bankDay(b) ? 1 : -1));
-    const newest = g.txs[0];
-    g.name = counterpartyName(newest).trim();
-    if (!g.name) continue;
-    g.purpose = promptPurpose(newest);
+  const candidates: AiGroup[] = [];
+  const looked = new Set<string>();
+  for (const tx of listed) {
+    const key = ownKey.get(tx)!;
+    if (key === 'name:?' || looked.has(key) || !qualifies(tx, categoryOf)) continue;
+    looked.add(key);
+    const reached = reachedBy.get(key) ?? [];
+    if (!reached.every((t) => qualifies(t, categoryOf))) continue;
+    const moved = reached.filter((t) => listed.has(t)).sort(newestFirst);
+    const anchor = moved.find((t) => ownKey.get(t) === key)!;
+    const name = counterpartyName(anchor).trim();
+    if (!name) continue;
     // A card payment or a direct debit is always a business's.
-    const business = g.txs.some((tx) => isBusinessBooking(tx) || !!txCreditorId(tx));
-    g.person = looksLikePerson(g.name, business);
+    const business = moved.some((t) => isBusinessBooking(t) || !!txCreditorId(t));
+    candidates.push({ key, name, purpose: promptPurpose(anchor), txs: moved, anchor, person: looksLikePerson(name, business) });
+  }
+  candidates.sort((a, b) => b.txs.length - a.txs.length || newestFirst(a.txs[0], b.txs[0]));
+  // Two spellings of one name reach each other's bookings: the first rule
+  // takes them all, a second one would move them again and count them twice.
+  const claimed = new Set<SerializedTransaction>();
+  const out: AiGroup[] = [];
+  for (const g of candidates) {
+    if (g.txs.some((t) => claimed.has(t))) continue;
+    for (const t of g.txs) claimed.add(t);
     out.push(g);
   }
-  return out.sort((a, b) => b.txs.length - a.txs.length
-    || (bankDay(a.txs[0]) === bankDay(b.txs[0]) ? 0 : bankDay(a.txs[0]) < bankDay(b.txs[0]) ? 1 : -1));
+  return out;
 }
 
 // i18n-data-start — the desktop model's additions to the phone's list (lib/nano-categories.ts stays Nano's, as calibrated)
@@ -150,7 +179,7 @@ export function applyList(groups: readonly AiGroup[], picks: readonly AiPick[]):
     if (!p.checked || !isCategoryId(p.category) || p.category === 'other') continue;
     const g = byKey.get(p.key);
     if (!g?.txs.length) continue;
-    out.push({ tx: g.txs[0], category: p.category, count: g.txs.length });
+    out.push({ tx: g.anchor, category: p.category, count: g.txs.length });
   }
   return out;
 }

@@ -744,6 +744,10 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     for (const [a, at] of Object.entries(pendingAt)) if (pendingCache[a]) out[a] = { loadedAt: at, behindStatement: false, booked: 0, readAt: at };
     return out;
   }, [pendingAt, pendingCache]);
+  const loadedTxs = useMemo(
+    () => [...Object.values(txCache).flatMap((e) => e.txs), ...Object.values(pendingCache).flat()],
+    [txCache, pendingCache],
+  );
   const [statementInfo, setStatementInfo] = useState<Record<string, StatementInfo>>(loggedIn ? init.statementInfo : {});
   const [txErrors, setTxErrors] = useState<Record<string, LoadError>>(loggedIn ? init.txErrors : {});
   const [balanceErrors, setBalanceErrors] = useState<Record<string, LoadError>>({});
@@ -3011,7 +3015,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     view, meta, popularBanks, logoFiles, bank, sessionId, userId,
     bankChecking, staleBank,
     tanMethods, selectedMethod, mediaChoice, tanMethodError,
-    accounts, activeAccount, balances, transactions, pendingCache, pendingInfo, txError, merchants,
+    accounts, activeAccount, balances, transactions, pendingCache, pendingInfo, loadedTxs, txError, merchants,
     txErrors, balanceErrors, balanceLoading, loadingAllBalances,
     portfolios, portfolioErrors, portfolioLoading, loadPortfolio,
     docs, docsLocked: false, docsResettable: false, loadDocs: async () => {}, resetDocs: async () => {}, readDoc, openDoc, removeDoc, keepReceipt, receiptsOf, receiptKeys,

@@ -54,7 +54,8 @@ export function ManualContractDays() {
       const newest = s.transactions[0];
       if (!m || !newest) continue;
       const known = [m.day, days?.[s.id]?.day].filter(Boolean).sort().at(-1);
-      const name = displayName(txText(newest).name);
+      // Without Girovo AI's cleaned name: the label syncs, the cleaned names stay on this device.
+      const name = displayName(txText(newest).plainName);
       const label = m.label || days?.[s.id]?.label || (name && name !== t.insights.noName ? name : '');
       // Only the day and the label, in their own map: never the contract itself.
       if (!known || known < s.lastDate || (label && !m.label && !days?.[s.id]?.label)) {
@@ -140,7 +141,8 @@ function DetailsStep({ tx, onBack, onClose }: { tx: SerializedTransaction; onBac
   const model = useRecurringModel();
   const { setManualContract, toast } = useFints();
   const preview = useMemo(() => manualPreview(model.txs, tx), [model.txs, tx]);
-  const bankName = displayName(txText(tx).name) || t.insights.noName;
+  // Without Girovo AI's cleaned name: name and label sync, the cleaned names stay on this device.
+  const bankName = displayName(txText(tx).plainName) || t.insights.noName;
   const [name, setName] = useState(bankName);
   const [cadence, setCadence] = useState<Cadence>(preview?.cadence ?? 'monthly');
   const nameRef = useRef<HTMLInputElement>(null);
