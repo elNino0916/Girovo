@@ -386,6 +386,32 @@ export const de = {
     openGoal: 'Sparkonto öffnen',
     openGoals: 'Sparziele ansehen',
   },
+  /**
+   * Girovo Next: what stands out, unasked (lib/ask-notes.ts), under the month
+   * recap and at the head of a fresh conversation. At most three; a close each.
+   */
+  notes: {
+    label: 'Hinweise',
+    thisMonth: 'Diesen Monat',
+    inMonth: (month: string) => `Im ${month}`,
+    /** A payee (`at`) or a category, a whole two or three times its usual. */
+    times: (when: string, name: string, times: number, at: boolean) =>
+      `${when} ${times === 3 ? 'dreimal' : 'doppelt'} so viel ${at ? 'bei' : 'für'} ${name} wie sonst.`,
+    more: (when: string, name: string, at: boolean, now: ReactNode, usual: ReactNode): ReactNode[] =>
+      [when, ' deutlich mehr ', at ? 'bei ' : 'für ', name, ' als sonst: ', now, ' statt im Schnitt ', usual, '.'],
+    newContract: (name: string, amount: ReactNode, per: string, approx: boolean): ReactNode[] =>
+      ['Neu bei deinen Abos: ', name, ', ', approx ? 'etwa ' : '', amount, ' ', per, '.'],
+    per: {
+      weekly: 'in der Woche', monthly: 'im Monat', fourWeekly: 'alle vier Wochen', quarterly: 'im Quartal',
+      halfyearly: 'im Halbjahr', yearly: 'im Jahr',
+    },
+    double: (amount: ReactNode, name: string, days: string): ReactNode[] =>
+      ['Zweimal ', amount, ' an ', name, ' ', days, '. Prüf, ob das stimmt.'],
+    oneDay: (day: string) => `am ${day}`,
+    twoDays: (a: string, b: string) => `am ${a} und ${b}`,
+    show: 'Umsätze zeigen',
+    hide: 'Hinweis ausblenden',
+  },
 };
 
 export const en: typeof de = {
@@ -692,5 +718,22 @@ export const en: typeof de = {
     goalNoBalance: (name) => `The balance for “${name}” isn’t in yet.`,
     openGoal: 'Open savings account',
     openGoals: 'See savings goals',
+  },
+  notes: {
+    label: 'Notes',
+    thisMonth: 'This month',
+    inMonth: (month) => `In ${month}`,
+    times: (when, name, times, at) => `${when}, ${times === 3 ? 'three times' : 'twice'} as much ${at ? 'at' : 'on'} ${name} as usual.`,
+    more: (when, name, at, now, usual) => [when, ', much more ', at ? 'at ' : 'on ', name, ' than usual: ', now, ' instead of ', usual, ' on average.'],
+    newContract: (name, amount, per, approx) => ['New in your subscriptions: ', name, ', ', approx ? 'about ' : '', amount, ' ', per, '.'],
+    per: {
+      weekly: 'a week', monthly: 'a month', fourWeekly: 'every four weeks', quarterly: 'a quarter',
+      halfyearly: 'every six months', yearly: 'a year',
+    },
+    double: (amount, name, days) => ['Twice ', amount, ' to ', name, ' ', days, '. Check that this is right.'],
+    oneDay: (day) => `on ${day}`,
+    twoDays: (a, b) => `on ${a} and ${b}`,
+    show: 'Show transactions',
+    hide: 'Hide note',
   },
 };
