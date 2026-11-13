@@ -16,6 +16,11 @@
 //                neither booking part of a known series, no refund of it
 //                since, and no round sum (50,00 € at a filling station or to
 //                a friend is a habit, not a mistake).
+//   budget       a Monatsbudget over in the month, or, in the running month
+//                before the 20th, at least 90 % used up (lib/ask-budgets.ts
+//                budgetToNote): the most used up one, never more than one.
+//                Spent as the Analyse's budget tile counts it, every booking
+//                of the category included.
 //
 // Bookings of a recognised series (a contract, the rent, a yearly insurance)
 // count in none of these: a contract's price rise is already said by its
@@ -32,6 +37,8 @@ import { bookingDay, facilitatorShop, periodTotals, topCounterparties, type Cate
 import { categoryDef, counterpartyKey, counterpartyName, intermediaryName, txKey } from './categories.ts';
 import { foldText } from './categorize.ts';
 import { addDaysKey, dayNumber } from './format.ts';
+import { budgetsToNote, monthBudgets } from './ask-budgets.ts';
+import type { Budgets } from './budgets.ts';
 
 /** Never more notes than this. */
 export const NOTES_MAX = 3;
@@ -95,7 +102,24 @@ export type DoubleNote = {
   tx: SerializedTransaction;
 };
 
-export type AskNote = SpikeNote | NewContractNote | DoubleNote;
+export type BudgetNote = {
+  kind: 'budget';
+  key: string;
+  /** yyyy-mm: the month it is about. */
+  month: string;
+  category: CategoryId;
+  /** The budget and what the month spent, whole cents. */
+  budget: number;
+  spent: number;
+  /** Over the budget (by `rest`), else nearly used up (`rest` left). */
+  over: boolean;
+  rest: number;
+  /** The days the month's spending covers. */
+  from: string;
+  to: string;
+};
+
+export type AskNote = SpikeNote | NewContractNote | DoubleNote | BudgetNote;
 
 export type NotesInput = {
   /** Every loaded booking the notes may read. */
@@ -116,6 +140,8 @@ export type NotesInput = {
   noticed?: readonly string[];
   /** Notes the user closed, by key. */
   dismissed?: { has(key: string): boolean };
+  /** The Monatsbudgets (vault budgets), whole cents per category. */
+  budgets?: Budgets;
 };
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
@@ -143,15 +169,33 @@ function wholeTimes(ratio: number): 2 | 3 | null {
 }
 
 /**
- * The notes for `month`, the most pressing first: a double debit, then a new
- * contract, then spikes by how far they are above the usual. At most
- * NOTES_MAX, none the user closed.
+ * The notes for `month`, the most pressing first: a double debit, then a
+ * budget over or running out, then a new contract, then spikes by how far
+ * they are above the usual. At most NOTES_MAX, none the user closed.
  */
 export function askNotes(input: NotesInput): AskNote[] {
   const inSeries = new Set(input.series.flatMap((s) => s.transactions.map((tx) => txKey(tx))));
   const free = input.txs.filter((tx) => (tx.currency || 'EUR') === input.currency && !inSeries.has(txKey(tx)));
-  const notes: AskNote[] = [...doubleDebits(input, free), ...newContracts(input), ...spikes(input, free)];
+  const budget = budgetNote(input);
+  // A budget's note already says its category is up.
+  const spiked = spikes(input, free).filter((n) => !budget || n.category !== budget.category);
+  const notes: AskNote[] = [...doubleDebits(input, free), ...(budget ? [budget] : []), ...newContracts(input), ...spiked];
   return notes.filter((n) => !input.dismissed?.has(n.key)).slice(0, NOTES_MAX);
+}
+
+/** The one budget note for the month, or null: the most used up budget worth one the user has not closed. */
+function budgetNote(input: NotesInput): BudgetNote | null {
+  if (!input.budgets || !Object.keys(input.budgets).length) return null;
+  const m = monthBudgets(input.budgets, input.txs, {
+    categoryOf: input.categoryOf, currency: input.currency, from: input.from, to: input.to, today: input.today, month: input.month,
+  });
+  for (const l of budgetsToNote(m, input.today)) {
+    const over = l.state === 'over';
+    const key = `budget|${m.month}|${l.id}|${over ? 'over' : 'near'}`;
+    if (input.dismissed?.has(key)) continue;
+    return { kind: 'budget', key, month: m.month, category: l.id, budget: l.budget, spent: l.spent, over, rest: l.rest, from: m.from, to: m.to };
+  }
+  return null;
 }
 
 /** The whole months before `month` the loaded bookings cover, the nearest first. */

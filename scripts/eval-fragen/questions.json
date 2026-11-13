@@ -250,6 +250,24 @@
     {"id":"e041","lang":"en","turns":[{"q":"balance on October 1st","expect":{"intent":"balanceAt","day":"2026-10-01"}}],"note":"past balance (lib/ask-facts.ts balanceAt)"},
     {"id":"e042","lang":"en","turns":[{"q":"How much money did I have in July?","expect":{"intent":"balanceAt","day":"2026-07-31"}}],"note":"past balance (lib/ask-facts.ts balanceAt)"},
     {"id":"e043","lang":"en","turns":[{"q":"Who still owes me money?","expect":{"intent":"owed","name":null}}],"note":"Aufteilen requests (lib/split-requests.ts)"},
-    {"id":"e044","lang":"en","turns":[{"q":"How much does Max still owe me?","expect":{"intent":"owed","name":"max"}}],"note":"Aufteilen requests (lib/split-requests.ts)"}
+    {"id":"e044","lang":"en","turns":[{"q":"How much does Max still owe me?","expect":{"intent":"owed","name":"max"}}],"note":"Aufteilen requests (lib/split-requests.ts)"},
+    {"id":"d260","lang":"de","turns":[{"q":"wie viel darf ich diesen monat noch für essen ausgeben","expect":{"intent":"budgetLeft","name":"essen"}}],"note":"Monatsbudgets (lib/ask-budgets.ts)"},
+    {"id":"d261","lang":"de","turns":[{"q":"was ist noch im lebensmittel budget","expect":{"intent":"budgetLeft","category":"groceries"}}],"note":"Monatsbudgets (lib/ask-budgets.ts)"},
+    {"id":"d262","lang":"de","turns":[{"q":"wo bin ich über dem budget","expect":{"intent":"budgetsOver"}}],"note":"Monatsbudgets (lib/ask-budgets.ts)"},
+    {"id":"d263","lang":"de","turns":[{"q":"welche budgets reichen nicht","expect":{"intent":"budgetsOver"}}],"note":"Monatsbudgets (lib/ask-budgets.ts)"},
+    {"id":"d264","lang":"de","turns":[{"q":"wie viel kann ich diesen monat noch fürs tanken ausgeben","expect":{"intent":"budgetLeft","category":"mobility"}}],"note":"Monatsbudgets (lib/ask-budgets.ts)"},
+    {"id":"d265","lang":"de","turns":[{"q":"budget lebensmittel wie viel übrig","expect":{"intent":"budgetLeft","category":"groceries"}}],"note":"Monatsbudgets (lib/ask-budgets.ts)"},
+    {"id":"d266","lang":"de","turns":[{"q":"wie viel hab ich diesen monat für lebensmittel ausgegeben","expect":{"kind":"sum","category":"groceries","search":null,"period":{"kind":"thisMonth"}}}],"note":"a booking question stays with the bookings"},
+    {"id":"d267","lang":"de","turns":[{"q":"was kann ich bis ende des monats noch kündigen","expect":{"intent":"cancelBy","until":"2026-11-30"}}],"note":"Kündbar bis (lib/ask-contracts.ts)"},
+    {"id":"d268","lang":"de","turns":[{"q":"welche verträge kann ich bald kündigen","expect":{"intent":"cancelBy","until":"2026-12-12"}}],"note":"Kündbar bis (lib/ask-contracts.ts)"},
+    {"id":"d269","lang":"de","turns":[{"q":"wann verlängert sich mein handyvertrag","expect":{"intent":"renewal","name":"handy"}}],"note":"Kündbar bis (lib/ask-contracts.ts)"},
+    {"id":"d270","lang":"de","turns":[{"q":"bis wann muss ich spotify kündigen","expect":{"intent":"renewal","name":"spotify"}}],"note":"Kündbar bis (lib/ask-contracts.ts)"},
+    {"id":"d271","lang":"de","turns":[{"q":"kann ich netflix noch kündigen","expect":{"intent":"renewal","name":"netflix"}}],"note":"Kündbar bis (lib/ask-contracts.ts)"},
+    {"id":"d272","lang":"de","turns":[{"q":"was kann ich bis zum 15.12. kündigen","expect":{"intent":"cancelBy","until":"2026-12-15"}}],"note":"Kündbar bis (lib/ask-contracts.ts)"},
+    {"id":"e070","lang":"en","turns":[{"q":"how much is left in my groceries budget","expect":{"intent":"budgetLeft","category":"groceries"}}],"note":"Monatsbudgets (lib/ask-budgets.ts)"},
+    {"id":"e071","lang":"en","turns":[{"q":"which budgets am i over","expect":{"intent":"budgetsOver"}}],"note":"Monatsbudgets (lib/ask-budgets.ts)"},
+    {"id":"e072","lang":"en","turns":[{"q":"what can i cancel before the end of the month","expect":{"intent":"cancelBy","until":"2026-11-30"}}],"note":"Kündbar bis (lib/ask-contracts.ts)"},
+    {"id":"e073","lang":"en","turns":[{"q":"when does my phone contract renew","expect":{"intent":"renewal","name":"phone"}}],"note":"Kündbar bis (lib/ask-contracts.ts)"},
+    {"id":"e074","lang":"en","turns":[{"q":"by when do i have to cancel spotify","expect":{"intent":"renewal","name":"spotify"}}],"note":"Kündbar bis (lib/ask-contracts.ts)"}
 ]
 }

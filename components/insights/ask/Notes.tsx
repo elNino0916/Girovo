@@ -37,6 +37,7 @@ export const thisMonth = (): string => dayKey(new Date()).slice(0, 7);
 function useNotes(data: ScopeData | null, categoryOf: CategoryOf | undefined, month: string, closed: number): AskNote[] {
   const model = useRecurringModel();
   const { notices } = useContractNotices();
+  const budgets = useFints().vault?.budgets;
   return useMemo(() => {
     if (!data || !categoryOf) return [];
     return askNotes({
@@ -51,10 +52,11 @@ function useNotes(data: ScopeData | null, categoryOf: CategoryOf | undefined, mo
       live: model.expense,
       noticed: notices.filter((n) => n.kind === 'price').map((n) => n.seriesId),
       dismissed: { has: (key) => hiddenRecaps.has(hiddenKey(key)) },
+      budgets,
     });
     // closed: a note closed just now goes, and the next one may take its place.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, categoryOf, month, model.income, model.expense, model.ended, model.dismissed, notices, closed]);
+  }, [data, categoryOf, month, model.income, model.expense, model.ended, model.dismissed, notices, closed, budgets]);
 }
 
 /** Two days in a sentence: "3. und 4. November", the month once where both share it. */
@@ -86,6 +88,12 @@ function NoteText({ note, currency, own }: { note: AskNote; currency: string; ow
     parts = note.times
       ? [words.times(when, name, note.times, !!note.payee)]
       : words.more(when, name, !!note.payee, money(note.cents), money(note.usualCents));
+  } else if (note.kind === 'budget') {
+    const nameOf = (id: CategoryId) => own.find((c) => c.id === id)?.name ?? categoryLabel(id);
+    const past = note.month < thisMonth();
+    parts = note.over
+      ? words.budgetOver(past ? words.inMonth(fmtMonth(note.month).split(' ')[0]) : words.thisMonth, nameOf(note.category), money(note.rest), past)
+      : words.budgetNear(nameOf(note.category), money(note.rest));
   } else if (note.kind === 'newContract') {
     const s = note.series;
     const per = s.everyDays === 28 ? words.per.fourWeekly : words.per[s.cadence];
@@ -114,13 +122,17 @@ export function AskNotes({ data, ctx, own, month, tile = false, onShown }: {
   const [closed, setClosed] = useState(0);
   const notes = useNotes(data, ctx.categoryOf, month, closed);
   const show = useShowInList();
-  const { setTab } = useFints();
+  const { setTab, setAnalysisPeriod } = useFints();
   if (!data || notes.length === 0) return null;
   const across = data.scope === 'all' ? { acrossAccounts: true } : {};
 
   const open = (note: AskNote) => {
     if (note.kind === 'newContract') setTab('contracts');
-    else if (note.kind === 'double') {
+    else if (note.kind === 'budget') {
+      // The Analyse on the note's month, where the budget tile measures it.
+      setAnalysisPeriod(note.month);
+      setTab('analysis');
+    } else if (note.kind === 'double') {
       show(note.tx, { dir: 'out', category: null, query: note.iban ? fmtIban(note.iban) : note.name, from: note.days[0], to: note.days[1], ...across });
     } else if (note.payee) {
       // As the Analyse's payee list opens one: by IBAN where it has one, both ways where a refund is netted in.
@@ -142,7 +154,7 @@ export function AskNotes({ data, ctx, own, month, tile = false, onShown }: {
               <NoteText note={note} currency={data.currency} own={own} />
             </p>
             <Button variant="tertiary" size="sm" className="mt-1" onClick={() => open(note)}>
-              {note.kind === 'newContract' ? t.ask.actions.openContracts : words.show}
+              {note.kind === 'newContract' ? t.ask.actions.openContracts : note.kind === 'budget' ? words.showBudget : words.show}
             </Button>
           </div>
           <IconButton size="sm" aria-label={words.hide} onClick={() => close(note)}>

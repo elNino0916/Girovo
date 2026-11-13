@@ -169,3 +169,37 @@ test('a contract is new only where the loaded bookings reach one step of its rhy
   assert.equal(askNotes(input([], { live: [series('w', { cadence: 'weekly', intervalDays: 7, everyDays: 7 })], from: '2026-10-10' }))[0]?.kind, 'newContract');
   assert.deepEqual(askNotes(input([], { live: [series('y', { cadence: 'yearly', intervalDays: 365 })] })), []);
 });
+
+test('a budget over in the month: one note, after a double debit, before a new contract; its category spike stays quiet', () => {
+  // Lieferando three times its usual in October: Essen & Trinken over a 50 € budget.
+  const txs = [
+    ...lieferando([-40, -40, -40]),
+    amazon('2026-10-13', -49.99, 'a'), amazon('2026-10-14', -49.99, 'b'),
+  ];
+  const live = [series('dazn', { firstDate: '2026-11-02' })];
+  const notes = askNotes(input(txs, { live, budgets: { dining: 5000, shopping: 5000 } }));
+  assert.deepEqual(kinds(notes), ['double', 'budget', 'newContract']);
+  const b = notes[1];
+  assert.equal(b.kind, 'budget');
+  if (b.kind !== 'budget') return;
+  assert.equal(b.category, 'dining');
+  assert.equal(b.over, true);
+  assert.equal(b.spent, 12000);
+  assert.equal(b.rest, 7000);
+  assert.equal(b.month, '2026-10');
+  assert.equal(b.key, 'budget|2026-10|dining|over');
+  // Only one budget note, though Shopping is over too; closed, the next budget takes its place.
+  assert.equal(notes.filter((n) => n.kind === 'budget').length, 1);
+  const next = askNotes(input(txs, { live, budgets: { dining: 5000, shopping: 5000 }, dismissed: new Set([b.key]) }));
+  assert.deepEqual(next.filter((n) => n.kind === 'budget').map((n) => n.kind === 'budget' && n.category), ['shopping']);
+});
+
+test('a budget nearly used up is a note only before the 20th of the running month', () => {
+  const txs = [card('2026-11-03', -46, 'Lieferando.de')];
+  const early = askNotes(input(txs, { month: '2026-11', budgets: { dining: 5000 } }));
+  assert.deepEqual(early.map((n) => n.kind === 'budget' && [n.over, n.rest]), [[false, 400]]);
+  const late = askNotes(input(txs, { month: '2026-11', today: '2026-11-21', to: '2026-11-21', budgets: { dining: 5000 } }));
+  assert.deepEqual(late, []);
+  assert.deepEqual(askNotes(input(txs, { month: '2026-11', budgets: { dining: 6000 } })), [], 'under 90 %');
+  assert.deepEqual(askNotes(input(txs, { month: '2026-11' })), [], 'no budgets');
+});
