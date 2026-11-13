@@ -272,6 +272,26 @@ export const de = {
     failed: 'Girovo konnte nicht zurückgesetzt werden.',
     left: 'Girovo konnte nicht alles löschen. Versuch es gleich noch einmal.',
   },
+
+  /** Girovo Next: "Mit Girovo AI kategorisieren" on the desktop (components/insights/ai/AiCategorize.tsx). */
+  aiCategorize: {
+    row: 'Mit Girovo AI kategorisieren',
+    rowHint: (n: number): string => (n === 0 ? 'Keine Ausgaben in Sonstiges' : n === 1 ? '1 Ausgabe in Sonstiges' : `${n} Ausgaben in Sonstiges`),
+    needsModel: 'Geht, sobald das Modell geladen ist',
+    isOff: 'Geht, wenn Girovo AI an ist',
+    title: 'Mit Girovo AI kategorisieren',
+    intro: 'Girovo AI schlägt Kategorien für deine Ausgaben in Sonstiges vor. Du entscheidest, was übernommen wird.',
+    reading: (done: number, total: number): string => `Liest Empfänger: ${done} von ${total}`,
+    stopped: (done: number, total: number): string => `Abgebrochen nach ${done} von ${total}.`,
+    nothingOpen: 'In Sonstiges liegen gerade keine Ausgaben.',
+    noIdeas: 'Girovo AI hat für diese Empfänger keinen Vorschlag.',
+    failed: 'Girovo AI antwortet gerade nicht. Versuch es später noch einmal.',
+    reviewHint: 'Gilt auch für künftige Umsätze dieser Empfänger.',
+    person: 'Sieht nach einer Privatperson aus',
+    pickFor: (name: string): string => `Kategorie für ${name}`,
+    apply: 'Übernehmen',
+    applied: (n: number): string => (n === 1 ? '1 Umsatz neu kategorisiert' : `${n} Umsätze neu kategorisiert`),
+  },
 };
 
 export const en: typeof de = {
@@ -474,5 +494,24 @@ export const en: typeof de = {
     confirm: 'Reset',
     failed: 'Girovo couldn’t be reset.',
     left: 'Girovo couldn’t delete everything. Try again in a moment.',
+  },
+
+  aiCategorize: {
+    row: 'Categorise with Girovo AI',
+    rowHint: (n) => (n === 0 ? 'No spending in Other' : n === 1 ? '1 payment in Other' : `${n} payments in Other`),
+    needsModel: 'Works once the model is downloaded',
+    isOff: 'Works when Girovo AI is on',
+    title: 'Categorise with Girovo AI',
+    intro: 'Girovo AI suggests categories for your spending in Other. You decide what to apply.',
+    reading: (done, total) => `Reading payees: ${done} of ${total}`,
+    stopped: (done, total) => `Stopped after ${done} of ${total}.`,
+    nothingOpen: 'There is no spending in Other right now.',
+    noIdeas: 'Girovo AI has no suggestion for these payees.',
+    failed: 'Girovo AI isn\u2019t answering right now. Try again later.',
+    reviewHint: 'Also applies to future transactions with these payees.',
+    person: 'Looks like a private person',
+    pickFor: (name) => `Category for ${name}`,
+    apply: 'Apply',
+    applied: (n) => (n === 1 ? '1 transaction recategorised' : `${n} transactions recategorised`),
   },
 };

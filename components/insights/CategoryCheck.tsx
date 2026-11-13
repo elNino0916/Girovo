@@ -25,6 +25,7 @@ import { Money } from '../Money';
 import { Button, DotList, Drawer, Menu, MenuGroup, MenuItem } from '../ui';
 import { txText } from '../transactions/model';
 import { menuGroups } from '../transactions/TxDetail';
+import { AiCategorizeEntry } from './ai/AiCategorize';
 import { CounterpartyAvatar, fmtDayKey } from './shared';
 
 /** Rows a list shows before it says how many more there are. */
@@ -176,6 +177,8 @@ function OpenList({ groups, onFiled }: { groups: OpenGroup[]; onFiled: (what: { 
       ) : (
         <>
           <p className="mt-1 text-[13px] leading-snug text-ink-3">{words.openHint}</p>
+          {/* Girovo Next on the desktop: Gemma's suggestions for the spending in Sonstiges, reviewed before they apply. */}
+          <AiCategorizeEntry />
           <ul className="mt-2">
             {shown.map((g) => <OpenRow key={g.key} group={g} onPick={file} />)}
           </ul>

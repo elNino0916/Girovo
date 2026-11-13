@@ -20,6 +20,7 @@ import { asksWith } from '@/lib/nano-ask';
 import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
 import { CheckCircleIcon, DownloadIcon, AiMarkIcon } from '../icons';
+import { AiCategorizeRow } from '../insights/ai/AiCategorize';
 import { useModelReady } from '../insights/ask-gate';
 import { useGemma } from '../insights/gemma';
 import { Button, Progress } from '../ui';
@@ -91,6 +92,9 @@ export function AskPage() {
           summary={ready ? words.hint : words.needsModel(IS_ANDROID)}
         />
       </SettingsGroup>
+
+      {/* The desktop with Gemma: the bookings in Sonstiges, read once the user asks (components/insights/ai/AiCategorize.tsx). */}
+      <AiCategorizeRow />
 
       <SettingsGroup title={words.group}>
         <ModelRow />
