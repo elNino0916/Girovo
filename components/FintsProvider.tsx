@@ -68,7 +68,7 @@ import { bankAllowed, reminderDue, type PlusStatus } from '@/lib/plus';
 import { reviewMoment } from './android/review';
 import { parsePurpose } from '@/lib/sepa-purpose';
 import {
-  compactIban, dayKey, fmtDate, fmtMoney, ibanValid, isoDate, repairBankText, toLocalDate, translateType,
+  bankDay, compactIban, dayKey, fmtDate, fmtMoney, ibanValid, isoDate, repairBankText, toLocalDate, translateType,
   fmtRange,
 } from '@/lib/format';
 import { getMerchantKey, isBusinessBooking } from '@/lib/merchant-match';
@@ -91,6 +91,7 @@ import {
 } from '@/lib/booking-keys';
 import { afterStatementRead, pendingView, type PendingRead } from '@/lib/pending';
 import { sanitizeGoals, type SavingsGoal } from '@/lib/savings-goal';
+import { settleRequests, withRequests, type Incoming } from '@/lib/split-requests';
 import { recordSentOrder, type SentOrder } from '@/lib/sent-orders';
 import { idleLogoutNotice, logoutNotice, unclearNotice, unclearTransfers } from '@/lib/session-log';
 import { sepaSanitize } from '@/lib/sepa-text';
@@ -5708,6 +5709,29 @@ function useFintsState() {
     });
   }, [updateVault]);
 
+  /** Aufteilen's requests from a booking (lib/split-requests.ts), kept so Girovo AI can say who still owes what. */
+  const recordSplitRequests = useCallback((tx: SerializedTransaction, people: { name: string; cents: number }[]) => {
+    if (!people.length) return;
+    updateVault((v) => ({ ...v, splitRequests: withRequests(v.splitRequests ?? [], txKey(tx), people, dayKey(new Date())) }));
+  }, [updateVault]);
+
+  // A request is paid once money from that person comes in (lib/split-requests.ts settleRequests).
+  const splitRequests = vault?.splitRequests;
+  useEffect(() => {
+    if (!splitRequests?.some((r) => !r.paid)) return;
+    const incoming: Incoming[] = Object.values(txByAccount).flat().filter((tx) => tx.amount > 0).map((tx) => ({
+      key: txKey(tx),
+      day: bankDay(tx),
+      cents: Math.round(tx.amount * 100),
+      names: [counterpartyName(tx), String(tx.remoteName ?? '')].filter(Boolean),
+    }));
+    updateVault((v) => {
+      const list = v.splitRequests ?? [];
+      const settled = settleRequests(list, incoming);
+      return settled === list ? v : { ...v, splitRequests: [...settled] };
+    });
+  }, [splitRequests, txByAccount, updateVault]);
+
   const setBudgets = useCallback((next: Budgets) => {
     updateVault((v) => {
       const clean = sanitizeBudgets(next, v.customCategories);
@@ -5999,7 +6023,7 @@ function useFintsState() {
     modelGuesses, brandNames,
     // Girovo Plus (lib/plus.ts)
     plus, plusOpen, openPlus, closePlus,
-    categoryGuessOf, setBudgets, setGoal, noteOf, setNote,
+    categoryGuessOf, setBudgets, setGoal, recordSplitRequests, noteOf, setNote,
     // more banks (lib/linked-banks.ts)
     links, banks, bankOf, activeBank, addBank,
     openAddBank, closeAddBank, pickAddBank, connectAddBank, chooseAddBankMethod, clearAddBankMedia, addBankBack,

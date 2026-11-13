@@ -275,6 +275,10 @@ export const de = {
       copyFor: (label: string, name: string) => `${label}: ${name}`,
       done: 'Fertig',
     },
+    /** Requests made before from this booking, and whether the money came: "Schon angefordert: Lea offen, Max bezahlt." */
+    asked: (people: string) => `Schon angefordert: ${people}.`,
+    askedOpen: (name: string) => `${name} offen`,
+    askedPaid: (name: string) => `${name} bezahlt`,
   },
 
   detail: {
@@ -792,6 +796,9 @@ export const en: typeof de = {
       copyFor: (label, name) => `${label}: ${name}`,
       done: 'Done',
     },
+    asked: (people) => `Already requested: ${people}.`,
+    askedOpen: (name) => `${name} open`,
+    askedPaid: (name) => `${name} paid`,
   },
 
   detail: {

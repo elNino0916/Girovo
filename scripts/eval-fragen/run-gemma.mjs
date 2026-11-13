@@ -70,7 +70,7 @@ const raws = {};
 async function readTurn(question, prevQuery) {
   const prev = prevQuery && lastQuestion ? { question: lastQuestion, query: prevQuery } : null;
   lastQuestion = question;
-  const intent = intentOf(question, set.contracts ?? []);
+  const intent = intentOf(question, set.contracts ?? [], today);
   if (intent) return { intent };
   const ctx = { question, today, own: [], payees: [], prev };
   const t = performance.now();

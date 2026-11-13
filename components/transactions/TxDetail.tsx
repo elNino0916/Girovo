@@ -7,7 +7,7 @@ import {
   allCategories, categoryLabel, counterpartyKey, counterpartyRuleKey, isCategoryId, ruleKeyFor, txBic, txKey, type CategoryId, type CategorySource,
 } from '@/lib/categories';
 import type { SerializedAccount, SerializedTransaction } from '@/lib/fints-types';
-import { dayKey, displayName, fmtDate, fmtDayHeader, fmtIban, ibanCountry } from '@/lib/format';
+import { dayKey, displayName, fmtDate, fmtDayHeader, fmtIban, ibanCountry, parseAmount } from '@/lib/format';
 import { intlLocale, msgs, type Messages } from '@/lib/i18n';
 import { useT } from '@/lib/i18n/react';
 import { AMOUNT_MASK } from '@/lib/mask';
@@ -71,7 +71,7 @@ export function TxDetail({
 }) {
   const {
     activeAccount: active, categoryOf, openTransfer, showTransactions, printTransaction, noteOf, receiptKeys,
-    plus, openPlus, openShareQueue, openShareAll,
+    plus, openPlus, openShareQueue, openShareAll, vault, recordSplitRequests,
   } = useFints();
   const activeAccount = account ?? active;
   const [splitting, setSplitting] = useState(false);
@@ -149,9 +149,11 @@ export function TxDetail({
       cents={Math.round(tx.amount * 100)}
       glyph={<CategoryIcon id={cat.id} size={22} />}
       defaultPurpose={tr.transactions.billSplit.purposeFor(text.name, when ? fmtDayShort(dayKey(when)) : '')}
+      asked={(vault?.splitRequests ?? []).filter((r) => r.tx === txKey(tx))}
       onClose={() => setSplitting(false)}
       onRequest={(list, own) => {
         setSplitting(false);
+        recordSplitRequests(tx, list.map((p) => ({ name: p.forName ?? '', cents: Math.round((parseAmount(p.amount ?? '') ?? 0) * 100) })));
         onClose();
         setTimeout(() => (IS_ANDROID
           ? openShareQueue(list)

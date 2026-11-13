@@ -188,6 +188,16 @@ test('a restored backup brings its Sparziele; this computer\'s stay where both h
   assert.deepEqual(vault.mergeVaults(here, backup).goals?.map((g) => g.name), ['Urlaub', 'Auto']);
 });
 
+test('Aufteilen\'s requests are kept, and a restored backup brings the ones this computer lacks', () => {
+  const mine = { tx: 'A', name: 'Lea', cents: 1000, on: '2026-11-01', paid: { on: '2026-11-03', by: 'k1' } };
+  const theirs = { tx: 'A', name: 'lea', cents: 1000, on: '2026-11-01' };
+  const other = { tx: 'B', name: 'Max', cents: 700, on: '2026-11-02' };
+  const here = vault.sanitizeVault(base({ splitRequests: [mine, { tx: 'C', name: 'Tom', cents: -5, on: '2026-11-01' }] as never }))!;
+  assert.deepEqual(here.splitRequests, [mine]);
+  const backup = vault.sanitizeVault(base({ splitRequests: [theirs, other] }))!;
+  assert.deepEqual(vault.mergeVaults(here, backup).splitRequests, [other, mine]);
+});
+
 test('aliases: clipped, empty ones dropped, at most 50 (newest kept)', () => {
   const aliases: Record<string, unknown> = { '1234567890': 'Girokonto für alles und noch viel mehr Text der zu lang ist', '42': '   ', '43': 7 };
   for (let i = 0; i < 60; i++) aliases[`ACC-${i}`] = `Konto ${i}`;

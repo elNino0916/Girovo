@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  contractsNamed, contractsYearCount, factOf, forecastAccount, goalsNamed, isFact, lastFrom, nameCase, nextSalary, priceRises, salaryWhen,
+  balanceOn, contractsNamed, contractsYearCount, factOf, forecastAccount, goalsNamed, isFact, lastFrom, nameCase, nextSalary, priceRises, salaryWhen,
   sameName,
 } from './ask-facts.ts';
 import { intentOf } from './ask-intents.ts';
@@ -61,6 +61,52 @@ test('Aufteilen: who owes', () => {
   assert.deepEqual(factOf('schuldet lea mir noch was'), { kind: 'owed', name: 'lea' });
   assert.deepEqual(factOf('how much does Lea owe me'), { kind: 'owed', name: 'lea' });
   assert.deepEqual(factOf('wer schuldet mir noch geld'), { kind: 'owed', name: null });
+});
+
+test('a past balance: the day a question names, before today', () => {
+  const T = '2026-11-12';
+  const at = (q: string) => factOf(q, [], T);
+  assert.deepEqual(at('Wie hoch war mein Kontostand im August?'), { kind: 'balanceAt', day: '2026-08-31' });
+  assert.deepEqual(at('Kontostand am 1. Oktober'), { kind: 'balanceAt', day: '2026-10-01' });
+  assert.deepEqual(at('Wie viel Geld hatte ich am 1.10.?'), { kind: 'balanceAt', day: '2026-10-01' });
+  assert.deepEqual(at('Kontostand 15.08.2025'), { kind: 'balanceAt', day: '2025-08-15' });
+  assert.deepEqual(at('balance at the end of September'), { kind: 'balanceAt', day: '2026-09-30' });
+  assert.deepEqual(at('what was my balance on Oct 1st'), { kind: 'balanceAt', day: '2026-10-01' });
+  assert.deepEqual(at('Kontostand Anfang Oktober'), { kind: 'balanceAt', day: '2026-09-30' });
+  assert.deepEqual(at('Kontostand Ende letzten Monats'), { kind: 'balanceAt', day: '2026-10-31' });
+  assert.deepEqual(at('Guthaben Ende letzten Jahres'), { kind: 'balanceAt', day: '2025-12-31' });
+  assert.deepEqual(at('kontostand gestern'), { kind: 'balanceAt', day: '2026-11-11' });
+  assert.deepEqual(at('Kontostand vor zwei Wochen'), { kind: 'balanceAt', day: '2026-10-29' });
+  // A day still ahead this year is last year's; a month still ahead too.
+  assert.deepEqual(at('Kontostand am 20. November'), { kind: 'balanceAt', day: '2025-11-20' });
+  assert.deepEqual(at('Kontostand im Dezember'), { kind: 'balanceAt', day: '2025-12-31' });
+  // This month is the balance now; its end is the forecast.
+  assert.deepEqual(at('Kontostand im November'), { kind: 'balance' });
+  assert.deepEqual(at('Kontostand Ende November'), { kind: 'monthEnd' });
+  assert.deepEqual(at('Kontostand am Monatsende'), { kind: 'monthEnd' });
+  // Spending and counting stay with the bookings; "Saldo" may be a month's net.
+  for (const q of ['Wie viel Geld hatte ich im August ausgegeben', 'wie viele buchungen hatte ich letzten monat']) assert.equal(at(q), null, q);
+  assert.notEqual(at('Saldo im Oktober')?.kind, 'balanceAt');
+});
+
+test('balanceOn: today\'s balance less the bookings since, only as far back as the Umsätze reach', () => {
+  const base = {
+    cents: 100000, asOf: '2026-11-12', from: '2026-08-14', to: '2026-11-12',
+    bookings: [{ day: '2026-09-30', cents: -5000 }, { day: '2026-10-01', cents: 250000 }, { day: '2026-11-12', cents: -1000 }],
+  };
+  assert.deepEqual(balanceOn(base, '2026-11-12'), { state: 'known', cents: 100000 });
+  assert.deepEqual(balanceOn(base, '2026-11-11'), { state: 'known', cents: 101000 });
+  assert.deepEqual(balanceOn(base, '2026-09-30'), { state: 'known', cents: 100000 - 250000 + 1000 });
+  assert.deepEqual(balanceOn(base, '2026-09-29'), { state: 'known', cents: 100000 - 250000 + 1000 + 5000 });
+  // The day before the first loaded day is still known; before that it is not.
+  assert.equal(balanceOn(base, '2026-08-13').state, 'known');
+  assert.equal(balanceOn(base, '2026-08-12').state, 'tooEarly');
+  assert.equal(balanceOn({ ...base, from: null }, '2026-10-01').state, 'tooEarly');
+  // A balance from a day the Umsätze do not reach: the bookings between are not known.
+  assert.equal(balanceOn({ ...base, to: '2026-11-01' }, '2026-10-01').state, 'unknown');
+  // A balance from an earlier day stands for that day and the days after.
+  assert.deepEqual(balanceOn({ ...base, asOf: '2026-11-10' }, '2026-11-11'), { state: 'known', cents: 100000 });
+  assert.deepEqual(balanceOn({ ...base, asOf: '2026-11-10' }, '2026-09-30'), { state: 'known', cents: 100000 - 250000 });
 });
 
 test('Sparziele', () => {

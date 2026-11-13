@@ -55,6 +55,7 @@
 
 import { withNoticed, type ContractNotice, type ContractReminder } from '@/lib/contract-watch';
 import { sanitizeGoals, type SavingsGoal } from '@/lib/savings-goal';
+import { withRequests } from '@/lib/split-requests';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   FintsContext, countsAsActivity, orderWaitKind, waitHoldsSession,
@@ -2895,6 +2896,10 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     });
   }, [updateVault]);
 
+  const recordSplitRequests = useCallback((tx: SerializedTransaction, people: { name: string; cents: number }[]) => {
+    updateVault((v) => ({ ...v, splitRequests: withRequests(v.splitRequests ?? [], txKey(tx), people, new Date().toISOString().slice(0, 10)) }));
+  }, [updateVault]);
+
   const setSplit = useCallback((tx: SerializedTransaction, parts: readonly SplitPart[] | null): boolean => {
     const k = txKey(tx);
     if (parts === null) {
@@ -3062,7 +3067,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     plus, plusOpen,
     openPlus: () => setPlusOpen(true),
     closePlus: () => setPlusOpen(false),
-    categoryGuessOf, setBudgets, setGoal, noteOf, setNote,
+    categoryGuessOf, setBudgets, setGoal, recordSplitRequests, noteOf, setNote,
     links, banks, bankOf, activeBank, addBank,
     openAddBank, closeAddBank, pickAddBank, connectAddBank, chooseAddBankMethod, clearAddBankMedia, addBankBack,
     removeBank,

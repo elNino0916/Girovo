@@ -395,6 +395,28 @@ export const de = {
     goalNoBalance: (name: string) => `Für „${name}“ fehlt noch der Kontostand.`,
     openGoal: 'Sparkonto öffnen',
     openGoals: 'Sparziele ansehen',
+    /** "Kontostand am 1. Oktober": rebuilt from today's balance and the bookings since. */
+    balanceAtOne: (account: string, day: string, amount: ReactNode): ReactNode[] => ['Am ', day, ' hattest du auf ', account, ' ', amount, '.'],
+    balanceAtTotal: (day: string, amount: ReactNode, n: number): ReactNode[] => ['Am ', day, ' hattest du auf deinen ', String(n), ' Konten zusammen ', amount, '.'],
+    balanceAtTooFar: (from: string | null) => (from
+      ? `So weit zurück sieht Girovo nicht. Deine Umsätze beginnen am ${from}.`
+      : 'So weit zurück sieht Girovo nicht.'),
+    balanceAtSome: 'Bei manchen Konten reichen die Umsätze nicht so weit zurück.',
+    /** "Wie viel schuldet mir Lea noch?": what Aufteilen asked for and what came. */
+    owedOpenOne: (name: string, amount: ReactNode): ReactNode[] => [name, ' schuldet dir noch ', amount, '.'],
+    owedOpenAll: (amount: ReactNode, n: number): ReactNode[] => (n === 1
+      ? ['Eine Person schuldet dir noch ', amount, '.']
+      : [String(n), ' Personen schulden dir zusammen noch ', amount, '.']),
+    owedPaidOne: (name: string, amount: ReactNode): ReactNode[] => [name, ' hat dir schon ', amount, ' gezahlt.'],
+    owedPaidAll: (amount: ReactNode): ReactNode[] => ['Zurückgezahlt sind schon ', amount, '.'],
+    owedAllPaid: (name: string) => `${name} hat alles bezahlt.`,
+    owedNobody: 'Niemand schuldet dir noch etwas.',
+    owedNoRequests: 'Mit Aufteilen hast du noch nichts angefordert.',
+    owedNoneFor: (name: string) => `Von „${name}“ hast du mit Aufteilen nichts angefordert.`,
+    /** A request's row: the booking it came from, "seit 10. November". */
+    owedSince: (day: string) => `seit ${day}`,
+    owedOpenCount: (n: number) => `${n} offen`,
+    owedRequest: 'Aufteilen',
   },
   /**
    * Girovo Next: what stands out, unasked (lib/ask-notes.ts), under the month
@@ -735,6 +757,25 @@ export const en: typeof de = {
     goalNoBalance: (name) => `The balance for “${name}” isn’t in yet.`,
     openGoal: 'Open savings account',
     openGoals: 'See savings goals',
+    balanceAtOne: (account, day, amount) => ['On ', day, ' you had ', amount, ' in ', account, '.'],
+    balanceAtTotal: (day, amount, n) => ['On ', day, ' you had ', amount, ' across your ', String(n), ' accounts.'],
+    balanceAtTooFar: (from) => (from
+      ? `Girovo can’t see that far back. Your transactions start on ${from}.`
+      : 'Girovo can’t see that far back.'),
+    balanceAtSome: 'For some accounts the transactions don’t go back that far.',
+    owedOpenOne: (name, amount) => [name, ' still owes you ', amount, '.'],
+    owedOpenAll: (amount, n) => (n === 1
+      ? ['One person still owes you ', amount, '.']
+      : [String(n), ' people still owe you ', amount, ' in total.']),
+    owedPaidOne: (name, amount) => [name, ' has already paid you ', amount, '.'],
+    owedPaidAll: (amount) => [amount, ' has already been paid back.'],
+    owedAllPaid: (name) => `${name} has paid everything.`,
+    owedNobody: 'Nobody owes you anything.',
+    owedNoRequests: 'You haven’t requested anything with Split yet.',
+    owedNoneFor: (name) => `You haven’t requested anything from “${name}” with Split.`,
+    owedSince: (day) => `since ${day}`,
+    owedOpenCount: (n) => `${n} open`,
+    owedRequest: 'Split',
   },
   notes: {
     label: 'Notes',

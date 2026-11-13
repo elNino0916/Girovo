@@ -5,7 +5,7 @@
 // - read        "Ist der dunkle Modus an?", "Welche Einstellungen habe ich?": the settings as they are
 // - set         "Mach das helle Design an", "Beträge ausblenden", "Stell auf Englisch": a change, asked first
 // - refresh     "Aktualisiere alle Konten": every balance read again, asked first (it can cost a Freigabe)
-// - balance, monthEnd, contractCost, priceRises, salary, owed, goal: the app's own figures (lib/ask-facts.ts)
+// - balance, balanceAt, monthEnd, contractCost, priceRises, salary, owed, goal: the app's own figures (lib/ask-facts.ts)
 //
 // Rules only: the words are few and plain, and a change is never made on a
 // model's guess. Every change waits for the user's "Ja" in the thread.
@@ -59,16 +59,16 @@ const IDLE = / (?:abmelden|abmeldung|automatisch abgemeldet|logout|log out|timeo
 
 /**
  * What a message wants, when it is not (only) a question about the bookings' sums; null for those.
- * `contracts`: the live contracts' names (lib/ask-facts.ts factOf).
+ * `contracts`: the live contracts' names (lib/ask-facts.ts factOf); `today` for a past balance's day.
  */
-export function intentOf(question: string, contracts: readonly string[] = []): AskIntent | null {
+export function intentOf(question: string, contracts: readonly string[] = [], today?: string): AskIntent | null {
   const q = fold(question);
   const asking = ASK_STATE.test(q) || / (?:an|aus|on|off) $/.test(q) && /^ (?:ist|is|sind|are) /.test(q);
 
   if (REFRESH.test(q) && ACCOUNTS.test(q)) return { kind: 'refresh' };
   if (BOOKINGS.test(q) && REFRESH_VERB.test(q)) return { kind: 'refresh' };
   // Balances, the forecast, Verträge & Abos' figures, the salary, Aufteilen, Sparziele.
-  const fact = factOf(question, contracts);
+  const fact = factOf(question, contracts, today);
   if (fact) return fact;
   if (CONTRACTS.test(q) && (QUESTION_WORD.test(q) || / (?:habe|hab|have|zahle|pay) /.test(q))) return { kind: 'contracts' };
 

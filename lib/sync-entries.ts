@@ -15,6 +15,7 @@
 import crypto from 'node:crypto';
 import type { VaultData } from './app-types';
 import { planMoves, validMove, type KeyMoves } from './booking-keys.ts';
+import { splitRequestId } from './split-requests.ts';
 
 /**
  * What one entry was at the last sync on this device: its hash ('-' deleted)
@@ -50,6 +51,7 @@ const LISTS = {
   templates: (t: { id: string }) => t.id,
   customCategories: (c: { id: string }) => c.id,
   goals: (g: { accountNumber: string }) => g.accountNumber,
+  splitRequests: (r: { tx: string; name: string }) => splitRequestId(r),
   netWorth: (d: { day: string }) => d.day,
   sentOrders: (o: { at: string; iban: string; cents: number; kind?: string }) => `${o.at}|${o.iban}|${o.cents}|${o.kind ?? ''}`,
   linkedBanks: (l: { blz: string; userId: string }) => `${l.blz}|${l.userId}`,
@@ -145,6 +147,7 @@ export function vaultFromEntries(entries: ReadonlyMap<string, unknown>, base: Va
   if (Object.keys(maps.manualDays).length) out.manualDays = maps.manualDays as NonNullable<VaultData['manualDays']>;
   if (base.noticedContracts?.length) out.noticedContracts = base.noticedContracts;
   if (lists.goals.length) out.goals = ordered('goals', lists.goals as NonNullable<VaultData['goals']>);
+  if (lists.splitRequests.length) out.splitRequests = ordered('splitRequests', lists.splitRequests as NonNullable<VaultData['splitRequests']>);
   if (scalars.accountOrder !== undefined) out.accountOrder = scalars.accountOrder as string[];
   if (scalars.accountGrouping !== undefined) out.accountGrouping = scalars.accountGrouping as VaultData['accountGrouping'];
   if (base.keepBalances === false) {
