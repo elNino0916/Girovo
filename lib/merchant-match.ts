@@ -343,6 +343,18 @@ export function looksCorporate(raw: string, businessBooking = false, purpose?: s
   return businessBooking;
 }
 
+/**
+ * Whether a counterparty reads as a private person: the veto looksCorporate
+ * runs (a given name or a title in two to four words, nothing corporate) on
+ * its own. Never on a card payment or a direct debit (`businessBooking`):
+ * the other side of those is a business.
+ */
+export function looksLikePerson(raw: string, businessBooking = false): boolean {
+  if (businessBooking) return false;
+  const tokens = tokenize(raw);
+  return tokens.length > 0 && !hasCorporateMarker(tokens) && looksPersonal(tokens);
+}
+
 // ---------------------------------------------------------------------------
 // Bookings whose counterparty cannot be a private person
 // ---------------------------------------------------------------------------

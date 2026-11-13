@@ -117,7 +117,7 @@ export function SettingItem({ icon, title, summary, trailing, below, setting, al
 
 /** A row pressed whole: it opens its dialog (or a page), and says so with its chevron. */
 export function ActionItem({
-  icon, title, summary, trailing, below, setting, alert, onClick, action, haspopup = 'dialog',
+  icon, title, summary, trailing, below, setting, alert, tone, onClick, action, haspopup = 'dialog',
 }: ItemProps & {
   onClick: () => void;
   /** What a press does, for a screen reader, where the title names a state ("Gerät gemerkt" → "Vergessen …"). */
@@ -130,6 +130,7 @@ export function ActionItem({
       data-item
       data-pressable
       data-setting={setting}
+      data-tone={tone}
       aria-haspopup={haspopup || undefined}
       onClick={onClick}
       className={ITEM}
