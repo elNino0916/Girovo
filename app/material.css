@@ -503,6 +503,8 @@
     /* Girovo's AI mark and the wash under what it wrote (Girovo Next's violet over Girovo's blue, owner 2026-11-11):
        brand colours, like the plate, so no wallpaper reaches them; the text on the wash keeps the row's own ink. */
     --ai-mark: #7b4fe0;
+    /* Girovo API's mark (components/icons.tsx ApiMarkIcon): Girovo's blue, a brand colour too. */
+    --api-mark: #0060a8;
     --ai-wash: linear-gradient(
       115deg,
       color-mix(in srgb, #7b4fe0 22%, transparent) 0%,
@@ -519,6 +521,7 @@
   }
   :root[data-look='material'][data-theme='dark'] {
     --ai-mark: #b085ff;
+    --api-mark: #9ecaff;
     --ai-wash: linear-gradient(
       115deg,
       color-mix(in srgb, #b085ff 20%, transparent) 0%,

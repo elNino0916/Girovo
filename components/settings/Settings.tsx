@@ -55,7 +55,7 @@ import { hasNewer, isReady, updates, useUpdates } from '../updates/store';
 import { usageComesWithChannel } from '../telemetry/NightlyUsage';
 import { setUsageConsent, useUsageConsent } from '../telemetry/usage';
 import {
-  BellIcon, BuildingIcon, ChartIcon, CheckCircleIcon, ClockIcon, CodeIcon, DownloadIcon, FileIcon, AiMarkIcon, GlobeIcon, ImageIcon, InfoIcon, KeyboardIcon,
+  BellIcon, BuildingIcon, ChartIcon, CheckCircleIcon, ClockIcon, CodeIcon, DownloadIcon, FileIcon, AiMarkIcon, ApiMarkIcon, GlobeIcon, ImageIcon, InfoIcon, KeyboardIcon,
   LockIcon, MailIcon, MonitorIcon, MoonIcon, PhoneIcon, RefreshIcon, ShieldIcon, SunIcon, WalletIcon,
 } from '../icons';
 import { BrandName, BrandPlate } from '../shell/BrandMark';
@@ -89,18 +89,11 @@ const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '';
 type DataDialog = 'reset' | 'wipe' | 'keepOff' | 'historyReset' | 'docsReset';
 type IconComponent = (props: { size?: number; filled?: boolean; className?: string }) => ReactNode;
 
-/**
- * Girovo API's glyph, for now: the owner picks its own from mocks. Material's
- * "api" is not in the font's subset yet (a new subset means fetching one with
- * every old name plus the new, DESIGN.md), so this borrows "code".
- */
-const ApiIcon: IconComponent = CodeIcon;
-
 /** Each page's glyph: the list's disc, the sidebar's place. */
 const ICONS: Record<SettingsPage, IconComponent> = {
-  // Girovo's AI mark is a picture, drawn: no symbol, so no new glyph in the font's subset.
+  // Girovo's AI and API marks are pictures, drawn: no symbol, so no new glyph in the font's subset.
   ask: AiMarkIcon,
-  api: ApiIcon,
+  api: ApiMarkIcon,
   security: LockIcon,
   notifications: BellIcon,
   accounts: WalletIcon,

@@ -623,6 +623,36 @@ export function AiMarkIcon({ size = 18, className, ...rest }: IconProps) {
   );
 }
 
+/**
+ * Girovo API's mark ("Knoten", owner's pick 2026-11-14,
+ * .impeccable/mocks/decision/api-mark/): the AI mark's four arms, short,
+ * each ending in a round point to connect to. Girovo's blue (--api-mark,
+ * app/material.css), a brand colour like the AI mark's violet.
+ */
+export function ApiMarkIcon({ size = 18, className, ...rest }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      aria-hidden="true"
+      className={join('shrink-0 text-[var(--api-mark)]', className)}
+      {...rest}
+    >
+      <path d="M12 9.4V7.4M14.6 12h2M12 14.6v2M9.4 12h-2" strokeWidth={2.7} />
+      <g fill="currentColor" stroke="none">
+        <circle cx="12" cy="3.5" r="2.3" />
+        <circle cx="20.5" cy="12" r="2.3" />
+        <circle cx="12" cy="20.5" r="2.3" />
+        <circle cx="3.5" cy="12" r="2.3" />
+      </g>
+    </svg>
+  );
+}
+
 export function ExternalIcon(p: IconProps) {
   return (
     <Icon ms="open_in_new" {...p}>
