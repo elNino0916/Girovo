@@ -55,7 +55,7 @@ import { EXAMPLE_MIN, nameSimilarity } from '@/lib/nano-categories';
 import { sanitizeBudgets, type Budgets } from '@/lib/budgets';
 import { withNote } from '@/lib/notes';
 import {
-  counterpartyKey, counterpartyName, counterpartyRuleKey, isCategoryId, rawCounterparty, ruleKeyFor, setCustomCategories, txKey,
+  counterpartyKey, counterpartyName, counterpartyRuleKey, isCategoryId, rawCounterparty, ruleKeyFor, setCustomCategories, txCreditorId, txKey,
   type CategoryId, type CategoryResult, type CustomCategoryId,
 } from '@/lib/categories';
 import {
@@ -5724,13 +5724,15 @@ function useFintsState() {
       day: bankDay(tx),
       cents: Math.round(tx.amount * 100),
       names: [counterpartyName(tx), String(tx.remoteName ?? '')].filter(Boolean),
+      // A creditor's money or a salary is never a friend paying back (a legal form in the name is checked there too).
+      business: !!txCreditorId(tx) || categoryOf(tx).id === 'income',
     }));
     updateVault((v) => {
       const list = v.splitRequests ?? [];
       const settled = settleRequests(list, incoming);
       return settled === list ? v : { ...v, splitRequests: [...settled] };
     });
-  }, [splitRequests, txByAccount, updateVault]);
+  }, [splitRequests, txByAccount, categoryOf, updateVault]);
 
   const setBudgets = useCallback((next: Budgets) => {
     updateVault((v) => {

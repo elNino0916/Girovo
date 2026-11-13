@@ -222,3 +222,34 @@ test('lastFrom and the names', () => {
   assert.equal(nameCase('lea'), 'Lea');
   assert.equal(nameCase('amazon prime'), 'Amazon Prime');
 });
+
+test('a past balance: "may" is a month only as one, "1.10" without its dot, a month of last year, no day that does not exist', () => {
+  const T = '2026-11-13';
+  const at = (q: string) => factOf(q, [], T);
+  for (const q of ['May I see my balance?', 'May I know my current balance?', 'What is my balance, may I ask?']) assert.deepEqual(at(q), { kind: 'balance' }, q);
+  assert.deepEqual(at('What was my balance in May?'), { kind: 'balanceAt', day: '2026-05-31' });
+  assert.deepEqual(at('May I see my balance in October?'), { kind: 'balanceAt', day: '2026-10-31' });
+  assert.deepEqual(at('Kontostand am 1.10'), { kind: 'balanceAt', day: '2026-10-01' });
+  assert.deepEqual(at('Kontostand am 1.10.'), { kind: 'balanceAt', day: '2026-10-01' });
+  assert.deepEqual(at('Wie hoch war mein Kontostand im November letzten Jahres?'), { kind: 'balanceAt', day: '2025-11-30' });
+  assert.deepEqual(at('balance in November last year'), { kind: 'balanceAt', day: '2025-11-30' });
+  assert.deepEqual(at('Kontostand Ende Oktober letzten Jahres'), { kind: 'balanceAt', day: '2025-10-31' });
+  assert.deepEqual(at('Kontostand am 1. Oktober letzten Jahres'), { kind: 'balanceAt', day: '2025-10-01' });
+  assert.deepEqual(at('Kontostand Ende letzten Jahres'), { kind: 'balanceAt', day: '2025-12-31' });
+  // 29 February 2026 and 31 November never were: not today's balance.
+  assert.equal(at('Kontostand am 29.2.'), null);
+  assert.equal(at('Wie hoch war mein Kontostand am 31.11.?'), null);
+});
+
+test('balanceOn: a day after an old kept balance adds the bookings since, or is unknown', () => {
+  const base = {
+    cents: 100000, asOf: '2026-11-05', from: '2026-08-14', to: '2026-11-12',
+    bookings: [{ day: '2026-11-05', cents: -500 }, { day: '2026-11-07', cents: -2000 }, { day: '2026-11-10', cents: 30000 }],
+  };
+  assert.deepEqual(balanceOn(base, '2026-11-05'), { state: 'known', cents: 100000 });
+  assert.deepEqual(balanceOn(base, '2026-11-08'), { state: 'known', cents: 98000 });
+  assert.deepEqual(balanceOn(base, '2026-11-12'), { state: 'known', cents: 128000 });
+  // The Umsätze stop before that day: the bookings between are not known.
+  assert.equal(balanceOn({ ...base, to: '2026-11-06' }, '2026-11-08').state, 'unknown');
+  assert.equal(balanceOn({ ...base, to: null }, '2026-11-08').state, 'unknown');
+});

@@ -482,3 +482,15 @@ test('per year: the monthly average times 12, or the last 12 whole months as the
   // Per month, nothing changes: no year's figure.
   assert.equal(computeAnswer({ ...q, per: undefined }, monthly, CTX, { from: '2025-03-01', to: today }, today).year, undefined);
 });
+
+test('"Give me" and "Send me" ask the app; someone sending me money comes in', () => {
+  assert.notEqual(dirFromQuestion('Give me my spending at Amazon last month'), 'in');
+  assert.notEqual(dirFromQuestion('Send me my Rewe total'), 'in');
+  assert.notEqual(dirFromQuestion('Transfer me the list of my Amazon payments'), 'in');
+  assert.equal(dirFromQuestion('How much did Lea send me?'), 'in');
+  assert.equal(dirFromQuestion('Did Lea pay me back?'), 'in');
+  assert.equal(dirFromQuestion('Who sent me money in October?'), 'in');
+  assert.equal(dirFromQuestion('Who paid me last month?'), 'in');
+  assert.equal(dirFromQuestion('How much does my employer pay me?'), 'in');
+  assert.equal(dirFromQuestion('Was hat mir Lea geschickt?'), 'in');
+});

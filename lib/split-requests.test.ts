@@ -70,3 +70,29 @@ test('what each person owes, the one owing most first, or only the person asked 
   assert.deepEqual(lea.map((p) => [p.name, p.openCents]), [['Lea Müller', 500], ['lea', 250]]);
   assert.deepEqual(owedByPerson(list, 'tom'), []);
 });
+
+test('a bank without umlauts still names the person: "LEA MULLER" is Lea Müller', () => {
+  assert.ok(personMatches('LEA MULLER', 'Lea Müller'));
+  assert.ok(personMatches('LEA MUELLER', 'Lea Müller'));
+  assert.ok(personMatches('Lea Müller', 'Lea Muller'));
+  assert.ok(personMatches('JOSE GARCIA', 'José García'));
+  assert.ok(!personMatches('LEA MOLLER', 'Lea Müller'));
+});
+
+test("a company's money settles nothing, and far more than is open is something else", () => {
+  const list = [req('Otto', 1250, '2026-11-01', 'tA'), req('Max', 2000, '2026-11-01', 'tB')];
+  // A refund from OTTO GMBH & CO KG and a salary from MAX BAHR GMBH are not Otto and Max paying back.
+  assert.equal(settleRequests(list, [money(['OTTO GMBH & CO KG'], 4999, '2026-11-05'), money(['MAX BAHR GMBH'], 2000, '2026-11-06')]), list);
+  assert.equal(settleRequests(list, [money(['Shop Max e.K.'], 2000, '2026-11-06'), money(['Otto Ltd'], 1250, '2026-11-06')]), list);
+  // A creditor ID or the income category marks it too.
+  assert.equal(settleRequests(list, [{ ...money(['Max Mustermann'], 2000, '2026-11-06'), business: true }]), list);
+  // A person paying far more than is open (a rent share, a salary) settles nothing either; up to twice does.
+  assert.equal(settleRequests(list, [money(['Max Mustermann'], 250000, '2026-11-06')]), list);
+  const paid = settleRequests(list, [money(['Max Mustermann'], 4000, '2026-11-06', 'k1')]);
+  assert.deepEqual(paid[1].paid, { on: '2026-11-06', by: 'k1' });
+  // An amount equal to one open request still settles that one.
+  const two = [req('Lea', 1000, '2026-11-01', 't1'), req('Lea', 3000, '2026-11-02', 't2')];
+  const one = settleRequests(two, [money(['LEA MULLER'], 1000, '2026-11-06', 'k2')]);
+  assert.deepEqual(one[0].paid, { on: '2026-11-06', by: 'k2' });
+  assert.equal(one[1].paid, undefined);
+});

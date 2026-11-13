@@ -31,13 +31,33 @@ export const SPLIT_REQUEST_LIMITS = { count: 300, name: 40, key: 200, cents: 100
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
-/** A name as plain lowercase words, the umlauts as a bank writes them: "Lea Müller" → ["lea", "mueller"]. */
-function nameWords(s: string): string[] {
-  return s.toLocaleLowerCase('de')
-    .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
+/**
+ * A name as plain lowercase words, the umlauts as a bank writes them: "Lea Müller" → ["lea", "mueller"];
+ * `plain` drops their dots instead, as a bank without umlauts does: ["lea", "muller"].
+ */
+function nameWords(s: string, plain = false): string[] {
+  const lower = s.toLocaleLowerCase('de');
+  return (plain ? lower : lower.replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue'))
+    .replace(/ß/g, 'ss')
     .normalize('NFKD').replace(/\p{M}/gu, '')
     .split(/[^\p{L}\p{N}]+/u).filter(Boolean);
 }
+
+/** Each word of a name in both spellings of its umlauts: "Müller" → ["mueller", "muller"]. */
+function nameForms(s: string): string[][] {
+  const ue = nameWords(s);
+  const plain = nameWords(s, true);
+  return ue.length === plain.length ? ue.map((w, i) => (w === plain[i] ? [w] : [w, plain[i]])) : ue.map((w) => [w]);
+}
+
+/**
+ * A company's legal form in a name: "OTTO GMBH & CO KG", "Max Bahr GmbH", "Shop e.K.", "Foo Ltd",
+ * "Bar B.V.", "Baz S.A.". Such money in is a refund or a salary, never a friend paying back.
+ */
+const LEGAL_FORM = /(?:^|[^\p{L}])(?:gmbh|mbh|ag|kg|kgaa|ohg|gbr|se|ug|e\.\s?k\.?|e\.\s?kfm\.?|e\.\s?v\.?|ltd|limited|llc|inc|plc|bv|b\.\s?v\.?|nv|n\.\s?v\.?|s\.\s?a\.?|sarl|s\.\s?a\.\s?r\.\s?l\.?)(?=$|[^\p{L}])/iu;
+
+/** Whether a payer's name is a company's (LEGAL_FORM). */
+export const isCompanyName = (name: string): boolean => LEGAL_FORM.test(name);
 
 /** The same person whatever the case or spelling of the umlauts: what a request is told apart by. */
 export const personKey = (name: string): string => nameWords(name).join(' ');
@@ -51,10 +71,11 @@ export const splitRequestId = (r: Pick<SplitRequest, 'tx' | 'name'>): string => 
  * ("M.") the start of one. "Lea" is not "Leander".
  */
 export function personMatches(full: string, asked: string): boolean {
-  const have = nameWords(full);
-  const want = nameWords(asked);
+  const have = nameForms(full);
+  const want = nameForms(asked);
   if (!want.length || !have.length) return false;
-  return want.every((w) => have.some((h) => (w.length === 1 ? h.startsWith(w) : h === w)));
+  // "LEA MULLER" is "Lea Müller" as much as "LEA MUELLER" is: either spelling of the umlauts counts.
+  return want.every((ws) => have.some((hs) => ws.some((w) => hs.some((h) => (w.length === 1 ? h.startsWith(w) : h === w)))));
 }
 
 /**
@@ -104,14 +125,22 @@ export function withRequests(
   return sanitizeSplitRequests([...list.filter((r) => r.tx !== tx), ...added]);
 }
 
-/** Money in, as the settling sees it: its key, day, amount in cents and the names it came under. */
-export type Incoming = { key: string; day: string; cents: number; names: readonly string[] };
+/**
+ * Money in, as the settling sees it: its key, day, amount in cents and the names it came under;
+ * `business` when it is a company's money (a creditor ID, filed under income), which settles nothing.
+ */
+export type Incoming = { key: string; day: string; cents: number; names: readonly string[]; business?: boolean };
+
+/** Money in far above what is open is something else (a salary, a refund): at most this many times the open sum settles it. */
+const SETTLE_MAX_FACTOR = 2;
 
 /**
  * The requests with what the bookings paid marked paid: each booking in from
  * a person, on or after the day of their open requests, settles all of them
- * when it covers their sum, else the oldest one it equals; nothing for less.
- * A booking settles once. The same array back when nothing changed.
+ * when it covers their sum (and is at most twice that), else the oldest one
+ * it equals; nothing for less. A company's money (`business`, or a legal
+ * form in its names) settles nothing. A booking settles once. The same array
+ * back when nothing changed.
  */
 export function settleRequests(list: readonly SplitRequest[], incoming: readonly Incoming[]): readonly SplitRequest[] {
   if (!list.some((r) => !r.paid)) return list;
@@ -119,7 +148,7 @@ export function settleRequests(list: readonly SplitRequest[], incoming: readonly
   const out = [...list];
   let changed = false;
   const order = incoming
-    .filter((b) => b.cents > 0 && DAY.test(b.day) && !used.has(b.key))
+    .filter((b) => b.cents > 0 && DAY.test(b.day) && !used.has(b.key) && !b.business && !b.names.some(isCompanyName))
     .sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
   for (const b of order) {
     const open = out
@@ -129,7 +158,7 @@ export function settleRequests(list: readonly SplitRequest[], incoming: readonly
     if (!open.length) continue;
     const sum = open.reduce((s, { r }) => s + r.cents, 0);
     const exact = open.find(({ r }) => r.cents === b.cents);
-    const settle = b.cents >= sum ? open : exact ? [exact] : [];
+    const settle = b.cents >= sum && b.cents <= sum * SETTLE_MAX_FACTOR ? open : exact ? [exact] : [];
     for (const { r, i } of settle) out[i] = { ...r, paid: { on: b.day, by: b.key } };
     if (settle.length) changed = true;
   }

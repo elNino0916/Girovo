@@ -159,3 +159,13 @@ test('the most pressing first, never more than three, a closed one stays closed'
   const closed = new Set(notes.map((n) => n.key));
   assert.deepEqual(kinds(askNotes(input(txs, { live, dismissed: closed }))), ['newContract', 'spike']);
 });
+
+test('a contract is new only where the loaded bookings reach one step of its rhythm before it', () => {
+  const disney = series('disney', { name: 'DISNEY PLUS' });
+  // Umsätze only from 1 October: a monthly contract first seen on 20 October may well be older.
+  assert.deepEqual(askNotes(input([], { live: [disney], from: '2026-10-01' })), []);
+  assert.equal(askNotes(input([], { live: [disney], from: '2026-09-20' }))[0]?.kind, 'newContract');
+  // A weekly one needs a week before it, a yearly one a year.
+  assert.equal(askNotes(input([], { live: [series('w', { cadence: 'weekly', intervalDays: 7, everyDays: 7 })], from: '2026-10-10' }))[0]?.kind, 'newContract');
+  assert.deepEqual(askNotes(input([], { live: [series('y', { cadence: 'yearly', intervalDays: 365 })] })), []);
+});

@@ -327,8 +327,12 @@ const OUT_WORDS = /\b(?:AUSGEGEBEN|AUSGABE|AUSGABEN|ABBUCHUNG|ABBUCHUNGEN|LASTSC
 const DEBIT_WORDS = /\b(?:ABGEBUCHT|BERECHNET|ABGEZOGEN|EINGEZOGEN|KOSTET|KOSTEN|GEKOSTET|CHARGED|COST|COSTS)\b/;
 const IN_WORDS = /BEKOMMEN|\b(?:ERHALTEN|EINGEGANGEN|EINGAENGE|EINGANG|EINGENOMMEN|EINNAHME|EINNAHMEN|VERDIENT|ERSTATTET|RECEIVED|EARNED|INCOME|REFUND)/;
 const OUT_TO = /\b(?:AN|BEI|FUER|TO|AT)\b/;
-/** Money to the asker: "Wer hat mir … überwiesen", "Was hat mir Lea geschickt", "Who sent me …". */
-const TO_ME = /\b(?:HAT|HABEN|HAETTE) MIR\b|\bAN MICH\b|\b(?:SENT|SEND|SENDS|PAID|PAY|PAYS|GAVE|GIVE|GIVES|TRANSFERRED|TRANSFER) ME\b|\bG(?:O|E)T PAID\b|\bBEEN PAID\b/;
+/**
+ * Money to the asker: "Wer hat mir … überwiesen", "Was hat mir Lea geschickt", "Who sent me …",
+ * "How much did Lea send me?". Only with someone doing it: "Give me my spending at Amazon" and
+ * "Send me my Rewe total" ask the app for something and are no money in.
+ */
+const TO_ME = /\b(?:HAT|HABEN|HAETTE) MIR\b|\bAN MICH\b|\b\w+ (?:SENT|TRANSFERRED) ME\b|\b(?:DID|DOES|DO|HAS|HAVE|WILL) (?:\w+ ){1,3}(?:SEND|SENT|GIVE|GIVEN|PAY|PAID|TRANSFER|TRANSFERRED) ME\b|\b(?:PAID|GAVE|PAYS) ME\b|\bG(?:O|E)T PAID\b|\bBEEN PAID\b/;
 /** Both ways in so many words: "Ein- und Ausgaben", "Einnahmen und Ausgaben", "income and spending". */
 const BOTH_WAYS = /\bEIN UND AUSGABEN\b|\bEINNAHMEN UND AUSGABEN\b|\bAUSGABEN UND EINNAHMEN\b|\bINCOME AND (?:SPENDING|EXPENSES)\b|\b(?:SPENDING|EXPENSES) AND INCOME\b/;
 const IN_FROM = /\b(?:VON|VOM|FROM)\b/;

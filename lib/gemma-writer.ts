@@ -108,13 +108,17 @@ export function moneyText(cents: number, lang: WriterLang, currency = 'EUR'): st
 
 // i18n-data-start — the period said in words in the facts
 const PERIOD_WORDS = {
-  de: { all: 'alle geladenen Umsätze', today: 'heute', thisMonth: 'dieser Monat', lastMonth: 'letzter Monat', thisYear: 'dieses Jahr', lastYear: 'letztes Jahr', since: 'seit', days: (n: number) => (n === 7 ? 'letzte Woche' : `die letzten ${n} Tage`), months: (n: number) => `die letzten ${n} Monate` },
-  en: { all: 'all loaded transactions', today: 'today', thisMonth: 'this month', lastMonth: 'last month', thisYear: 'this year', lastYear: 'last year', since: 'since', days: (n: number) => (n === 7 ? 'last week' : `the last ${n} days`), months: (n: number) => `the last ${n} months` },
+  de: { all: 'alle geladenen Umsätze', today: 'heute', thisMonth: 'dieser Monat', lastMonth: 'letzter Monat', thisYear: 'dieses Jahr', lastYear: 'letztes Jahr', since: 'seit', days: (n: number) => `die letzten ${n} Tage`, months: (n: number) => `die letzten ${n} Monate` },
+  en: { all: 'all loaded transactions', today: 'today', thisMonth: 'this month', lastMonth: 'last month', thisYear: 'this year', lastYear: 'last year', since: 'since', days: (n: number) => `the last ${n} days`, months: (n: number) => `the last ${n} months` },
 };
 // i18n-data-end
 
-/** A period in words as a question says it, or null for every loaded booking and for exact days. */
-function periodWords(period: AskQuery['period'], lang: WriterLang, year: (y: number) => void): string | null {
+/**
+ * A period in words as a question says it, or null for every loaded booking and for exact days.
+ * Its year goes to `year`, its number of days or months to `count`, so "In den letzten 30 Tagen" may be said.
+ * Seven days are "die letzten 7 Tage", never "letzte Woche": that is a calendar week.
+ */
+function periodWords(period: AskQuery['period'], lang: WriterLang, year: (y: number) => void, count: (n: number) => void): string | null {
   const w = PERIOD_WORDS[lang];
   const monthName = (m: string) => {
     year(Number(m.slice(0, 4)));
@@ -129,8 +133,8 @@ function periodWords(period: AskQuery['period'], lang: WriterLang, year: (y: num
     case 'month': return monthName(period.month);
     case 'since': return `${w.since} ${monthName(period.month)}`;
     case 'year': year(period.year); return String(period.year);
-    case 'days': return w.days(period.days);
-    case 'months': return w.months(period.months);
+    case 'days': count(period.days); return w.days(period.days);
+    case 'months': count(period.months); return w.months(period.months);
     default: return null;
   }
 }
@@ -206,13 +210,13 @@ export function writerInput(question: string, a: AskAnswer, c: FactsContext): Wr
     if (x.outside || y.outside) lines.push(w.outside);
   } else if (a.outside) {
     // The period too, so "Im März sind keine Umsätze geladen" may say its month.
-    const said = periodWords(q.period, c.lang, (y) => numbers.years.add(y));
+    const said = periodWords(q.period, c.lang, (y) => numbers.years.add(y), count);
     if (said) lines.push(`${w.period}: ${said}`);
     lines.push(w.outside);
   } else {
     // The period as the question said it ("Oktober 2026", "dieses Jahr"); none where it named none, so the
     // sentence does not open with "Im Zeitraum vom 1. August bis 12. November". Exact days keep their span.
-    const said = periodWords(q.period, c.lang, (y) => numbers.years.add(y));
+    const said = periodWords(q.period, c.lang, (y) => numbers.years.add(y), count);
     if (said) lines.push(`${w.period}: ${said}`);
     else if (q.period.kind === 'range') lines.push(`${w.period}: ${span(a)}`);
     else lines.push(`${w.period}: ${PERIOD_WORDS[c.lang].all}`);
@@ -367,12 +371,14 @@ function foreignPeriod(sentence: string, prompt: string): boolean {
   return false;
 }
 
-/** A capitalised name after a preposition ("von Lea", "from Lea") that the facts do not contain. */
+/** A capitalised name after a preposition ("von Lea", "from Lea") that the facts do not contain as a whole word ("Jan" is not in "Januar"). */
 function foreignName(sentence: string, prompt: string): boolean {
   const facts = prompt.slice(prompt.indexOf('\n') + 1).toLocaleLowerCase('de');
   // i18n-data-next-line
   for (const m of sentence.matchAll(/(?:^|\s)(?:[Vv]on|[Vv]om|[Aa]n|[Bb]ei|[Bb]eim|[Ff]ür|[Ff]rom|[Tt]o|[Aa]t|[Oo]n|[Ff]or)\s+([A-ZÄÖÜ][\p{L}\p{N}&.'-]*)/gu)) {
-    if (!facts.includes(m[1].toLocaleLowerCase('de').replace(/[.,]+$/, ''))) return true;
+    const name = m[1].toLocaleLowerCase('de').replace(/[.,]+$/, '');
+    const word = new RegExp(`(?<![\\p{L}\\p{N}])${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'u');
+    if (!word.test(facts)) return true;
   }
   return false;
 }

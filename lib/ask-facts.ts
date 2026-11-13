@@ -92,12 +92,20 @@ const MONTH_WORDS: Record<string, number> = {
 const MONTH_SHORT: Record<string, number> = { jan: 1, feb: 2, mär: 3, mar: 3, apr: 4, jun: 6, jul: 7, aug: 8, sep: 9, sept: 9, okt: 10, oct: 10, nov: 11, dez: 12, dec: 12 };
 const MONTH_ALT = Object.keys(MONTH_WORDS).join('|');
 const MONTH_ANY = `${MONTH_ALT}|${Object.keys(MONTH_SHORT).join('|')}`;
-const AT_NUMERIC = / (\d{1,2})\.(\d{1,2})\.(\d{4}|\d{2})?(?=[ .])| (\d{4})-(\d{2})-(\d{2}) /;
+const AT_NUMERIC = / (\d{1,2})\.(\d{1,2})(?:\.(\d{4}|\d{2})?)?(?=[ .])| (\d{4})-(\d{2})-(\d{2}) /;
 const AT_DAY_MONTH = new RegExp(` (\\d{1,2})(?:\\.|st|nd|rd|th)? (?:of )?(${MONTH_ANY})\\.?(?: (\\d{4}))?(?= )`);
 const AT_MONTH_DAY = new RegExp(` (${MONTH_ANY})\\.? (\\d{1,2})(?:st|nd|rd|th)?(?:,? (\\d{4}))?(?= )`);
 const AT_START = new RegExp(` (?:anfang|beginning of|start of|the start of)(?: des| dem)? (${MONTH_ALT})(?: (\\d{4}))? `);
 const AT_END = new RegExp(` (?:ende|end of|the end of)(?: des| dem)? (${MONTH_ALT})(?: (\\d{4}))? `);
-const AT_MONTH = new RegExp(` (${MONTH_ALT})(?: (\\d{4}))? `);
+const AT_MONTH = new RegExp(` (${MONTH_ALT})(?: (\\d{4}))?(?= )`, 'g');
+/** English "may" is a month only after these ("in May", "end of May"), or with a day or a year: "May I see my balance?" names none. */
+const BEFORE_MAY = / (?:in|im|of|during|until|bis|since|seit|anfang|ende|beginning of|end of|start of) $/;
+/** A month of the year before: "im November letzten Jahres", "November last year", "letztes Jahr im November". */
+const MONTH_LAST_YEAR = new RegExp(
+  ` (?:${MONTH_ANY}|\\d{1,2}\\.\\d{1,2})\\.? (?:des )?(?:letzten|vorigen|vergangenen) jahres `
+  + `| (?:${MONTH_ANY}|\\d{1,2}\\.\\d{1,2})\\.? (?:letztes jahr|im vorjahr|vorjahr|(?:of )?last year) `
+  + `| (?:letztes jahr|letzten jahres|im vorjahr|last year) (?:in|im|am|on|ende|anfang|end of|beginning of|start of) `,
+);
 const AT_LAST_MONTH = / (?:(?:ende )?(?:des )?(?:letzten|vorigen|vergangenen) monats|(?:letzten|vorigen|vergangenen) monat|vormonat|(?:the )?end of last month|last month) /;
 const AT_LAST_YEAR = / (?:(?:ende )?(?:des )?(?:letzten|vorigen|vergangenen) jahres|letztes jahr|vorjahr|jahresende|silvester|(?:the )?end of last year|last year) /;
 const AT_YEAR_END = / (?:ende|end of) ((?:19|20)\d{2}) /;
@@ -153,10 +161,12 @@ function localToday(): string {
  * The day a question about a past balance names, and whether it named the
  * end of a month: "am 1. Oktober", "1.10.", "October 1st", "Anfang Oktober"
  * (the day before), "Ende September", "im August" (its last day), "letzten
- * Monat", "Ende letzten Jahres", "gestern", "vor zwei Wochen". A day or month
- * without its year is the last one up to today. Null for none.
+ * Monat", "Ende letzten Jahres", "im November letzten Jahres", "gestern",
+ * "vor zwei Wochen". A day or month without its year is the last one up to
+ * today. Null for none; day null for a day that does not exist ("29.2." in
+ * 2026, "31. November").
  */
-export function balanceDayOf(question: string, today: string): { day: string; end: boolean } | null {
+export function balanceDayOf(question: string, today: string): { day: string; end: boolean } | { day: null; end: false } | null {
   const s = ` ${question.toLocaleLowerCase('de').replace(/[?!,;:„“"'()]/g, ' ').replace(/\s+/g, ' ').trim()} `;
   const [ty, tm] = today.split('-').map(Number);
   const monthOf = (w: string) => MONTH_WORDS[w] ?? MONTH_SHORT[w];
@@ -170,25 +180,30 @@ export function balanceDayOf(question: string, today: string): { day: string; en
     const year = y ?? (m > tm ? ty - 1 : ty);
     return `${year}-${pad(m)}-${pad(lastDayOf(year, m))}`;
   };
+  // "im November letzten Jahres": that month of the year before, not the last day of last year.
+  const ly = MONTH_LAST_YEAR.test(s) ? ty - 1 : null;
+  const none = { day: null, end: false } as const;
   let m: RegExpExecArray | null;
   if ((m = AT_NUMERIC.exec(s))) {
-    const day = m[1] ? dayIn(Number(m[1]), Number(m[2]), yearOf(m[3])) : dayIn(Number(m[6]), Number(m[5]), Number(m[4]));
-    return day ? { day, end: false } : null;
+    const day = m[1] ? dayIn(Number(m[1]), Number(m[2]), yearOf(m[3]) ?? ly) : dayIn(Number(m[6]), Number(m[5]), Number(m[4]));
+    return day ? { day, end: false } : none;
   }
   if ((m = AT_DAY_MONTH.exec(s))) {
-    const day = dayIn(Number(m[1]), monthOf(m[2]), yearOf(m[3]));
-    return day ? { day, end: false } : null;
+    const day = dayIn(Number(m[1]), monthOf(m[2]), yearOf(m[3]) ?? ly);
+    return day ? { day, end: false } : none;
   }
   if ((m = AT_MONTH_DAY.exec(s))) {
-    const day = dayIn(Number(m[2]), monthOf(m[1]), yearOf(m[3]));
-    return day ? { day, end: false } : null;
+    const day = dayIn(Number(m[2]), monthOf(m[1]), yearOf(m[3]) ?? ly);
+    return day ? { day, end: false } : none;
   }
   if ((m = AT_START.exec(s))) {
     const month = MONTH_WORDS[m[1]];
-    const y = yearOf(m[2]) ?? (month > tm ? ty - 1 : ty);
+    const y = yearOf(m[2]) ?? ly ?? (month > tm ? ty - 1 : ty);
     return { day: addDays(`${y}-${pad(month)}-01`, -1), end: false };
   }
-  if ((m = AT_END.exec(s))) return { day: monthEnd(MONTH_WORDS[m[1]], yearOf(m[2])), end: true };
+  if ((m = AT_END.exec(s))) return { day: monthEnd(MONTH_WORDS[m[1]], yearOf(m[2]) ?? ly), end: true };
+  const month = [...s.matchAll(AT_MONTH)].find((x) => x[1] !== 'may' || x[2] || BEFORE_MAY.test(s.slice(0, (x.index ?? 0) + 1)));
+  if (month && ly) return { day: monthEnd(MONTH_WORDS[month[1]], ly), end: false };
   if (AT_LAST_MONTH.test(s)) return { day: addDays(`${ty}-${pad(tm)}-01`, -1), end: true };
   if ((m = AT_YEAR_END.exec(s))) return { day: `${m[1]}-12-31`, end: true };
   if (AT_LAST_YEAR.test(s)) return { day: `${ty - 1}-12-31`, end: true };
@@ -204,7 +219,7 @@ export function balanceDayOf(question: string, today: string): { day: string; en
     return { day: `${y}-${pad(mo)}-${pad(Math.min(Number(today.slice(8)), lastDayOf(y, mo)))}`, end: false };
   }
   // "im November" of this November is the balance now, not its forecast.
-  if ((m = AT_MONTH.exec(s))) return { day: monthEnd(MONTH_WORDS[m[1]], yearOf(m[2])), end: false };
+  if (month) return { day: monthEnd(MONTH_WORDS[month[1]], yearOf(month[2])), end: false };
   return null;
 }
 
@@ -230,6 +245,8 @@ export function factOf(question: string, contracts: readonly string[] = [], toda
   // a day to come is the balance as it is, or the month-end forecast for this month's end.
   if ((BALANCE_AT_WORD.test(q) || HAD_MONEY.test(q)) && !SPENT.test(q)) {
     const at = balanceDayOf(question, today);
+    // A day that does not exist ("am 29.2." in 2026) is no balance of today's: the bookings or a plain line answer.
+    if (at && at.day === null) return null;
     if (at && at.day < today) return { kind: 'balanceAt', day: at.day };
     if (at) return at.end && at.day > today ? { kind: 'monthEnd' } : { kind: 'balance' };
   }
@@ -350,10 +367,18 @@ export type BalanceBase = {
  * The balance at the end of `day`: the one given, less every booking after
  * that day up to the day it stands for. tooEarly when the loaded Umsätze do
  * not reach back to the day after; unknown when they stop before the
- * balance's day (the bookings between are not known).
+ * balance's day (the bookings between are not known). For a day after the
+ * balance's own (an older kept balance), the bookings up to that day are
+ * added, and it is unknown when the Umsätze do not reach that day.
  */
 export function balanceOn(base: BalanceBase, day: string): { state: 'known'; cents: number } | { state: 'tooEarly' | 'unknown' } {
-  if (day >= base.asOf) return { state: 'known', cents: base.cents };
+  if (day === base.asOf) return { state: 'known', cents: base.cents };
+  if (day > base.asOf) {
+    if (!base.to || base.to < day) return { state: 'unknown' };
+    let cents = base.cents;
+    for (const b of base.bookings) if (b.day > base.asOf && b.day <= day) cents += b.cents;
+    return { state: 'known', cents };
+  }
   if (!base.from || addDays(day, 1) < base.from) return { state: 'tooEarly' };
   if (base.to && base.to < base.asOf) return { state: 'unknown' };
   let cents = base.cents;

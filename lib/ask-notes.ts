@@ -233,9 +233,12 @@ function spikes(input: NotesInput, free: readonly SerializedTransaction[]): Spik
 function newContracts(input: NotesInput): NewContractNote[] {
   const since = addDaysKey(input.today, -NEW_DAYS);
   const noticed = new Set(input.noticed ?? []);
+  // New only where the loaded bookings reach one step of its rhythm before its first booking:
+  // in a short window every old contract would look new.
+  const seenBefore = (s: RecurringSeries) => addDaysKey(s.firstDate, -Math.max(1, Math.round(s.everyDays ?? s.intervalDays))) >= input.from;
   return input.live
     .filter((s) => s.kind === 'expense' && !s.ended && !s.manual && !noticed.has(s.id)
-      && s.firstDate >= since && s.firstDate <= input.today)
+      && s.firstDate >= since && s.firstDate <= input.today && seenBefore(s))
     .sort((a, b) => (a.firstDate < b.firstDate ? 1 : a.firstDate > b.firstDate ? -1 : 0))
     .map((s) => ({ kind: 'newContract', key: `new|${s.id}`, series: s, cents: Math.abs(cents(s.amount)) }));
 }

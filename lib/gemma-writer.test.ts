@@ -131,3 +131,25 @@ test('an average per year: the year\'s figure, its basis, and only a sentence th
   assert.equal(monthly.per, undefined);
   assert.equal(usable('Im Schnitt 22,47 € pro Monat bei Lieferando.', monthly), true);
 });
+
+test('the last n days or months may be said with their number; seven days are no calendar week', () => {
+  const over = (period: unknown, lang: 'de' | 'en' = 'de') =>
+    writerInput('?', { ...answer, query: { ...answer.query, search: null, period } } as unknown as AskAnswer, { ...ctx, lang });
+  const days30 = over({ kind: 'days', days: 30 });
+  assert.match(days30.prompt, /die letzten 30 Tage/);
+  assert.equal(usable('In den letzten 30 Tagen hast du 112,35 € ausgegeben.', days30), true);
+  assert.equal(usable('In den letzten 3 Monaten hast du 112,35 € ausgegeben.', over({ kind: 'months', months: 3 })), true);
+  assert.equal(usable('In the last 3 months you spent €112.35.', over({ kind: 'months', months: 3 }, 'en')), true);
+  const week = over({ kind: 'days', days: 7 });
+  assert.match(week.prompt, /die letzten 7 Tage/);
+  assert.equal(usable('In den letzten 7 Tagen hast du 112,35 € ausgegeben.', week), true);
+  assert.equal(usable('Letzte Woche hast du 112,35 € ausgegeben.', week), false);
+  assert.match(over({ kind: 'days', days: 7 }, 'en').prompt, /the last 7 days/);
+});
+
+test('a name must be in the facts as a whole word: "Jan" is not in "Januar"', () => {
+  const jan = writerInput('?', { ...answer, query: { ...answer.query, search: null, period: { kind: 'month', month: '2026-01' } } } as unknown as AskAnswer, { ...ctx, lang: 'de' });
+  assert.match(jan.prompt, /Januar/);
+  assert.equal(usable('Von Jan hast du im Januar 112,35 € bekommen.', jan), false);
+  assert.equal(usable('Im Oktober hast du 112,35 € an Lieferando gezahlt.', de), true);
+});
