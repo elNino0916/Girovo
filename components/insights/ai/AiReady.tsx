@@ -20,10 +20,10 @@ import { useEffect, useId, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { welcomeQuestions, type WelcomeBooking } from '@/lib/ai-welcome';
 import { bookingDay } from '@/lib/analytics';
-import { dayKey } from '@/lib/format';
+import { dayKey, tidyName } from '@/lib/format';
 import { useLocale, useT } from '@/lib/i18n/react';
 import { useFints } from '../../FintsProvider';
-import { txText } from '../../transactions/model';
+import { merchantFor, txText } from '../../transactions/model';
 import { Button, Overlay } from '../../ui';
 import { useCanAsk } from '../ask-gate';
 import { newConversation, openAsk } from '../ask-thread-store';
@@ -62,20 +62,21 @@ export function AiReady() {
 /** The three questions from the bookings in view, Verträge & Abos and their days to cancel by. */
 function useQuestions(): string[] {
   const data = useAskScope();
-  const { categoryOf, vault } = useFints();
+  const { categoryOf, vault, merchants } = useFints();
   const recurring = useRecurringModel();
   const { locale } = useLocale();
   const reminders = vault?.contractReminders;
   return useMemo(() => {
     const today = dayKey(new Date());
     const bookings: WelcomeBooking[] = (data?.txs ?? []).map((tx) => ({
-      day: bookingDay(tx), amount: tx.amount, payee: txText(tx).name, category: categoryOf(tx).id,
+      // The brand where Girovo knows it ("dm"), else the list's name: a bank's raw line reads badly in a question.
+      day: bookingDay(tx), amount: tx.amount, payee: merchantFor(merchants, tx)?.label || tidyName(txText(tx).name), category: categoryOf(tx).id,
     }));
     const cancelDate = recurring.expense.some((s) => (reminders?.[s.id]?.by ?? '') >= today);
     return welcomeQuestions({ bookings, today, contracts: recurring.expense.length, cancelDate });
     // locale: the questions are in the app's language.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, categoryOf, recurring.expense, reminders, locale]);
+  }, [data, categoryOf, merchants, recurring.expense, reminders, locale]);
 }
 
 /** Focus the conversation's field once it is on the page ("Selbst fragen"). */

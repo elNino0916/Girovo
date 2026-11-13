@@ -35,6 +35,19 @@ const NOT_SPENDING = new Set(['transfer', 'savings', 'income', 'otherIn']);
 /** Longer payee names make a question nobody would type. */
 const NAME_MAX = 28;
 
+/**
+ * A bank's raw line, not a name a person would type: a branch or terminal number, "SAGT DANKE", or
+ * three or more words in capitals ("DM-DROGERIE MARKT SAGT DANKE", "REWE MARKT GMBH").
+ */
+function rawLine(name: string): boolean {
+  if (/\d{3,}/.test(name) || /sagt danke/i.test(name)) return true;
+  const words = name.split(/\s+/).filter((w) => /\p{L}/u.test(w));
+  return words.length >= 3 && words.every((w) => w === w.toLocaleUpperCase('de'));
+}
+
+/** A legal form and whatever the bank put after it: "GmbH-Zwnl", "AG & Co. KG", "e.K. 4711". */
+const LEGAL_TAIL = /[\s,]+(?:GmbH|mbH|AG|SE|KG|KGaA|OHG|GbR|UG|e\.\s?K\.?|e\.\s?V\.?|Ltd\.?|LLC|Inc\.?|B\.V\.|N\.V\.|S\.A\.?|S\.à r\.l\.|S\.A\.R\.L\.)(?=$|[\s\-,.&]).*$/i;
+
 const monthOf = (day: string) => day.slice(0, 7);
 
 function monthBefore(yyyyMm: string): string {
@@ -58,8 +71,12 @@ export function topPayee(bookings: readonly WelcomeBooking[], month: string): st
   const byName = new Map<string, { name: string; count: number; sum: number }>();
   for (const b of bookings) {
     if (monthOf(b.day) !== month || !spending(b)) continue;
-    const name = b.payee.replace(/\s+/g, ' ').trim();
-    if (!name || name.length > NAME_MAX || !/\p{L}/u.test(name)) continue;
+    // Without a legal form and what follows it ("REWE Markt GmbH-Zwnl" asks about "REWE Markt").
+    // The length on the bank's whole name, so a payment service's long line stays out.
+    const whole = b.payee.replace(/\s+/g, ' ').trim();
+    if (whole.length > NAME_MAX) continue;
+    const name = whole.replace(LEGAL_TAIL, '').trim();
+    if (!name || name.length > NAME_MAX || !/\p{L}/u.test(name) || rawLine(name)) continue;
     const key = name.toLocaleLowerCase('de');
     const row = byName.get(key) ?? { name, count: 0, sum: 0 };
     row.count += 1;

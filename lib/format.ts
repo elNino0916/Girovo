@@ -746,8 +746,17 @@ export function namesTidied(): boolean {
  * than a plain one. The raw name stays available for the detail view.
  */
 export function displayName(raw: string | null | undefined): string {
+  return tidyNames ? tidyName(raw) : String(raw ?? '').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * A name as a person would write it, whatever setNameTidying says: for a
+ * sentence Girovo writes itself ("Wie viel ging im Oktober an Kaufland
+ * Musterstadt?"), where a bank's capitals read as shouting.
+ */
+export function tidyName(raw: string | null | undefined): string {
   const s = String(raw ?? '').replace(/\s+/g, ' ').trim();
-  if (!s || !tidyNames || !/\p{Lu}/u.test(s)) return s;
+  if (!s || !/\p{Lu}/u.test(s)) return s;
   // A brand's own spelling is not a bank's mixed case to respect: "Paypal"
   // is a system's title-casing, never PayPal's.
   if (s !== s.toUpperCase()) return s.replace(/\bPaypal\b/g, 'PayPal');

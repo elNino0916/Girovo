@@ -78,3 +78,10 @@ test('every question is one the rules read: a sum, a ranking, a contracts questi
     assert.ok('query' in read || 'intent' in read, `${question}: ${JSON.stringify(read)}`);
   }
 });
+
+test('a bank\'s raw line is no name for a question; the next payee or a fallback takes its place', () => {
+  const b = (payee: string) => ({ day: '2026-10-05', amount: -20, payee, category: 'groceries' });
+  const qs = welcomeQuestions({ bookings: [b('DM-DROGERIE MARKT SAGT DANKE'), b('DM-DROGERIE MARKT SAGT DANKE'), b('Rewe')], today: '2026-11-14', contracts: 0, cancelDate: false });
+  assert.ok(qs.some((q) => q.includes('an Rewe')), qs.join(' | '));
+  assert.ok(!qs.some((q) => q.includes('SAGT DANKE')));
+});
