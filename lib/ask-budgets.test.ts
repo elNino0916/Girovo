@@ -115,3 +115,8 @@ test('the budget worth a note: over at any time, nearly used up only early in th
   assert.equal(october.coverage, 'complete');
   assert.deepEqual(budgetsToNote(october, TODAY).map((l) => l.id), ['groceries']);
 });
+
+test('"fürs Budget" and "ein Budget" name no budget', () => {
+  assert.deepEqual(budgetIntentOf('Was hab ich fürs Budget ausgegeben'), { kind: 'budgetLeft', category: null, name: null });
+  assert.deepEqual(budgetIntentOf('Wie lösche ich ein Budget?'), { kind: 'budgetLeft', category: null, name: null });
+});

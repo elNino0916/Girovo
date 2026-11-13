@@ -25,8 +25,8 @@ export type ActionIntent =
   | { kind: 'fileUnder'; name: string | null; category: CategoryId | null }
   /** cents: the target; by: "2027-06"; name: as written ("Urlaub"), null for none. */
   | { kind: 'createGoal'; name: string | null; cents: number | null; by: string | null }
-  /** A monthly budget set (cents) or removed (remove). */
-  | { kind: 'budget'; category: CategoryId | null; cents: number | null; remove?: true }
+  /** A monthly budget set (cents) or removed (remove); step: cents raise (1) or lower (-1) the budget it has. */
+  | { kind: 'budget'; category: CategoryId | null; cents: number | null; remove?: true; step?: 1 | -1 }
   /** name: the contract, folded ("spotify", "handyvertrag"); by: the day it can be cancelled by; lead: days before. */
   | { kind: 'remindContract'; name: string | null; by: string | null; lead: number | null }
   /** name: the person as written ("Lea"); purpose: the Verwendungszweck as written. */
@@ -56,14 +56,16 @@ const COUNTS: Record<string, number> = {
   sechs: 6, six: 6, sieben: 7, seven: 7, acht: 8, eight: 8, neun: 9, nine: 9, zehn: 10, ten: 10, elf: 11, eleven: 11, zwölf: 12, zwoelf: 12, twelve: 12,
 };
 /** A question about these things, not a wish: "Wie viel ist vom Budget übrig?", "Was gehört zu Mobilität?". */
-const QUESTION = /^ (?:was|wie|welche[nmrs]?|wo|wann|warum|wieso|weshalb|wer|wem|wen|ist|sind|hab|habe|hat|gibt|what|how|which|where|when|why|who|is|are|do|does|did|have|has) /;
+const QUESTION = /^ (?:was|wie|welche[nmrs]?|wo|wann|warum|wieso|weshalb|wer|wem|wen|ist|sind|hab|habe|hat|gibt|bin|reicht|liege|kann|soll|darf|passiert|what|how|which|where|when|why|who|is|are|do|does|did|have|has) /;
 const ASKS_ABOUT = / (?:wie ?viel|wie hoch|übrig|uebrig|how much|left) /;
 
 // fileUnder
 /** Verbs that say it outright; with them a missing category is asked for. */
 const FILE_VERB = / (?:ordne\w*|zuordnen|zuordnet|sortier\w*|einsortier\w*|einordnen|kategorisier\w*|verschieb\w*) |^ (?:please )?(?:file|categori[sz]e|classify|move|recategori[sz]e) /;
 /** Ways of saying it that need a category beside them. */
-const FILE_SAY = / (?:pack\w*|steck\w*|tu|tue) | soll(?:en)? (?:\S+ ){1,5}sein | (?:ist|sind) (?:ab jetzt |künftig |kuenftig |ab sofort )?immer | geh(?:ö|oe)r(?:t|en) (?:\S+ ){0,2}(?:zu|in|unter|nach) | immer (?:unter|zu|in|als|nach) | (?:kommt|kommen) (?:\S+ ){0,2}(?:zu|in|unter|nach) | als (?:\S+ ){1,3}(?:einsortieren|einordnen|kategorisieren|markieren|ablegen)|^ (?:please )?(?:put|mark|tag|sort) | (?:should|must) (?:always )?be | (?:is|are) always | always (?:goes|go|belongs?|counts?|is|are) | belongs? (?:to|in|under) /;
+/** A yes or no question about it, the verb first: "Gehört Shell zu Mobilität?", "Kommt Rewe in Lebensmittel?". */
+const FILE_ASK = /^ (?:gehört|gehören|gehoert|gehoeren|kommt|kommen|zählt|zaehlt|belongs?|goes) /;
+const FILE_SAY =/ (?:pack\w*|steck\w*|tu|tue) | soll(?:en)? (?:\S+ ){1,5}sein | (?:ist|sind) (?:ab jetzt |künftig |kuenftig |ab sofort )?immer | geh(?:ö|oe)r(?:t|en) (?:\S+ ){0,2}(?:zu|in|unter|nach) | immer (?:unter|zu|in|als|nach) | (?:kommt|kommen) (?:\S+ ){0,2}(?:zu|in|unter|nach) | als (?:\S+ ){1,3}(?:einsortieren|einordnen|kategorisieren|markieren|ablegen)|^ (?:please )?(?:put|mark|tag|sort) | (?:should|must) (?:always )?be | (?:is|are) always | always (?:goes|go|belongs?|counts?|is|are) | belongs? (?:to|in|under) /;
 /** Words around a payee that are no part of its name. */
 const FILE_FILLER = new Set((
   'ordne ordnet ordnen zuordnen zuordnet zu sortier sortiere sortieren einsortieren einsortiere einordnen ordne kategorisiere kategorisier kategorisieren '
@@ -81,13 +83,22 @@ const GOAL_MAKE = / (?:leg|lege|legen|anlegen|erstell\w*|setz\w*|mach|mache|mach
 const WANT_SAVE = / (?:will|möchte|moechte|würde gern|wuerde gern|würde gerne|wuerde gerne|plane|muss|want to|would like to|'d like to|need to|plan to) (?:\S+ ){0,6}(?:sparen|ansparen|zurücklegen|zuruecklegen|beiseitelegen|save|put aside|set aside)(?: |$)|^ (?:bitte |please )?(?:spar|spare|save up|save) /;
 const GOAL_NAME_STOP = new Set((
   'für fuer fürs fuers for over über ueber von bis an mit sparen ansparen zurücklegen zuruecklegen legen anlegen lege leg zu im in ab und by until of to and on in at with save '
-  + 'set aside put sparziel ziel goal euro eur euros € anlege bitte please will möchte moechte ich i want'
+  + 'set aside put sparziel ziel goal euro eur euros € anlege bitte please will möchte moechte ich i want ist sind war wäre waere is are was'
 ).split(' '));
+/** A goal named only to ask about it: "Mein Sparziel ist 500 €, wie weit bin ich?". */
+const GOAL_ASK = / (?:wie weit|wie lange|schaff\w* ich|reicht (?:das|es)|klappt (?:das|es)|komme? ich|bin ich|how far|how long|will i|can i make) /;
 const GOAL_NAME_SKIP = new Set('den die das dem der ein eine einen einem meinen meine mein unseren unser a an the my our'.split(' '));
 
 // budget
-const BUDGET = / (?:monats)?budget\w* /;
-const REMOVE = / (?:lösch\w*|loesch\w*|entfern\w*|streich\w*|weg|aufheb\w*|delete|remove|clear|drop|get rid of) /;
+/** The word, alone or as a compound's end: "Budget", "Essensbudget", "Lebensmittel-Budget". */
+const BUDGET = / \S*budget\w* /;
+/** Raising or lowering what a budget has: "Erhöhe das Budget für Essen um 50 €". */
+const BUDGET_BY = / (?:um|by) (?:€ )?\d/;
+const BUDGET_TO = / (?:auf|to) /;
+const BUDGET_CHANGE = / (?:erhöh\w*|erhoeh\w*|aufstock\w*|senk\w*|reduzier\w*|verringer\w*|kürz\w*|kuerz\w*|raise|increase|lower|reduce|cut|decrease) /;
+const BUDGET_UP = / (?:erhöh\w*|erhoeh\w*|aufstock\w*|rauf|hoch|mehr|raise|increase|up|more) /;
+const BUDGET_DOWN = / (?:senk\w*|reduzier\w*|verringer\w*|kürz\w*|kuerz\w*|runter|weniger|lower|reduce|cut|decrease|down|less) /;
+const REMOVE =/ (?:lösch\w*|loesch\w*|entfern\w*|streich\w*|weg|aufheb\w*|delete|remove|clear|drop|get rid of) /;
 
 // remindContract
 const REMIND = / (?:erinner\w*|remind\w*|reminder|sag mir (?:\S+ )?bescheid|sag bescheid|warn\w* mich|benachrichtig\w*) /;
@@ -120,22 +131,32 @@ const CONTRACT_KINDS: Array<[RegExp, string[]]> = [
 
 // prepareTransfer
 const LEAD = '(?:bitte |please |und |and |jetzt |mal |hey |kannst du |könntest du |koenntest du |can you |could you |would you |ich will |ich möchte |ich moechte |möchte |moechte |ich würde gern |ich wuerde gern |ich muss |i want to |i\'d like to |i would like to |i need to )*';
-const SEND = '(?:überweis(?:e|en|t)?|ueberweis(?:e|en|t)?|schick(?:e|en)?|send(?:e|en)?|zahl(?:e|en)?|bezahl(?:e|en)?|transfer|pay|wire)';
+// Only the forms that ask for it: "Überweist Lea mir noch 20 €?" is a question about Lea.
+const SEND = '(?:überweis(?:e|en)?|ueberweis(?:e|en)?|schick(?:e|en)?|send(?:e|en)?|zahl(?:e|en)?|bezahl(?:e|en)?|transfer|pay|wire)';
 const SEND_START = new RegExp(`^ ${LEAD}(${SEND}) (?!ich |i |wir |we |du |you |mir |me |uns |us |sie |they |mal (?:alle|meine|die) )`);
 const SEND_END = new RegExp(`^ ${LEAD}(?:\\S+ ){1,8}(${SEND})(?: bitte| please)? $`);
 const WANTS_START = /^ (?:bitte |please |hey )?(?:kannst du|könntest du|koenntest du|ich will|ich möchte|ich moechte|möchte|moechte|ich würde gern|ich wuerde gern|ich muss|can you|could you|would you|i want to|i'd like to|i would like to|i need to)(?: |$)/;
 /** Verbs that send whatever the amount; the others ("schick", "zahl", "pay") only with one. */
 const TRANSFER_VERB = /^(?:überweis|ueberweis|transfer|wire)/;
-const PREPARE = / (?:bereite|bereit|vorbereiten|mach|mache|erstell\w*|starte?|öffne|oeffne|leg|lege|richte|prepare|set up|start|open|draft|create|make|fill in) (?:\S+ ){0,3}(?:überweisung|ueberweisung|transfer|payment|zahlung)(?: |$)|^ (?:bitte |please )?(?:neue |eine |new |a )?(?:überweisung|ueberweisung|transfer|payment) (?:an|für|fuer|to|for) /;
+const PREPARE = / (?:bereite|bereit|vorbereiten|mach|mache|erstell\w*|starte?|öffne|oeffne|leg|lege|richte|prepare|set up|start|open|draft|create|make|fill in) (?:\S+ ){0,3}(?:überweisung|ueberweisung|transfer|payment|zahlung)(?: |$)/;
+/** The noun alone: "Überweisung an Lea". With a time and no amount it asks about the bookings ("Überweisung an Lea im Oktober"). */
+const PREPARE_NOUN = /^ (?:bitte |please )?(?:neue |eine |new |a )?(?:überweisung|ueberweisung|transfer|payment) (?:an|für|fuer|to|for) /;
 const NAME_STOP = new Set((
   'über ueber von vom mit für fuer for of with und and vor zu bitte please eine einen ein die das den der dem mir mal jetzt '
+  + 'mein meine meinen meiner meinem mich dir dich uns me us '
   + 'überweisung ueberweisung überweisen ueberweisen schicken senden zahlen bezahlen transfer payment send pay wire vorbereiten bereite '
   + 'euro eur euros € auf aufs on to from as heute morgen today tomorrow sofort now an a the my money geld wegen betreff verwendungszweck reference'
 ).split(' '));
 /** The words of a wish before the person: "Kannst du", "Ich will", "I want to". */
 const LEAD_WORDS = new Set('bitte please hey kannst könntest koenntest du ich will möchte moechte würde wuerde gern gerne muss can could would you i want to like need mal jetzt'.split(' '));
-const PURPOSE_AT =/ (?:für|fuer|for|wegen|verwendungszweck|betreff|zweck|reference) /;
-const PURPOSE_STOP = new Set('an to über ueber von bitte please und and überweisen ueberweisen schicken senden zahlen bezahlen vorbereiten vor'.split(' '));
+/** A Verwendungszweck said outright; it wins over one after "für". */
+const PURPOSE_LABEL = /^(?:verwendungszweck|betreff|zweck|reference|memo)$/;
+const PURPOSE_FOR = /^(?:für|fuer|for|wegen)$/;
+/** "für mich", "for me": whom it is done for, no purpose. */
+const FOR_ME = /^(?:mich|mir|dich|dir|uns|me|us)$/;
+const PURPOSE_STOP = new Set('an to über ueber von bitte please und and überweisen ueberweisen schicken senden zahlen bezahlen vorbereiten vor verwendungszweck betreff zweck reference memo'.split(' '));
+/** A time of the past, for a question about the transfers made then. */
+const PAST_TIME = / (?:(?:letzt|vorig|vergangen|dies)\w* (?:woche|monat|jahr|quartal)\w*|(?:last|this|past|previous) (?:week|month|year|quarter)|gestern|vorgestern|yesterday|seit|since|(?:19|20)\d\d) /;
 // i18n-data-end
 
 /**
@@ -148,18 +169,18 @@ const CATEGORY_NAMES: Array<[CategoryId, string[]]> = [
   ['otherIn', ['sonstige eingänge', 'sonstige eingaenge', 'other income']],
   ['transfer', ['umbuchung', 'internal transfer']],
   ['dining', ['essen & trinken', 'essen und trinken', 'eating out', 'essen gehen', 'essen', 'trinken', 'restaurant', 'dining', 'takeaway', 'lieferdienst', 'gastronomie']],
-  ['groceries', ['lebensmittel', 'drogerie', 'supermarkt', 'groceries', 'grocery', 'toiletries', 'einkäufe', 'einkaeufe']],
+  ['groceries', ['lebensmittel & drogerie', 'lebensmittel und drogerie', 'groceries & toiletries', 'lebensmittel', 'drogerie', 'supermarkt', 'groceries', 'grocery', 'toiletries', 'einkäufe', 'einkaeufe']],
   ['mobility', ['mobilität', 'mobilitaet', 'transport', 'verkehr', 'tanken', 'sprit', 'auto', 'fuel', 'travel']],
-  ['housing', ['wohnen', 'energie', 'miete', 'strom', 'housing', 'energy', 'rent', 'utilities']],
+  ['housing', ['wohnen & energie', 'wohnen und energie', 'housing & energy', 'wohnen', 'energie', 'miete', 'strom', 'housing', 'energy', 'rent', 'utilities']],
   ['shopping', ['shopping', 'kleidung', 'klamotten', 'clothes', 'clothing']],
   ['leisure', ['freizeit', 'hobby', 'hobbys', 'leisure', 'hobbies']],
-  ['media', ['abos & medien', 'abos und medien', 'abos', 'medien', 'streaming', 'subscriptions', 'media']],
+  ['media', ['abos & medien', 'abos und medien', 'subscriptions & media', 'abos', 'medien', 'streaming', 'subscriptions', 'media']],
   ['health', ['gesundheit', 'apotheke', 'health', 'pharmacy']],
   ['insurance', ['versicherung', 'insurance']],
-  ['taxes', ['steuern', 'abgaben', 'taxes']],
+  ['taxes', ['steuern & abgaben', 'steuern und abgaben', 'taxes & charges', 'steuern', 'abgaben', 'taxes']],
   ['cash', ['bargeld', 'cash']],
-  ['fees', ['bankentgelte', 'gebühren', 'gebuehren', 'zinsen', 'bank fees', 'fees']],
-  ['savings', ['sparen & anlegen', 'sparen und anlegen', 'sparen', 'anlegen', 'savings', 'saving', 'investing']],
+  ['fees', ['bankentgelte & zinsen', 'bankentgelte und zinsen', 'bank fees & interest', 'bankentgelte', 'gebühren', 'gebuehren', 'zinsen', 'bank fees', 'fees']],
+  ['savings', ['sparen & anlegen', 'sparen und anlegen', 'saving & investing', 'sparen', 'anlegen', 'savings', 'saving', 'investing']],
   ['income', ['einkommen', 'gehalt', 'income', 'salary']],
   ['other', ['sonstiges', 'sonstige', 'other', 'misc']],
 ];
@@ -195,7 +216,9 @@ export function amountOf(q: string): number | null {
     const whole = Number(m[2].replace(/\./g, ''));
     // A year standing alone ("bis 2027") is no amount.
     if (!money && !m[5] && /^(?:19|20)\d\d$/.test(m[2])) continue;
-    const cents = Math.round((whole * (m[5] ? 1000 : 1) + Number(m[3] ?? m[4] ?? 0) / ((m[3] ?? m[4] ?? '').length === 1 ? 10 : 100)) * 100);
+    // "1,5 tausend": the fraction is of the thousand too.
+    const frac = Number(m[3] ?? m[4] ?? 0) / ((m[3] ?? m[4] ?? '').length === 1 ? 10 : 100);
+    const cents = Math.round((whole + frac) * (m[5] ? 1000 : 1) * 100);
     if (cents > 0) found.push({ cents, money });
   }
   const money = found.find((f) => f.money);
@@ -219,6 +242,7 @@ function monthAhead(month: number, year: number | null, today: string): string {
 const MONTH_ALT = Object.keys(MONTHS).join('|');
 const SHORT_ALT = `${MONTH_ALT}|${Object.keys(MONTHS_SHORT).join('|')}`;
 const COUNT_ALT = `\\d{1,2}|${Object.keys(COUNTS).join('|')}`;
+const MONTH_WORD = new RegExp(` (?:${MONTH_ALT}) `);
 
 /**
  * The month a goal should be reached by, and the message without those words:
@@ -298,29 +322,36 @@ export function categoryIn(question: string, own: readonly OwnCategory[] = []): 
   const mine = [...own].filter((c) => fold(c.name).trim().length >= 2).sort((a, b) => b.name.length - a.name.length)
     .find((c) => q.includes(fold(c.name)));
   if (mine) return { id: mine.id as CategoryId, words: fold(mine.name).trim().split(' ') };
-  // The last one named: "Ordne Essenza Mobilität zu" files under Mobilität, the payee's word is its name.
-  let best: { id: CategoryId; at: number; hit: string } | null = null;
+  // The one that ends last: "Ordne Essenza Mobilität zu" files under Mobilität, the payee's word is its name;
+  // on a tie the longest, so "Essen & Trinken" wins over "Trinken" and leaves none of its words in the name.
+  let best: { id: CategoryId; start: number; end: number; hit: string } | null = null;
   for (const [id, names] of CATEGORY_NAMES) {
     for (const n of names) {
       const at = q.lastIndexOf(` ${n}`);
-      if (at >= 0 && (!best || at > best.at || (at === best.at && n.length > best.hit.length))) best = { id, at: at + 1, hit: n };
+      if (at < 0) continue;
+      const start = at + 1;
+      // The whole word it begins ("Mobilitätskosten"), so the name keeps none of it.
+      const stop = q.indexOf(' ', start + n.length);
+      const end = stop < 0 ? q.length : stop;
+      if (!best || end > best.end || (end === best.end && n.length > best.hit.length)) best = { id, start, end, hit: n };
     }
   }
-  if (best) {
-    // The whole word it begins ("Mobilitätskosten"), so the name keeps none of it.
-    const end = q.indexOf(' ', best.at + best.hit.length);
-    return { id: best.id, words: q.slice(best.at, end < 0 ? undefined : end).split(' ') };
-  }
+  if (best) return { id: best.id, words: q.slice(best.start, best.end).split(' ') };
   const id = categoryFromQuestion(question);
   return id ? { id, words: [] } : null;
 }
 
-/** The message's words as typed, punctuation off, a hyphen splitting a word ("Shell-Buchungen"). */
-function wordsOf(question: string): { raw: string; low: string }[] {
+/**
+ * The message's words as typed, punctuation off, a hyphen splitting a word ("Shell-Buchungen").
+ * stop: punctuation ended it ("Pizza," in "für Pizza, Verwendungszweck: Hallo").
+ */
+function wordsOf(question: string): { raw: string; low: string; stop: boolean }[] {
   return question.replace(/€/g, ' € ').split(/[\s\-–]+/)
-    .map((w) => w.replace(/^[„“"'(]+|[?!.,;:„“"')]+$/g, ''))
-    .filter(Boolean)
-    .map((raw) => ({ raw, low: raw.toLocaleLowerCase('de') }));
+    .map((w) => {
+      const raw = w.replace(/^[„“"'(]+|[?!.,;:„“"')]+$/g, '');
+      return { raw, low: raw.toLocaleLowerCase('de'), stop: /[?!.,;:][„“"')]*$/.test(w) };
+    })
+    .filter((w) => w.raw);
 }
 
 /** Whether a word can be part of a name: no number, no amount, no lone letter. */
@@ -333,12 +364,13 @@ const upFirst = (s: string) => s.replace(/^(\p{Ll})/u, (c) => c.toLocaleUpperCas
  * Whether a name the user typed is a payee's the lists show: every word of it
  * begins a word of the payee's ("Shell" in "SHELL 1234 HAMBURG", "Lea" in
  * "Lea Müller"), three letters only as a whole word ("Lea" is not "Leasing").
+ * whole: every word only as a whole word, for a person ("Paul" is not "Paula Schmidt").
  */
-export function namesPayee(shown: string, asked: string): boolean {
+export function namesPayee(shown: string, asked: string, whole = false): boolean {
   const have = squash(shown).split(' ').filter(Boolean);
   const want = squash(asked).split(' ').filter(Boolean);
   if (!have.length || !want.length) return false;
-  return want.every((w) => have.some((h) => h === w || (w.length >= 4 && h.startsWith(w))));
+  return want.every((w) => have.some((h) => h === w || (!whole && w.length >= 4 && h.startsWith(w))));
 }
 
 // ---------------------------------------------------------------------------
@@ -348,6 +380,8 @@ export function namesPayee(shown: string, asked: string): boolean {
 function fileOf(question: string, q: string, own: readonly OwnCategory[]): ActionIntent | null {
   const verb = FILE_VERB.test(q);
   if (!verb && !FILE_SAY.test(q)) return null;
+  // "Gehört Shell zu Mobilität?" asks; "Kannst du Shell zu Mobilität packen?" wants it done.
+  if (!verb && !WANTS_START.test(q) && (FILE_ASK.test(q) || question.includes('?'))) return null;
   const category = categoryIn(question, own);
   if (!verb && !category) return null;
   const skip = new Set(category?.words ?? []);
@@ -364,6 +398,8 @@ function goalOf(question: string, q: string, today: string): ActionIntent | null
   const naming = GOAL_WORD.test(q) && cents != null;
   const wanting = WANT_SAVE.test(q) && cents != null;
   if (!making && !naming && !wanting) return null;
+  // "Mein Ziel sind 2000 € bis Juni, schaffe ich das?" asks about a goal; only a word for making one makes it.
+  if (!making && (question.includes('?') || GOAL_ASK.test(q))) return null;
   return { kind: 'createGoal', name: goalName(question, rest), cents, by };
 }
 
@@ -387,15 +423,24 @@ function goalName(question: string, rest: string): string | null {
 
 function budgetOf(question: string, q: string, own: readonly OwnCategory[]): ActionIntent | null {
   if (!BUDGET.test(q)) return null;
+  // "Reicht ein Budget von 300 € für Lebensmittel?", "Wie lösche ich ein Budget?": questions, deleting too.
+  if (QUESTION.test(q) || ASKS_ABOUT.test(q)) return null;
   const remove = REMOVE.test(q);
   const cents = remove ? null : amountOf(q);
   if (!remove && cents == null) return null;
-  if (QUESTION.test(q) && !remove) return null;
-  const category = categoryIn(question, own);
-  return remove ? { kind: 'budget', category: category?.id ?? null, cents: null, remove: true } : { kind: 'budget', category: category?.id ?? null, cents };
+  const category = categoryIn(question, own)?.id ?? null;
+  if (remove) return { kind: 'budget', category, cents: null, remove: true };
+  // "Erhöhe das Budget um 50 €" raises it by 50 € ("auf 350 €" sets it); a change without a way is none.
+  if (BUDGET_BY.test(q) || (BUDGET_CHANGE.test(q) && !BUDGET_TO.test(q))) {
+    const step = BUDGET_DOWN.test(q) ? -1 : BUDGET_UP.test(q) ? 1 : null;
+    return step ? { kind: 'budget', category, cents, step } : null;
+  }
+  return { kind: 'budget', category, cents };
 }
 
 function remindOf(q: string, today: string): ActionIntent | null {
+  // "Hab ich eine Erinnerung für Netflix?", "Wann erinnerst du mich …": questions.
+  if (QUESTION.test(q)) return null;
   const reminding = REMIND.test(q) && CONTRACT_THING.test(q);
   const setting = NOTICE_SET.test(q) && NOTICE_SET_VERB.test(q);
   if (!reminding && !setting) return null;
@@ -408,13 +453,19 @@ function remindOf(q: string, today: string): ActionIntent | null {
 
 function transferOf(question: string, q: string): ActionIntent | null {
   if (QUESTION.test(q) && !WANTS_START.test(q)) return null;
+  // A question with "mir" is money coming to me, never a transfer from me.
+  if (/ mir /.test(q) && question.includes('?') && !WANTS_START.test(q)) return null;
   const start = SEND_START.exec(q);
   const end = !start && WANTS_START.test(q) ? SEND_END.exec(q) : null;
-  const prepare = PREPARE.test(q);
+  const noun = PREPARE_NOUN.test(q);
+  const prepare = PREPARE.test(q) || noun;
   const verb = (start ?? end)?.[1] ?? null;
   if (!verb && !prepare) return null;
   const cents = amountOf(q);
   if (!prepare && verb && !TRANSFER_VERB.test(verb) && cents == null) return null;
+  // "Überweisung an Lea im Oktober", "Transfer to Lea last month": the bookings of then.
+  const nounLike = noun || /^ (?:transfers?|payments?) (?:to|an|for) /.test(q);
+  if (nounLike && !PREPARE.test(q) && cents == null && (PAST_TIME.test(q) || MONTH_WORD.test(q))) return null;
   return { kind: 'prepareTransfer', name: transferName(question), cents, purpose: purposeOf(question) };
 }
 
@@ -441,32 +492,46 @@ function transferName(question: string): string | null {
       const name = take(i);
       if (name || i > verb + 1) return name;
     }
-    // The verb last ("Kannst du Lea 20 € überweisen?"): the first name between the wish and the verb.
+    // The verb last ("Kannst du Lea 20 € überweisen?"): the first name between the wish and the verb,
+    // past "für mich" ("Kannst du für mich Lea 20 € überweisen?").
     for (let i = 0; i < verb; i++) {
-      if (LEAD_WORDS.has(words[i].low)) continue;
+      const low = words[i].low;
+      if (LEAD_WORDS.has(low) || FOR_ME.test(low)) continue;
+      if (PURPOSE_FOR.test(low) && FOR_ME.test(words[i + 1]?.low ?? '')) continue;
       return take(i);
     }
   }
   return null;
 }
 
-/** The Verwendungszweck: what follows "für", "for", "wegen" or "Verwendungszweck", up to the amount or the person. */
+/**
+ * The Verwendungszweck: what follows "Verwendungszweck" or "Betreff", else "für", "for" or "wegen"
+ * (not "für mich"), up to the amount, the person or a comma.
+ */
 function purposeOf(question: string): string | null {
-  const q = fold(question);
-  const m = PURPOSE_AT.exec(q);
-  if (!m) return null;
   const words = wordsOf(question);
-  const lows = words.map((w) => w.low);
-  const at = lows.findIndex((w) => PURPOSE_AT.test(` ${w} `));
-  if (at < 0) return null;
-  const out: string[] = [];
-  for (let i = at + 1; i < words.length && out.length < 8; i++) {
-    const w = words[i];
-    if (PURPOSE_STOP.has(w.low) || /^[\d.,€]+$/.test(w.low) || /^(?:euro|eur|euros)$/.test(w.low)) break;
-    out.push(w.raw);
+  const read = (at: number): string | null => {
+    const out: string[] = [];
+    for (let i = at + 1; i < words.length && out.length < 8; i++) {
+      const w = words[i];
+      if (PURPOSE_STOP.has(w.low) || /^[\d.,€]+$/.test(w.low) || /^(?:euro|eur|euros)$/.test(w.low)) break;
+      out.push(w.raw);
+      if (w.stop) break;
+    }
+    const text = out.join(' ').trim();
+    return text ? upFirst(text).slice(0, 140) : null;
+  };
+  const label = words.findIndex((w) => PURPOSE_LABEL.test(w.low));
+  if (label >= 0) {
+    const said = read(label);
+    if (said) return said;
   }
-  const text = out.join(' ').trim();
-  return text ? upFirst(text).slice(0, 140) : null;
+  for (let i = 0; i < words.length; i++) {
+    if (!PURPOSE_FOR.test(words[i].low) || words[i].stop || FOR_ME.test(words[i + 1]?.low ?? '')) continue;
+    const said = read(i);
+    if (said) return said;
+  }
+  return null;
 }
 
 /**
@@ -572,7 +637,7 @@ export type PastPayee = { name: string; iban: string; day: string };
  */
 export function transferPayee(payees: readonly PastPayee[], asked: string):
   { state: 'one'; payee: PastPayee } | { state: 'several'; names: string[] } | { state: 'none' } {
-  const hits = payees.filter((p) => namesPayee(p.name, asked));
+  const hits = payees.filter((p) => namesPayee(p.name, asked, true));
   if (!hits.length) return { state: 'none' };
   const byName = new Map<string, PastPayee>();
   for (const p of [...hits].sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : 0))) {
@@ -581,6 +646,26 @@ export function transferPayee(payees: readonly PastPayee[], asked: string):
   }
   if (byName.size === 1) return { state: 'one', payee: [...byName.values()][0] };
   return { state: 'several', names: [...byName.values()].map((p) => p.name) };
+}
+
+/** Letters and digits only, lowercase: "Spotify" and "SPOTIFY." are one. */
+const plainName = (s: string) => s.toLocaleLowerCase('de').replace(/[^\p{L}\p{N}]+/gu, '');
+
+/**
+ * The contracts a reminder can go on, one per contract (`id`), two Telekom
+ * contracts being two: those named exactly as asked, else every hit. More
+ * than one, and the user picks; none is taken silently.
+ */
+export function contractChoices<T>(hits: readonly T[], asked: string, titles: (item: T) => string[], id: (item: T) => string): T[] {
+  const want = plainName(asked);
+  const exact = hits.filter((h) => titles(h).some((t) => plainName(t) === want));
+  return [...new Map((exact.length ? exact : hits).map((h) => [id(h), h] as const)).values()];
+}
+
+/** What a budget becomes: `cents`, or with a step the budget it has raised or lowered by them; null with none to change. */
+export function budgetAfter(cents: number, step: 1 | -1 | undefined, current: number | null): number | null {
+  if (!step) return cents;
+  return current == null ? null : current + step * cents;
 }
 
 /**

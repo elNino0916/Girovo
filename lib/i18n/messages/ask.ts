@@ -524,6 +524,7 @@ export const de = {
     budgetNoCategory: 'Für welche Kategorie? Schreib etwa: Budget für Lebensmittel 250 €.',
     budgetNotFor: (category: string) => `Für ${category} gibt es kein Budget.`,
     budgetTooHigh: 'So hoch kann ein Budget nicht sein.',
+    budgetTooLow: 'So weit lässt sich das Budget nicht senken.',
     budgetAsk: (category: string, amount: ReactNode, before: ReactNode | null): ReactNode[] => (before
       ? ['Soll Girovo das Budget für ', category, ' von ', before, ' auf ', amount, ' im Monat ändern?']
       : ['Soll Girovo für ', category, ' ein Budget von ', amount, ' im Monat anlegen?']),
@@ -534,6 +535,7 @@ export const de = {
     openBudgets: 'Budgets ansehen',
     remindNoName: 'Für welchen Vertrag? Schreib etwa: Erinner mich an die Kündigung von Spotify.',
     remindSeveral: (names: string) => `Dazu passen mehrere: ${names}. Nenn einen davon.`,
+    remindPick: 'Dazu passen mehrere Verträge. Welchen meinst du?',
     remindUnknown: (name: string) => `Für ${name} kennt Girovo keine Kündigungsfrist.`,
     remindPast: 'Dieser Tag ist schon vorbei.',
     remindLead: { 7: 'eine Woche', 14: 'zwei Wochen', 30: 'einen Monat' } as Record<number, string>,
@@ -966,6 +968,7 @@ export const en: typeof de = {
     budgetNoCategory: 'Which category? Try: groceries budget 250 €.',
     budgetNotFor: (category) => `${category} can’t have a budget.`,
     budgetTooHigh: 'A budget can’t be that high.',
+    budgetTooLow: 'The budget can’t go that low.',
     budgetAsk: (category, amount, before) => (before
       ? ['Should Girovo change the budget for ', category, ' from ', before, ' to ', amount, ' a month?']
       : ['Should Girovo set a budget of ', amount, ' a month for ', category, '?']),
@@ -976,6 +979,7 @@ export const en: typeof de = {
     openBudgets: 'View budgets',
     remindNoName: 'Which contract? Try: remind me before Spotify renews.',
     remindSeveral: (names) => `Several match: ${names}. Name one of them.`,
+    remindPick: 'Several contracts match. Which one do you mean?',
     remindUnknown: (name) => `Girovo doesn’t know the notice period for ${name}.`,
     remindPast: 'That day has already passed.',
     remindLead: { 7: 'a week', 14: 'two weeks', 30: 'a month' },

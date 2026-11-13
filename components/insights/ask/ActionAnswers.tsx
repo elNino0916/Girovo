@@ -16,9 +16,9 @@
 //
 // Routed from components/insights/AskThread.tsx IntentAnswer.
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { contractsFor, filePlan, transferPayee, type ActionIntent } from '@/lib/ask-actions';
+import { budgetAfter, contractChoices, contractsFor, filePlan, transferPayee, type ActionIntent } from '@/lib/ask-actions';
 import { nameCase } from '@/lib/ask-facts';
 import { isSavingsAccount } from '@/lib/balances';
 import { BUDGET_MAX_CENTS, isBudgetCategory } from '@/lib/budgets';
@@ -219,9 +219,13 @@ function BudgetAnswer({ turn, intent, onShown }: { turn: Turn; intent: Extract<A
       />
     );
   }
-  const cents = intent.cents;
-  if (cents == null) return <Said lines={[words.budgetNoCategory]} />;
+  if (intent.cents == null) return <Said lines={[words.budgetNoCategory]} />;
+  // "Erhöhe das Budget um 50 €": the budget it has, raised or lowered; once done, it has the new one.
+  if (intent.step && turn.outcome === 'done' && current != null) return <><Said lines={[words.budgetDone(label, <Amount cents={current} />)]} />{open}</>;
+  const cents = budgetAfter(intent.cents, intent.step, current);
+  if (cents == null) return <Said lines={[words.budgetNone(label)]} />;
   if (turn.outcome === 'done') return <><Said lines={[words.budgetDone(label, <Amount cents={cents} />)]} />{open}</>;
+  if (cents <= 0) return <Said lines={[words.budgetTooLow]} />;
   if (cents > BUDGET_MAX_CENTS) return <Said lines={[words.budgetTooHigh]} />;
   if (current === cents) return <Said lines={[t.ask.actions.already]} />;
   return (
@@ -233,8 +237,8 @@ function BudgetAnswer({ turn, intent, onShown }: { turn: Turn; intent: Extract<A
   );
 }
 
-/** Letters and digits only, lowercase: "Spotify" and "SPOTIFY." are one. */
-const plain = (s: string) => s.toLocaleLowerCase('de').replace(/[^\p{L}\p{N}]+/gu, '');
+/** Up to this many fitting contracts are offered to pick from; more, and the user names one. */
+const PICK_MAX = 6;
 
 /** "Erinner mich vor der Verlängerung von Spotify": Verträge & Abos' reminder before the day it can be cancelled by. */
 function RemindAnswer({ turn, intent, onShown }: { turn: Turn; intent: Extract<ActionIntent, { kind: 'remindContract' }>; onShown: () => void }) {
@@ -243,16 +247,36 @@ function RemindAnswer({ turn, intent, onShown }: { turn: Turn; intent: Extract<A
   const model = useRecurringModel();
   const { vault, setContractReminder, setTab } = useFints();
   const asked = intent.name;
+  // The contract picked when more than one fits; until then none is taken.
+  const [picked, setPicked] = useState<string | null>(null);
   const hits = useMemo(
     () => (asked ? contractsFor(model.expense.filter((s) => !s.ended), asked, (s) => [seriesTitle(s), s.name]) : []),
     [asked, model.expense],
   );
   if (!asked) return <Said lines={[words.remindNoName]} />;
   if (!hits.length) return <Said lines={[t.ask.facts.contractNone(nameCase(asked))]} />;
-  const exact = hits.find((s) => plain(seriesTitle(s)) === plain(asked) || plain(s.name) === plain(asked));
-  const titles = [...new Set(hits.map((s) => seriesTitle(s)))];
-  if (!exact && titles.length > 1) return <Said lines={[words.remindSeveral(titles.slice(0, 4).join(', '))]} />;
-  const s = exact ?? hits[0];
+  const pool = contractChoices(hits, asked, (s) => [seriesTitle(s), s.name], (s) => s.id);
+  let chosen = pool.length === 1 ? pool[0] : pool.find((s) => s.id === picked) ?? null;
+  if (!chosen && turn.outcome === 'done') chosen = pool.find((s) => vault?.contractReminders?.[s.id]) ?? pool[0];
+  if (!chosen) {
+    if (pool.length > PICK_MAX) return <Said lines={[words.remindSeveral([...new Set(pool.map((s) => seriesTitle(s)))].slice(0, 4).join(', '))]} />;
+    return (
+      <>
+        <Said lines={[words.remindPick]} />
+        <div className="mt-3 flex flex-wrap gap-2">
+          {pool.map((s) => (
+            <Button key={s.id} variant="secondary" size="sm" onClick={() => setPicked(s.id)}>
+              <span className="inline-flex gap-2">
+                <span>{seriesTitle(s)}</span>
+                <Amount cents={Math.round(Math.abs(s.amount) * 100)} />
+              </span>
+            </Button>
+          ))}
+        </div>
+      </>
+    );
+  }
+  const s = chosen;
   const title = seriesTitle(s);
   const current = vault?.contractReminders?.[s.id];
   const leadOf = (n: number) => words.remindLead[n] ?? words.remindLead[30];

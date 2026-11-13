@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  actionOf, amountOf, categoryIn, contractsFor, filePlan, futureDayOf, goalMonthOf, isAction, namesPayee, transferPayee,
-  type FileView,
+  actionOf, amountOf, budgetAfter, categoryIn, contractChoices, contractsFor, filePlan, futureDayOf, goalMonthOf, isAction, namesPayee,
+  transferPayee, type FileView,
 } from './ask-actions.ts';
 import { intentOf } from './ask-intents.ts';
 import { readAsked } from './ask-read.ts';
@@ -172,4 +172,109 @@ test('the contract a reminder is about', () => {
   assert.deepEqual(contractsFor(items, 'spotify', titles).map((i) => i.t), ['Spotify']);
   assert.deepEqual(contractsFor(items, 'handyvertrag', titles).map((i) => i.t), ['Telekom Mobilfunk']);
   assert.deepEqual(contractsFor(items, 'fitnessstudio', titles), []);
+});
+
+// Regressions from the review of 2026-11-13.
+
+test('a category label of two words leaves none of its words in the payee', () => {
+  assert.deepEqual(read('Ordne Lieferando Essen & Trinken zu'), { kind: 'fileUnder', name: 'Lieferando', category: 'dining' });
+  assert.deepEqual(read('Ordne Lieferando Essen und Trinken zu'), { kind: 'fileUnder', name: 'Lieferando', category: 'dining' });
+  assert.deepEqual(read('Ordne Netflix Abos & Medien zu'), { kind: 'fileUnder', name: 'Netflix', category: 'media' });
+  assert.deepEqual(read('Ordne Trade Republic Sparen & Anlegen zu'), { kind: 'fileUnder', name: 'Trade Republic', category: 'savings' });
+  assert.deepEqual(read('Ordne Rewe Lebensmittel & Drogerie zu'), { kind: 'fileUnder', name: 'Rewe', category: 'groceries' });
+  assert.deepEqual(read('Ordne die Sparkasse Bankentgelte & Zinsen zu'), { kind: 'fileUnder', name: 'Sparkasse', category: 'fees' });
+  assert.deepEqual(read('File Comdirect under bank fees'), { kind: 'fileUnder', name: 'Comdirect', category: 'fees' });
+  assert.deepEqual(read('File dm under groceries & toiletries'), { kind: 'fileUnder', name: 'dm', category: 'groceries' });
+  assert.deepEqual(read('Spotify soll Abos & Medien sein'), { kind: 'fileUnder', name: 'Spotify', category: 'media' });
+  // Still the one named last when they do not overlap.
+  assert.deepEqual(read('Ordne Essenza Mobilität zu'), { kind: 'fileUnder', name: 'Essenza', category: 'mobility' });
+  assert.deepEqual(categoryIn('Ordne Lieferando Essen & Trinken zu')?.words, ['essen', '&', 'trinken']);
+});
+
+test('a transfer goes only to a person of that whole name', () => {
+  const payees = [
+    { name: 'Paula Schmidt', iban: 'DE1', day: '2026-10-01' },
+    { name: 'Peter Hansen', iban: 'DE2', day: '2026-10-02' },
+    { name: 'Christina Berg', iban: 'DE3', day: '2026-10-03' },
+  ];
+  for (const name of ['Paul', 'Hans', 'Chris', 'Christ']) assert.deepEqual(transferPayee(payees, name), { state: 'none' }, name);
+  assert.deepEqual(transferPayee(payees, 'Paula'), { state: 'one', payee: payees[0] });
+  assert.deepEqual(transferPayee(payees, 'paula schmidt'), { state: 'one', payee: payees[0] });
+  // A payee for filing still begins with the word.
+  assert.equal(namesPayee('Lieferando.de', 'Liefer'), true);
+  assert.equal(namesPayee('Paula Schmidt', 'Paul', true), false);
+});
+
+test('questions about transfers, budgets, reminders, goals and filing are no actions', () => {
+  for (const q of [
+    'Überweist Lea mir noch 20 €?', 'Überweisung an Lea im Oktober', 'Transfer to Lea last month', 'Überweisung an Lea letzten Monat',
+    'Bin ich beim Budget für Essen schon über 300 €?', 'Reicht ein Budget von 300 € für Lebensmittel?',
+    'Ich hab ein Budget von 300 € für Essen, wie viel ist übrig?', 'Was passiert, wenn ich das Budget für Essen lösche?',
+    'Wie lösche ich ein Budget?', 'Liege ich beim Essen-Budget unter 300 €?',
+    'Hab ich eine Erinnerung für die Kündigung von Netflix?', 'Wann erinnerst du mich an die Kündigung von Netflix?',
+    'Mein Sparziel ist 500 €, wie weit bin ich?', 'Mein Ziel sind 2000 € bis Juni, schaffe ich das?',
+    'Gehört Shell zu Mobilität?', 'Kommt Rewe in Lebensmittel?',
+  ]) {
+    assert.equal(read(q), null, q);
+  }
+  // The wishes beside them still are.
+  assert.equal(read('Überweisung an Lea über 20 €')?.kind, 'prepareTransfer');
+  assert.equal(read('Überweisung an Lea')?.kind, 'prepareTransfer');
+  assert.equal(read('Kannst du Shell zu Mobilität packen?')?.kind, 'fileUnder');
+  assert.equal(read('Shell gehört zu Mobilität')?.kind, 'fileUnder');
+  assert.equal(read('Kannst du mich an die Kündigung von Netflix erinnern?')?.kind, 'remindContract');
+  // A goal is never named after "ist" or "sind".
+  assert.deepEqual(read('Mein Sparziel ist 500 € für Urlaub'), { kind: 'createGoal', name: 'Urlaub', cents: 50000, by: null });
+  assert.deepEqual(read('Mein Ziel sind 2000 € bis Juni'), { kind: 'createGoal', name: null, cents: 200000, by: '2027-06' });
+});
+
+test('raising or lowering a budget by an amount', () => {
+  assert.deepEqual(read('Erhöhe das Budget für Essen um 50 €'), { kind: 'budget', category: 'dining', cents: 5000, step: 1 });
+  assert.deepEqual(read('Senk das Lebensmittelbudget um 20 €'), { kind: 'budget', category: 'groceries', cents: 2000, step: -1 });
+  assert.deepEqual(read('Setz das Budget für Essen um 30 € runter'), { kind: 'budget', category: 'dining', cents: 3000, step: -1 });
+  assert.deepEqual(read('Erhöhe das Budget für Essen auf 350 €'), { kind: 'budget', category: 'dining', cents: 35000 });
+  assert.deepEqual(read('Setz das Budget für Essen auf 300 € runter'), { kind: 'budget', category: 'dining', cents: 30000 });
+  assert.equal(budgetAfter(5000, 1, 30000), 35000);
+  assert.equal(budgetAfter(2000, -1, 30000), 28000);
+  assert.equal(budgetAfter(5000, 1, null), null);
+  assert.equal(budgetAfter(30000, undefined, 20000), 30000);
+});
+
+test('a budget of one word', () => {
+  assert.deepEqual(read('Leg ein Essensbudget von 300 € an'), { kind: 'budget', category: 'dining', cents: 30000 });
+  assert.deepEqual(read('Leg ein Lebensmittel-Budget von 300 € an'), { kind: 'budget', category: 'groceries', cents: 30000 });
+  assert.deepEqual(read('Lebensmittelbudget 250 €'), { kind: 'budget', category: 'groceries', cents: 25000 });
+  assert.deepEqual(read('Essensbudget löschen'), { kind: 'budget', category: 'dining', cents: null, remove: true });
+});
+
+test('who a transfer goes to and its Verwendungszweck', () => {
+  assert.deepEqual(read('Kannst du für mich Lea 20 € überweisen?'), { kind: 'prepareTransfer', name: 'Lea', cents: 2000, purpose: null });
+  assert.deepEqual(read('Überweise Lea 20 € für Pizza, Verwendungszweck: Hallo'), { kind: 'prepareTransfer', name: 'Lea', cents: 2000, purpose: 'Hallo' });
+  assert.deepEqual(read('Überweise Lea 20 € für Pizza, danke'), { kind: 'prepareTransfer', name: 'Lea', cents: 2000, purpose: 'Pizza' });
+  assert.deepEqual(read('Überweise 20 € an meine Mutter'), { kind: 'prepareTransfer', name: null, cents: 2000, purpose: null });
+  assert.deepEqual(read('Überweise Lea 20 € für Pizza'), { kind: 'prepareTransfer', name: 'Lea', cents: 2000, purpose: 'Pizza' });
+});
+
+test('a fraction of a thousand', () => {
+  const q = (s: string) => ` ${s} `;
+  assert.equal(amountOf(q('1,5 tausend euro')), 150000);
+  assert.equal(amountOf(q('2,25 tausend €')), 225000);
+  assert.equal(amountOf(q('3 tausend euro')), 300000);
+  assert.deepEqual(read('Leg ein Sparziel über 1,5 tausend Euro an'), { kind: 'createGoal', name: null, cents: 150000, by: null });
+});
+
+test('several contracts of one name are picked from, never the first taken', () => {
+  const items = [
+    { id: 'a', t: 'Telekom', n: 'TELEKOM DEUTSCHLAND GMBH' },
+    { id: 'b', t: 'Telekom', n: 'TELEKOM DEUTSCHLAND GMBH' },
+    { id: 'a', t: 'Telekom', n: 'TELEKOM DEUTSCHLAND GMBH' },
+    { id: 'c', t: 'Telekom Mobilfunk', n: 'TELEKOM DEUTSCHLAND GMBH' },
+    { id: 'd', t: 'Spotify', n: 'SPOTIFY AB' },
+  ];
+  const titles = (i: (typeof items)[number]) => [i.t, i.n];
+  const id = (i: (typeof items)[number]) => i.id;
+  assert.deepEqual(contractChoices(items.slice(0, 4), 'telekom', titles, id).map(id), ['a', 'b']);
+  assert.deepEqual(contractChoices(items.slice(2, 4), 'telekom', titles, id).map(id), ['a']);
+  assert.deepEqual(contractChoices([items[3]], 'telekom handy', titles, id).map(id), ['c']);
+  assert.deepEqual(contractChoices(items, 'spotify', titles, id).map(id), ['d']);
 });

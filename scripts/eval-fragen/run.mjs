@@ -55,7 +55,7 @@ export async function runSet({ readTurn, only = null, onTurn = null, set = loadS
         result = null;
         error = String(err?.message ?? err);
       }
-      const { ok, misses } = scoreTurn(result, expect, today);
+      const { ok, misses } = scoreTurn(result, expect, today, q);
       const row = { id: item.id, lang: item.lang, turn, q, expect, result, ok, misses: error ? [`error: ${error}`, ...misses] : misses };
       rows.push(row);
       onTurn?.(row);

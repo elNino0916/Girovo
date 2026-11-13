@@ -52,7 +52,8 @@ const QUESTION_START = /^ (?:wie|was|wo|welche\w*|wann|bin|ist|sind|how|what|whe
 const FILLER = new Set((
   'monats monat gesamt mein meine meinem meinen meiner dem den das die der des im in ins am an fürs für fuer for on my the a this '
   + 'diesen diesem dieser monthly month noch ich wie viel was ist sind left over übrig uebrig is are how much what '
-  + 'welche welcher welches welchen welchem which wo where bin am alle all any my über ueber drüber drueber stehen steht').split(' '));
+  + 'welche welcher welches welchen welchem which wo where bin am alle all any my über ueber drüber drueber stehen steht '
+  + 'ein eine einen einem kein keine').split(' '));
 /** "Essen" or "food" alone: the supermarket or eating out, whichever has a budget. */
 const FOOD = /^(?:essen|food|nahrung|ernährung|ernaehrung)$/;
 // i18n-data-end
@@ -71,7 +72,8 @@ function budgetName(q: string): string | null {
   const before = / (\S+) budgets? /.exec(q);
   if (before && ok(before[1])) return before[1];
   const forWhat = / (?:für|fuer|fürs|for|on) (?:den |das |die |my |the )?(\S+)/.exec(q);
-  if (forWhat && ok(forWhat[1]) && !/^(?:den|das|die|diesen|this|the|a)$/.test(forWhat[1])) return forWhat[1];
+  // "Was hab ich fürs Budget ausgegeben": the budget is no category's name.
+  if (forWhat && ok(forWhat[1]) && !/^(?:den|das|die|diesen|this|the|a)$/.test(forWhat[1]) && !/budget/.test(forWhat[1])) return forWhat[1];
   return null;
 }
 
