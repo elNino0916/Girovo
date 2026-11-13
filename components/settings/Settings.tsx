@@ -208,9 +208,10 @@ export function Settings() {
   }, [settingsTarget, clearSettingsTarget]);
 
   return (
-    // Über Girovo stands in the middle of the sheet: its head is centred, and
-    // at the left of a wide sheet it looked shifted (owner, 2026-11-11).
-    <div className={cx('flex w-full max-w-[720px] flex-col gap-7 pt-2 pb-2', frame && page?.id === 'about' && 'mx-auto')}>
+    // Every page of Einstellungen stands in the middle of the sheet, as Über
+    // Girovo did first: at the left of a wide sheet they looked shifted (owner,
+    // 2026-11-11 for Über Girovo, 2026-11-13 for all).
+    <div className={cx('flex w-full max-w-[720px] flex-col gap-7 pt-2 pb-2', frame && 'mx-auto')}>
       {page ? (
         <>
           {/* The desktop names the page on the sheet; a phone in its top app bar. */}
