@@ -419,6 +419,46 @@ export const de = {
     owedSince: (day: string) => `seit ${day}`,
     owedOpenCount: (n: number) => `${n} offen`,
     owedRequest: 'Aufteilen',
+    /** "Was ist noch im Lebensmittel-Budget?": this month against the Monatsbudgets (lib/ask-budgets.ts). */
+    budgetNone: (category: string) => `Für ${category} hast du kein Budget.`,
+    budgetNamedNone: (name: string) => `Ein Budget für „${name}“ gibt es nicht.`,
+    budgetsNone: 'Du hast noch keine Budgets.',
+    budgetNoData: 'Für diesen Monat sind noch keine Umsätze geladen.',
+    budgetLeft: (category: string, budget: ReactNode, spent: ReactNode, rest: ReactNode): ReactNode[] =>
+      ['Für ', category, ' hast du diesen Monat ', budget, ' eingeplant. Ausgegeben hast du ', spent, ', es bleiben ', rest, '.'],
+    budgetPerDay: (amount: ReactNode): ReactNode[] => ['Das sind ', amount, ' am Tag bis zum Monatsende.'],
+    budgetOver: (category: string, budget: ReactNode, spent: ReactNode, over: ReactNode): ReactNode[] =>
+      ['Für ', category, ' hast du diesen Monat ', budget, ' eingeplant und schon ', spent, ' ausgegeben. Du bist ', over, ' drüber.'],
+    budgetExact: (category: string, budget: ReactNode): ReactNode[] => ['Dein Budget für ', category, ' von ', budget, ' ist diesen Monat genau aufgebraucht.'],
+    /** Not every day of the month is loaded: what was spent is a floor. */
+    budgetFloor: (category: string, budget: ReactNode, spent: ReactNode): ReactNode[] =>
+      ['Für ', category, ' hast du diesen Monat ', budget, ' eingeplant und mindestens ', spent, ' ausgegeben.'],
+    budgetFloorNote: 'Es sind nicht alle Umsätze dieses Monats geladen.',
+    budgetsAll: 'So stehen deine Budgets diesen Monat.',
+    budgetsTight: (n: number) => (n === 1
+      ? 'Ein Budget ist diesen Monat drüber oder fast aufgebraucht.'
+      : `${n} Budgets sind diesen Monat drüber oder fast aufgebraucht.`),
+    budgetsFine: 'Alle Budgets reichen diesen Monat noch.',
+    budgetUsed: (percent: number) => `${percent} % verbraucht`,
+    budgetIsOver: 'drüber',
+    openBudget: 'Budget ansehen',
+    openBudgets: 'Budgets ansehen',
+    /** "Was kann ich bis Ende des Monats noch kündigen?": the "Kündbar bis" days of Verträge & Abos (lib/ask-contracts.ts). */
+    cancelNoDates: 'Bei keinem Vertrag ist eine Kündigungsfrist eingetragen.',
+    cancelNone: (day: string) => `Bis zum ${day} endet keine Kündigungsfrist.`,
+    cancelNoneAhead: 'Gerade steht keine Kündigungsfrist an.',
+    cancelNext: (name: string, day: string) => `Als Nächstes: ${name}, kündbar bis ${day}.`,
+    cancelSome: (n: number, day: string) => (n === 1
+      ? `Bis zum ${day} kannst du einen Vertrag kündigen.`
+      : `Bis zum ${day} kannst du ${n} Verträge kündigen.`),
+    cancelAhead: (n: number) => (n === 1
+      ? 'Diesen Vertrag kannst du als Nächstes kündigen.'
+      : `Diese ${n} Verträge kannst du als Nächstes kündigen.`),
+    /** "Wann verlängert sich mein Handyvertrag?": its last day to cancel and its next payment. */
+    renewalBy: (name: string, day: string) => `Kündigen kannst du ${name} bis zum ${day}, sonst verlängert sich der Vertrag.`,
+    renewalToday: (name: string) => `Heute ist der letzte Tag, um ${name} zu kündigen.`,
+    renewalUnknown: (name: string) => `Für ${name} kennt Girovo keine Kündigungsfrist.`,
+    renewalNext: (day: string, amount: ReactNode): ReactNode[] => ['Die nächste Zahlung ist am ', day, ', ', amount, '.'],
   },
   /**
    * Girovo Next: what stands out, unasked (lib/ask-notes.ts), under the month
@@ -445,6 +485,13 @@ export const de = {
     twoDays: (a: string, b: string) => `am ${a} und ${b}`,
     show: 'Umsätze zeigen',
     hide: 'Hinweis ausblenden',
+    /** A Monatsbudget over in the month (`past`: a month that is over). */
+    budgetOver: (when: string, category: string, over: ReactNode, past: boolean): ReactNode[] =>
+      [when, past ? ' warst du beim Budget für ' : ' bist du beim Budget für ', category, ' ', over, ' drüber.'],
+    /** …or nearly used up before the 20th. */
+    budgetNear: (category: string, rest: ReactNode): ReactNode[] =>
+      ['Dein Budget für ', category, ' ist fast aufgebraucht. Bis zum Monatsende bleiben noch ', rest, '.'],
+    showBudget: 'Budget ansehen',
   },
 };
 
@@ -779,6 +826,41 @@ export const en: typeof de = {
     owedSince: (day) => `since ${day}`,
     owedOpenCount: (n) => `${n} open`,
     owedRequest: 'Split',
+    budgetNone: (category) => `You don’t have a budget for ${category}.`,
+    budgetNamedNone: (name) => `There’s no budget for “${name}”.`,
+    budgetsNone: 'You don’t have any budgets yet.',
+    budgetNoData: 'No transactions are loaded for this month yet.',
+    budgetLeft: (category, budget, spent, rest) =>
+      ['Your ', category, ' budget this month is ', budget, '. You’ve spent ', spent, ', so ', rest, ' is left.'],
+    budgetPerDay: (amount) => ['That’s ', amount, ' a day until the end of the month.'],
+    budgetOver: (category, budget, spent, over) =>
+      ['Your ', category, ' budget this month is ', budget, ' and you’ve already spent ', spent, '. You’re ', over, ' over.'],
+    budgetExact: (category, budget) => ['Your ', category, ' budget of ', budget, ' is used up exactly this month.'],
+    budgetFloor: (category, budget, spent) => ['Your ', category, ' budget this month is ', budget, ' and you’ve spent at least ', spent, '.'],
+    budgetFloorNote: 'Not all of this month’s transactions are loaded.',
+    budgetsAll: 'Here’s how your budgets stand this month.',
+    budgetsTight: (n) => (n === 1
+      ? 'One budget is over or almost used up this month.'
+      : `${n} budgets are over or almost used up this month.`),
+    budgetsFine: 'All your budgets still hold this month.',
+    budgetUsed: (percent) => `${percent}% used`,
+    budgetIsOver: 'over',
+    openBudget: 'See budget',
+    openBudgets: 'See budgets',
+    cancelNoDates: 'None of your contracts has a notice period set.',
+    cancelNone: (day) => `No notice period ends by ${day}.`,
+    cancelNoneAhead: 'No notice period is coming up.',
+    cancelNext: (name, day) => `Next up: ${name}, cancel by ${day}.`,
+    cancelSome: (n, day) => (n === 1
+      ? `You can cancel one contract by ${day}.`
+      : `You can cancel ${n} contracts by ${day}.`),
+    cancelAhead: (n) => (n === 1
+      ? 'This is the next contract you can cancel.'
+      : `These ${n} contracts are the next you can cancel.`),
+    renewalBy: (name, day) => `You can cancel ${name} until ${day}, otherwise the contract renews.`,
+    renewalToday: (name) => `Today is the last day to cancel ${name}.`,
+    renewalUnknown: (name) => `Girovo doesn’t know the notice period for ${name}.`,
+    renewalNext: (day, amount) => ['The next payment is on ', day, ', ', amount, '.'],
   },
   notes: {
     label: 'Notes',
@@ -796,5 +878,8 @@ export const en: typeof de = {
     twoDays: (a, b) => `on ${a} and ${b}`,
     show: 'Show transactions',
     hide: 'Hide note',
+    budgetOver: (when, category, over, past) => [when, past ? ', you went ' : ', you’re ', over, ' over your ', category, ' budget.'],
+    budgetNear: (category, rest) => ['Your ', category, ' budget is almost used up. ', rest, ' is left until the end of the month.'],
+    showBudget: 'See budget',
   },
 };

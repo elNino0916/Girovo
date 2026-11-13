@@ -2,7 +2,8 @@
 
 // Girovo AI's answers from the app's own figures (lib/ask-facts.ts): the
 // balances, the month-end forecast, Verträge & Abos (a contract's year, the
-// price rises, the next salary), Aufteilen and Sparziele, and a past day's
+// price rises, the next salary, the days to cancel by), Aufteilen and
+// Sparziele, the Monatsbudgets this month, and a past day's
 // balance rebuilt from today's. A few template
 // sentences (lib/i18n/messages/ask.ts facts) over the same figures the pages
 // show, every amount drawn by <Money> or <RoundMoney> so "Beträge ausblenden"
@@ -10,10 +11,14 @@
 //
 // Routed from components/insights/AskThread.tsx IntentAnswer.
 
-import { Fragment } from 'react';
+import { Fragment, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { liveValue, overviewFigures, type AccountValue } from '@/lib/account-overview';
 import { bookingDay } from '@/lib/analytics';
+import { budgetsAsked, monthBudgets, perDayLeft, daysLeftInMonth, tightBudgets, usedShare } from '@/lib/ask-budgets';
+import { contractsAsked, deadlines } from '@/lib/ask-contracts';
+import type { BudgetLine } from '@/lib/budgets';
+import { categoryLabel, type BuiltinCategoryId } from '@/lib/categories';
 import {
   balanceOn, contractsNamed, contractsYearCount, forecastAccount, goalsNamed, lastFrom, nameCase, nextSalary, priceRises, salaryWhen, type FactIntent,
 } from '@/lib/ask-facts';
@@ -22,16 +27,17 @@ import { counterpartyName, txKey } from '@/lib/categories';
 import type { SerializedAccount } from '@/lib/fints-types';
 import { dayKey, fmtMonth } from '@/lib/format';
 import { intlLocale } from '@/lib/i18n/locale';
-import { useT } from '@/lib/i18n/react';
+import { rich, useT } from '@/lib/i18n/react';
 import { forecastAllowed, goalsAllowed } from '@/lib/plus';
 import { seriesTitle } from '@/lib/recurring';
 import { goalProgress } from '@/lib/savings-goal';
 import { owedByPerson } from '@/lib/split-requests';
 import { useFints } from '../../FintsProvider';
-import { Money } from '../../Money';
+import { Money, usePrivacy } from '../../Money';
 import { PLACE_ROOT_EVENT, wantContracts } from '../../shell/frame';
 import { txText } from '../../transactions/model';
 import { Button } from '../../ui';
+import { useScopeData } from '../analysis-model';
 import { useMonthEndForecast } from '../Forecast';
 import { useRecurringModel } from '../recurring-model';
 import { RoundMoney, useShowInList } from '../shared';
@@ -109,6 +115,10 @@ export function FactAnswer({ intent, onShown }: { intent: FactIntent; onShown: (
     case 'salary': return <SalaryAnswer onShown={onShown} />;
     case 'owed': return <OwedAnswer name={intent.name} onShown={onShown} />;
     case 'goal': return <GoalAnswer name={intent.name} onShown={onShown} />;
+    case 'budgetLeft': return <BudgetAnswer category={intent.category} name={intent.name} onShown={onShown} />;
+    case 'budgetsOver': return <BudgetsOverAnswer onShown={onShown} />;
+    case 'cancelBy': return <CancelByAnswer until={intent.until} onShown={onShown} />;
+    case 'renewal': return <RenewalAnswer name={intent.name} onShown={onShown} />;
   }
 }
 
@@ -470,6 +480,198 @@ function GoalAnswer({ name, onShown }: { name: string | null; onShown: () => voi
           onShown();
         }}
       />
+    </>
+  );
+}
+
+/**
+ * This month against the Monatsbudgets: every loaded account, as Girovo AI
+ * counts (and its notes), each category's spending exactly as the Analyse's
+ * budget tile adds it up (lib/ask-budgets.ts monthBudgets).
+ */
+function useBudgetMonth() {
+  const { vault, categoryOf, activeAccount, accounts, transactions, txByAccount, statementInfo } = useFints();
+  const data = useScopeData({ scope: 'all', activeAccount, accounts, transactions, txByAccount, statementInfo });
+  const budgets = vault?.budgets;
+  const today = dayKey(new Date());
+  const m = useMemo(
+    () => monthBudgets(budgets ?? {}, data?.txs ?? [], { categoryOf, currency: data?.currency ?? 'EUR', from: data?.from ?? '', to: data?.to ?? '', today }),
+    [budgets, data, categoryOf, today],
+  );
+  const own = useMemo(() => (vault?.customCategories ?? []).map((c) => ({ id: c.id, name: c.name })), [vault?.customCategories]);
+  return { m, currency: data?.currency ?? 'EUR', today, any: !!budgets && Object.keys(budgets).length > 0, own };
+}
+
+/** The Analyse on this month, where the budget tile stands. */
+function OpenBudgetButton({ label, onShown }: { label: string; onShown: () => void }) {
+  const { setTab, setAnalysisPeriod } = useFints();
+  return (
+    <OpenButton
+      label={label}
+      onClick={() => {
+        setAnalysisPeriod(dayKey(new Date()).slice(0, 7));
+        setTab('analysis');
+        onShown();
+      }}
+    />
+  );
+}
+
+/** A budget row's figure, as the tile writes it: what is left, how far over, or spent of the budget. */
+function BudgetFigure({ line, currency, floor }: { line: BudgetLine; currency: string; floor: boolean }) {
+  const words = useT().budgets.budget;
+  const money = (cents: number) => <Money value={cents / 100} currency={currency} tone="plain" />;
+  if (line.state === 'over') return <>{rich(floor ? words.overAtLeast(money(line.rest)) : words.over(money(line.rest)))}</>;
+  if (line.state === 'left') return <>{rich(words.left(money(line.rest)))}</>;
+  if (line.state === 'exact') return <>{words.exact}</>;
+  return <>{rich(words.atLeastOf(money(line.spent), money(line.budget)))}</>;
+}
+
+/** Budget rows: the category, how far used up (left out with Beträge ausblenden, as the tile's bars are), the figure. */
+function BudgetRows({ lines, currency, floor }: { lines: readonly BudgetLine[]; currency: string; floor: boolean }) {
+  const words = useT().ask.facts;
+  const privacy = usePrivacy();
+  return (
+    <Rows
+      rows={lines.slice(0, 8).map((l) => ({
+        key: l.id,
+        name: categoryLabel(l.id),
+        sub: privacy ? (l.state === 'over' ? words.budgetIsOver : undefined) : words.budgetUsed(Math.floor(usedShare(l) * 100)),
+        amount: <BudgetFigure line={l} currency={currency} floor={floor} />,
+      }))}
+    />
+  );
+}
+
+/**
+ * "Was ist noch im Lebensmittel-Budget?", "Wie viel darf ich diesen Monat
+ * noch für Essen ausgeben?": the budget, spent so far this month, what is
+ * left and per day until the month ends. Every budget when none is named.
+ */
+function BudgetAnswer({ category, name, onShown }: { category: BuiltinCategoryId | null; name: string | null; onShown: () => void }) {
+  const words = useT().ask.facts;
+  const { m, currency, today, any, own } = useBudgetMonth();
+  const { lines, asked } = budgetsAsked(m.lines, category, name, own);
+  const named = !!category || !!name;
+  if (named && !lines.length) {
+    return <Lines lines={[asked.length ? words.budgetNone(namesList(asked.map((id) => categoryLabel(id)))) : words.budgetNamedNone(nameCase(name ?? ''))]} />;
+  }
+  if (!any || !lines.length) return <Lines lines={[words.budgetsNone]} />;
+  const several = lines.length > 1 || !named;
+  const button = <OpenBudgetButton label={several ? words.openBudgets : words.openBudget} onShown={onShown} />;
+  if (m.coverage === 'none') return <><Lines lines={[words.budgetNoData]} />{button}</>;
+  const floor = m.coverage === 'partial';
+  if (several) {
+    return (
+      <>
+        <Lines lines={[words.budgetsAll, floor && words.budgetFloorNote]} />
+        <BudgetRows lines={lines} currency={currency} floor={floor} />
+        {button}
+      </>
+    );
+  }
+  const l = lines[0];
+  const cat = categoryLabel(l.id);
+  const money = (cents: number) => <Fig><Money value={cents / 100} currency={currency} tone="plain" /></Fig>;
+  const perDay = perDayLeft(l, today);
+  const said: Line[] = l.state === 'over'
+    ? [words.budgetOver(cat, money(l.budget), money(l.spent), money(l.rest)), floor && words.budgetFloorNote]
+    : l.state === 'exact'
+    ? [words.budgetExact(cat, money(l.budget))]
+    : l.state === 'unknown'
+    ? [words.budgetFloor(cat, money(l.budget), money(l.spent)), words.budgetFloorNote]
+    : [words.budgetLeft(cat, money(l.budget), money(l.spent), money(l.rest)), perDay != null && daysLeftInMonth(today) > 1 && words.budgetPerDay(money(perDay))];
+  return (
+    <>
+      <Lines lines={said} />
+      {button}
+    </>
+  );
+}
+
+/** "Wo bin ich über dem Budget?": every budget over or nearly used up this month, the most used up first. */
+function BudgetsOverAnswer({ onShown }: { onShown: () => void }) {
+  const words = useT().ask.facts;
+  const { m, currency, any } = useBudgetMonth();
+  if (!any || !m.lines.length) return <Lines lines={[words.budgetsNone]} />;
+  const button = <OpenBudgetButton label={words.openBudgets} onShown={onShown} />;
+  if (m.coverage === 'none') return <><Lines lines={[words.budgetNoData]} />{button}</>;
+  const floor = m.coverage === 'partial';
+  const tight = tightBudgets(m.lines);
+  if (!tight.length) return <><Lines lines={[words.budgetsFine, floor && words.budgetFloorNote]} />{button}</>;
+  return (
+    <>
+      <Lines lines={[words.budgetsTight(tight.length), floor && words.budgetFloorNote]} />
+      <BudgetRows lines={tight} currency={currency} floor={floor} />
+      {button}
+    </>
+  );
+}
+
+/**
+ * "Was kann ich bis Ende des Monats noch kündigen?": the contracts whose
+ * "Kündbar bis" day falls between today and `until` (every one to come for
+ * null), each with that day, the nearest first.
+ */
+function CancelByAnswer({ until, onShown }: { until: string | null; onShown: () => void }) {
+  const t = useT();
+  const words = t.ask.facts;
+  const model = useRecurringModel();
+  const { vault } = useFints();
+  const openContracts = useOpenContracts(onShown);
+  if (model.loading) return <Lines lines={[t.ask.thread.notLoaded]} />;
+  const today = dayKey(new Date());
+  const reminders = vault?.contractReminders;
+  const ahead = deadlines(reminders, [...model.expense, ...model.income], [...model.ended, ...model.dismissed], today, null);
+  const button = <OpenButton label={t.ask.actions.openContracts} onClick={openContracts} />;
+  if (!ahead.length) return <><Lines lines={[Object.keys(reminders ?? {}).length ? words.cancelNoneAhead : words.cancelNoDates]} />{button}</>;
+  const hits = until ? ahead.filter((d) => d.by <= until) : ahead;
+  if (!hits.length) {
+    return <><Lines lines={[until ? words.cancelNone(dayWords(until)) : words.cancelNoneAhead, words.cancelNext(ahead[0].name, dayWords(ahead[0].by))]} />{button}</>;
+  }
+  return (
+    <>
+      <Lines lines={[until ? words.cancelSome(hits.length, dayWords(until)) : words.cancelAhead(Math.min(hits.length, 8))]} />
+      <Rows
+        rows={hits.slice(0, 8).map((d) => ({
+          key: d.id,
+          name: d.name,
+          sub: t.insights.contracts.cancelBy(dayWords(d.by)),
+          amount: d.series ? <Money value={Math.abs(d.series.amount)} currency={d.series.currency} tone="plain" /> : null,
+        }))}
+      />
+      {button}
+    </>
+  );
+}
+
+/**
+ * "Wann verlängert sich mein Handyvertrag?", "Bis wann muss ich Spotify
+ * kündigen?": the contract's "Kündbar bis" day and its next payment; where
+ * no day is set, that Girovo does not know it.
+ */
+function RenewalAnswer({ name, onShown }: { name: string; onShown: () => void }) {
+  const t = useT();
+  const words = t.ask.facts;
+  const model = useRecurringModel();
+  const { vault } = useFints();
+  const openContracts = useOpenContracts(onShown);
+  if (model.loading) return <Lines lines={[t.ask.thread.notLoaded]} />;
+  const today = dayKey(new Date());
+  const button = <OpenButton label={t.ask.actions.openContracts} onClick={openContracts} />;
+  const found = contractsAsked(name, vault?.contractReminders, model.expense, today);
+  if (!found.length) return <><Lines lines={[words.contractNone(nameCase(name))]} />{button}</>;
+  const [c, ...more] = found;
+  const s = c.series;
+  const said: Line[] = [
+    c.by ? (c.by === today ? words.renewalToday(c.name) : words.renewalBy(c.name, dayWords(c.by))) : words.renewalUnknown(c.name),
+    !!c.by && !!s && s.nextDate >= today && words.renewalNext(dayWords(s.nextDate), <Fig><Money value={Math.abs(s.amount)} currency={s.currency} tone="plain" /></Fig>),
+    more.length > 0 && words.contractMore(namesList(more.slice(0, 3).map((x) => x.name))),
+  ];
+  return (
+    <>
+      <Lines lines={said} />
+      {button}
     </>
   );
 }

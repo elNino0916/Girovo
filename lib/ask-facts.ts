@@ -9,6 +9,8 @@
 // - salary        "Wann kommt das Gehalt?": the next expected salary of the regular payments
 // - owed          "Wie viel schuldet mir Lea noch?": Aufteilen's open requests (lib/split-requests.ts)
 // - goal          "Wie weit bin ich beim Urlaubsziel?": Sparziele and their progress
+// - budgetLeft, budgetsOver   the Monatsbudgets this month (lib/ask-budgets.ts)
+// - cancelBy, renewal     the days to cancel contracts by (lib/ask-contracts.ts)
 //
 // factOf reads the question by rules (lib/ask-intents.ts intentOf asks it
 // before the bookings); the pickers below choose the figures from what the
@@ -18,6 +20,8 @@
 // Pure: no path aliases, `.ts` on sibling imports.
 
 import { groupKindOf } from './account-overview.ts';
+import { budgetIntentOf, type BudgetIntent } from './ask-budgets.ts';
+import { contractIntentOf, type ContractIntent } from './ask-contracts.ts';
 import type { SerializedAccount } from './fints-types';
 import { categoryFromQuestion } from './nano-ask.ts';
 import { seriesTitle, type RecurringSeries } from './recurring.ts';
@@ -35,9 +39,13 @@ export type FactIntent =
   /** name: the person, folded; null for "Wer schuldet mir noch Geld?". */
   | { kind: 'owed'; name: string | null }
   /** name: the goal, folded ("urlaub" for "Urlaubsziel"); null for every goal. */
-  | { kind: 'goal'; name: string | null };
+  | { kind: 'goal'; name: string | null }
+  | BudgetIntent
+  | ContractIntent;
 
-export const FACT_KINDS = ['balance', 'balanceAt', 'monthEnd', 'contractCost', 'priceRises', 'salary', 'owed', 'goal'] as const;
+export const FACT_KINDS = [
+  'balance', 'balanceAt', 'monthEnd', 'contractCost', 'priceRises', 'salary', 'owed', 'goal', 'budgetLeft', 'budgetsOver', 'cancelBy', 'renewal',
+] as const;
 
 /** Whether an intent is one of these (and FactAnswers says it). */
 export function isFact<I extends { kind: string }>(intent: I): intent is Extract<I, FactIntent> {
@@ -237,6 +245,13 @@ export function factOf(question: string, contracts: readonly string[] = [], toda
   if (OWE.test(q)) return { kind: 'owed', name: personOf(q) };
   // "Wie viel habe ich für mein Reiseziel ausgegeben?", "Wo war ich am Reiseziel essen?" ask about the bookings.
   if (GOAL.test(q) && !SPENT.test(q) && !SPENT_AT.test(q) && (GOAL_ASK.test(q) || / (?:sparziel\w*|savings goals?) /.test(q))) return { kind: 'goal', name: goalOf(q) };
+
+  // "Was ist noch im Lebensmittel-Budget?", "Wo bin ich über dem Budget?"
+  const budget = budgetIntentOf(question);
+  if (budget) return budget;
+  // "Was kann ich bis Ende des Monats noch kündigen?", "Wann verlängert sich mein Handyvertrag?"
+  const contract = contractIntentOf(question, today, contracts);
+  if (contract) return contract;
 
   // "Wann kommt das Gehalt?", never "Wann kam das letzte Gehalt?" or "Gehalt im Oktober".
   if (GET_PAID.test(q) || SALARY.test(q) && SALARY_NEXT.test(q) && WHEN.test(q) && !SALARY_PAST.test(q)) return { kind: 'salary' };

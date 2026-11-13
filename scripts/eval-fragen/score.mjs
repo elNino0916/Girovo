@@ -4,10 +4,12 @@
 // An expect lists only what matters for its question:
 //   kind, dir, category, search, period, against, rankBy, rankMetric  (a question about bookings)
 //   per: "month" | "year"                                              (an average; none in the reading is "month")
-//   intent (+ setting, value, name, day)                                (contracts, read, set, refresh, and the
+//   intent (+ setting, value, name, day, category, until)               (contracts, read, set, refresh, and the
 //                                                                         app's figures: balance, monthEnd, contractCost,
 //                                                                         priceRises, salary, owed, goal, and
-//                                                                         balanceAt, whose day is a yyyy-mm-dd)
+//                                                                         balanceAt, whose day is a yyyy-mm-dd;
+//                                                                         budgetLeft (category, name), budgetsOver,
+//                                                                         cancelBy (until), renewal (name))
 //   offTopic: true                                                      (small talk, nonsense, injections)
 //   anyOf: [expect, …]                                                  (any one of these readings is right;
 //                                                                         fields beside anyOf apply to each)
@@ -63,6 +65,9 @@ function scoreOne(result, expect, today) {
     }
     // A past balance's day (balanceAt).
     if ('day' in expect && !alts(expect.day).includes(got.day)) misses.push(`day: want ${show(expect.day)}, got ${show(got.day ?? null)}`);
+    // A budget's category (budgetLeft; null for none), the last day a cancelBy question names (null for every one to come).
+    if ('category' in expect && !alts(expect.category).includes(got.category ?? null)) misses.push(`category: want ${show(expect.category)}, got ${show(got.category ?? null)}`);
+    if ('until' in expect && !alts(expect.until).includes(got.until ?? null)) misses.push(`until: want ${show(expect.until)}, got ${show(got.until ?? null)}`);
     return misses;
   }
   const query = result && 'query' in result ? result.query : null;
