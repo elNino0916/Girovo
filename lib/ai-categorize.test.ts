@@ -6,8 +6,8 @@ import type { CategoryId } from './categories.ts';
 import type { GuessableCategory } from './category-guess.ts';
 import { counterpartyKey, txKey } from './categories.ts';
 import { categorize } from './categorize.ts';
-import { aiGroups, aiPrompt, answerKey, applyList, initialPicks, promptPurpose, qualifies, readAnswer } from './ai-categorize.ts';
-import { NANO_CATEGORY_LIST, NANO_PROMPT_VERSION, NANO_SYSTEM, nanoBookingText } from './nano-categories.ts';
+import { AI_CATEGORY_LIST, AI_CATEGORY_VERSION, aiGroups, aiPrompt, answerKey, applyList, initialPicks, promptPurpose, qualifies, readAnswer } from './ai-categorize.ts';
+import { NANO_CATEGORY_LIST, NANO_SYSTEM, nanoBookingText } from './nano-categories.ts';
 import { CRED, IBAN, OWN_IBANS, OWN_SAVINGS, camt, mt940 } from './__fixtures__/transactions.ts';
 
 // i18n-data-start (bookings as banks write them)
@@ -70,8 +70,10 @@ test('a private person is marked, a direct debit never', () => {
 
 test('the prompt is the benchmark’s, and answers are remembered per prompt and version', () => {
   const g = { name: 'Atelier Fadenlauf', purpose: '' };
-  assert.deepEqual(aiPrompt(g), { system: NANO_SYSTEM, user: NANO_CATEGORY_LIST + nanoBookingText(g.name, g.purpose), maxTokens: 8 });
-  assert.equal(answerKey(g), `${NANO_PROMPT_VERSION}\u0000Atelier Fadenlauf\u0000`);
+  assert.deepEqual(aiPrompt(g), { system: NANO_SYSTEM, user: AI_CATEGORY_LIST + nanoBookingText(g.name, g.purpose), maxTokens: 8 });
+  // The phone's list, with the desktop's two boundaries.
+  assert.ok(AI_CATEGORY_LIST.startsWith(NANO_CATEGORY_LIST.slice(0, 40)) && AI_CATEGORY_LIST.includes('Sportverein'));
+  assert.equal(answerKey(g), `${AI_CATEGORY_VERSION}\u0000Atelier Fadenlauf\u0000`);
   assert.notEqual(answerKey(g), answerKey({ ...g, purpose: 'Saum' }));
   assert.equal(readAnswer('NONE'), null);
   assert.equal(readAnswer('shopping'), 'shopping');
