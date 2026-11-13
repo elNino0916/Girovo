@@ -9,7 +9,7 @@
 // mobile/runtime.ts); none of them exists on the desktop or the website,
 // where each renders nothing.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { keepsNothing, mayAllowSaving, unsafePhone } from '@/lib/device-integrity';
 import { fmtBytes } from '@/lib/format';
 import { useIntegrity } from './IntegrityNotice';
@@ -289,6 +289,47 @@ export function IntegrityRow() {
   );
 }
 
+type PlayUpdate = Awaited<ReturnType<GirovoMobile['playUpdate']>>;
+
+// What Google Play said last, shared: the row asks again each time it shows,
+// Einstellungen' list of pages (the Updates page) reads the answer.
+let playNow: PlayUpdate | null = null;
+let playAsked = false;
+let playAsking = false;
+const playListeners = new Set<() => void>();
+const onPlay = (fn: () => void) => {
+  playListeners.add(fn);
+  return () => {
+    playListeners.delete(fn);
+  };
+};
+function askPlay() {
+  const mobile = typeof window === 'undefined' ? undefined : window.girovoMobile;
+  if (!mobile || playAsking) return;
+  playAsked = true;
+  playAsking = true;
+  void mobile.playUpdate().then((p) => {
+    playNow = p;
+  }, () => {
+    playNow = null;
+  }).finally(() => {
+    playAsking = false;
+    playListeners.forEach((fn) => fn());
+  });
+}
+
+/**
+ * Whether Google Play has a newer version (the Play build; elsewhere never),
+ * null until it answered. `fresh` asks again; else it asks only the first time.
+ */
+export function usePlayUpdate(fresh = false): PlayUpdate | null {
+  const play = useSyncExternalStore(onPlay, () => playNow, () => null);
+  useEffect(() => {
+    if (fresh || !playAsked) askPlay();
+  }, [fresh]);
+  return play;
+}
+
 /**
  * The Google Play build: when Play has a newer version, its own in-app
  * update, right here. Play may not be bypassed — the GitHub build's updater
@@ -297,14 +338,7 @@ export function IntegrityRow() {
 export function PlayUpdateRow() {
   const t = useT();
   const u = t.android.updates;
-  const [play, setPlay] = useState<Awaited<ReturnType<GirovoMobile['playUpdate']>> | null>(null);
-  useEffect(() => {
-    let live = true;
-    void window.girovoMobile?.playUpdate().then((p) => live && setPlay(p));
-    return () => {
-      live = false;
-    };
-  }, []);
+  const play = usePlayUpdate(true);
   if (!play?.available) return null;
   // Play's own flow takes over from here: no dialog of Girovo's.
   return (

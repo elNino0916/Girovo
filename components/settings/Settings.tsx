@@ -13,20 +13,23 @@
 // to the list. On the desktop the sidebar lists them (components/shell/Sidebar.tsx)
 // and the sheet shows the one picked, the first to begin with.
 //
-//   Anmeldung & Sicherheit — unlocking (fingerprint, Windows Hello, further
-//     banks with the first) and the automatic logout; what the phone's check
-//     found and the bank's registration of the device;
+//   Girovo AI (Girovo Next) — asking on or off, what answers (./AskSettings.tsx);
+//   Girovo API — nothing yet, a line that it comes later;
+//   Sicherheit & Datenschutz — unlocking (fingerprint, Windows Hello, security
+//     keys, further banks with the first) and the automatic logout; what the
+//     phone's check found and the bank's registration of the device; the two
+//     things that can leave the machine besides the bank's traffic: the shop
+//     names for company logos, and usage data;
 //   Benachrichtigungen — "Neue Umsätze melden" and what it says;
-//   Konten & Umsätze — the balances and Umsätze kept and read, the import, the
-//     categories (on Android first the guess with Gemini Nano);
-//   Daten & Geräte — the sync, what is kept here, the backup, the reset;
+//   Umsätze & Kategorien — the balances and Umsätze read at the login, those
+//     kept here, the import, the categories (on Android first the guess with
+//     Gemini Nano);
+//   Daten & Sicherung — the sync, the backup, what is kept here, the reset;
 //   Sprache & Darstellung — the language, the appearance (not on Android: the
 //     phone's light and dark), "Schwarzer Hintergrund" and the shortcuts;
-//   Datenschutz — the two things that can leave the machine besides the bank's
-//     traffic: the shop names for company logos, and usage data;
-//   Frag deine Umsätze (Girovo Next) — asking on or off, what answers, in
-//     which language (./AskSettings.tsx);
-//   Über Girovo — updates and their channel, the version, the licence and the links.
+//   Updates — Google Play's update, the channel, staged releases at once, an
+//     update from a file (only in a build with one of them);
+//   Über Girovo — the version and the update's state, the licence and the links.
 //
 // Each page is Material 3 Expressive's grouped list (./rows.tsx), the one place
 // in the app whose rows stand on a ground of their own (DESIGN.md). A row says
@@ -40,18 +43,19 @@ import { LOCALE_NAMES } from '@/lib/i18n/locale';
 import { rich, useLocale, useT } from '@/lib/i18n/react';
 import { CONTACT_MAIL, WEBSITE_URL, imprintUrl, privacyUrl, termsUrl } from '@/lib/links';
 import { IS_ANDROID, IS_DESKTOP_APP } from '@/lib/platform';
-import { PAGE_CLUSTERS, PAGE_ORDER, type SettingsPage } from '@/lib/settings-pages';
+import { PAGE_CLUSTERS, PAGE_ORDER, hasUpdateRows, type SettingsPage } from '@/lib/settings-pages';
 import { setBlack, setThemePref } from '@/lib/theme';
-import { FingerprintSwitch, IntegrityRow, NanoRow, PlayUpdateRow } from '../android/AndroidSettings';
+import { FingerprintSwitch, IntegrityRow, NanoRow, PlayUpdateRow, usePlayUpdate } from '../android/AndroidSettings';
 import { PlusRow } from '../android/Plus';
 import { IDLE_MINUTE_CHOICES, useFints, type IdleMinutes } from '../FintsProvider';
 import { LanguageSegmented } from '../LanguageToggle';
 import { useBlackBackground, useThemePref } from '../ThemeToggle';
+import { channelInfo, channelName } from '../updates/channels';
 import { hasNewer, isReady, updates, useUpdates } from '../updates/store';
 import { usageComesWithChannel } from '../telemetry/NightlyUsage';
 import { setUsageConsent, useUsageConsent } from '../telemetry/usage';
 import {
-  BellIcon, BuildingIcon, ChartIcon, CheckCircleIcon, ClockIcon, CodeIcon, EyeOffIcon, FileIcon, AiMarkIcon, GlobeIcon, ImageIcon, InfoIcon, KeyboardIcon,
+  BellIcon, BuildingIcon, ChartIcon, CheckCircleIcon, ClockIcon, CodeIcon, DownloadIcon, FileIcon, AiMarkIcon, GlobeIcon, ImageIcon, InfoIcon, KeyboardIcon,
   LockIcon, MailIcon, MonitorIcon, MoonIcon, PhoneIcon, RefreshIcon, ShieldIcon, SunIcon, WalletIcon,
 } from '../icons';
 import { BrandName, BrandPlate } from '../shell/BrandMark';
@@ -85,16 +89,24 @@ const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '';
 type DataDialog = 'reset' | 'wipe' | 'keepOff' | 'historyReset' | 'docsReset';
 type IconComponent = (props: { size?: number; filled?: boolean; className?: string }) => ReactNode;
 
+/**
+ * Girovo API's glyph, for now: the owner picks its own from mocks. Material's
+ * "api" is not in the font's subset yet (a new subset means fetching one with
+ * every old name plus the new, DESIGN.md), so this borrows "code".
+ */
+const ApiIcon: IconComponent = CodeIcon;
+
 /** Each page's glyph: the list's disc, the sidebar's place. */
 const ICONS: Record<SettingsPage, IconComponent> = {
+  // Girovo's AI mark is a picture, drawn: no symbol, so no new glyph in the font's subset.
+  ask: AiMarkIcon,
+  api: ApiIcon,
   security: LockIcon,
   notifications: BellIcon,
   accounts: WalletIcon,
   devices: IS_ANDROID ? PhoneIcon : MonitorIcon,
   appearance: GlobeIcon,
-  privacy: EyeOffIcon,
-  // Girovo's AI mark is a picture, drawn: no symbol, so no new glyph in the font's subset.
-  ask: AiMarkIcon,
+  updates: DownloadIcon,
   about: InfoIcon,
 };
 
@@ -119,32 +131,38 @@ const line = (parts: (string | false | null | undefined)[]) => {
 /**
  * The pages this app has right now, in their order: a page whose every row
  * would be missing is left out (Benachrichtigungen where the checks are not
- * offered, Datenschutz in a build without logos and usage data).
+ * offered, Updates in a build without the updater and without Google Play's
+ * newer version).
  */
 export function useSettingsPages(): PageEntry[] {
   const t = useT();
   const { locale } = useLocale();
   const {
-    bank, backgroundChecks, windowsHello, sync, vaultStatus, meta, vault,
+    bank, backgroundChecks, windowsHello, sync, vaultStatus, vault,
   } = useFints();
-  const usage = useUsageConsent();
   const theme = useThemePref();
   const askPage = useAskPage();
   const askOff = !!vault?.askOff;
+  const { state: update } = useUpdates();
+  const playUpdate = !!usePlayUpdate()?.available;
   const words = t.settings;
   return useMemo(() => {
     const kept = vaultStatus === 'ready' || vaultStatus === 'error' || vaultStatus === 'unavailable';
     const shown: Record<SettingsPage, boolean> = {
+      ask: askPage,
+      api: true,
       security: true,
       notifications: backgroundChecks !== null && !!bank,
       accounts: true,
       devices: kept || !!sync || IS_DESKTOP_APP,
       appearance: true,
-      privacy: !!meta?.merchantLogos || !!usage,
-      ask: askPage,
+      updates: hasUpdateRows({ updater: !!update, playUpdate }),
       about: true,
     };
+    const newer = update && hasNewer(update) ? update.release : null;
     const summary: Record<SettingsPage, string> = {
+      ask: askOff ? words.summary.askOff : words.summary.askOn,
+      api: words.summary.apiSoon,
       security: line([
         IS_ANDROID ? words.summary.fingerprint : windowsHello !== null && words.summary.windowsHello,
         words.summary.idle,
@@ -155,8 +173,11 @@ export function useSettingsPages(): PageEntry[] {
         ? t.session.vaultUnreadable
         : line([sync && words.summary.sync, vaultStatus === 'ready' && words.summary.backup, words.summary.kept]),
       appearance: IS_ANDROID ? LOCALE_NAMES[locale] : `${LOCALE_NAMES[locale]} · ${t.common.theme[theme]}`,
-      privacy: line([meta?.merchantLogos && words.summary.logos, usage && words.summary.usage]),
-      ask: askOff ? words.summary.askOff : words.summary.askOn,
+      updates: newer
+        ? t.shell.updates.available(newer.version)
+        : update
+          ? `${words.channel.title}: ${channelName(channelInfo(update, update.channel), update.channel, words.channel, locale)}`
+          : t.android.updates.playUpdate,
       about: APP_VERSION ? t.shell.version(APP_VERSION) : words.licence,
     };
     return PAGE_ORDER.filter((id) => shown[id]).map((id) => ({
@@ -167,13 +188,15 @@ export function useSettingsPages(): PageEntry[] {
       alert: id === 'devices' && vaultStatus === 'error',
       Icon: ICONS[id],
     }));
-  }, [t, locale, bank, backgroundChecks, windowsHello, sync, vaultStatus, meta?.merchantLogos, usage, theme, askPage, askOff, words]);
+  }, [t, locale, bank, backgroundChecks, windowsHello, sync, vaultStatus, theme, askPage, askOff, update, playUpdate, words]);
 }
 
 export function Settings() {
   const { settingsPage, setSettingsPage, settingsTarget, clearSettingsTarget } = useFints();
   const frame = useDesktopFrame();
   const pages = useSettingsPages();
+  // Google Play asked again each time Einstellungen opens: a newer version brings the Updates page.
+  usePlayUpdate(true);
   // A page that is not offered (any more) falls back: the list on a phone, the first on the desktop.
   const page = pages.find((p) => p.id === settingsPage) ?? (frame ? pages[0] : null);
   const [dialog, setDialog] = useState<DataDialog | null>(null);
@@ -275,15 +298,26 @@ function PlusGroup() {
 
 function PageContent({ page, onDialog }: { page: SettingsPage; onDialog: (d: DataDialog) => void }) {
   switch (page) {
+    case 'ask': return <AskPage />;
+    case 'api': return <ApiPage />;
     case 'security': return <SecurityPage />;
     case 'notifications': return <NotificationsPage />;
     case 'accounts': return <AccountsPage onDialog={onDialog} />;
     case 'devices': return <DevicesPage onDialog={onDialog} />;
     case 'appearance': return <AppearancePage />;
-    case 'privacy': return <PrivacyPage />;
-    case 'ask': return <AskPage />;
+    case 'updates': return <UpdatesPage />;
     case 'about': return <AboutPage />;
   }
+}
+
+/** Girovo API: nothing to set yet, only when it comes. */
+function ApiPage() {
+  const t = useT();
+  return (
+    <SettingsGroup>
+      <SettingItem icon={<InfoIcon />} title={t.settings.ask.later} />
+    </SettingsGroup>
+  );
 }
 
 function SecurityPage() {
@@ -334,6 +368,8 @@ function SecurityPage() {
           />
         )}
       </SettingsGroup>
+
+      <LeavesDeviceGroup />
     </>
   );
 }
@@ -355,7 +391,7 @@ function AccountsPage({ onDialog }: { onDialog: (d: DataDialog) => void }) {
   const ready = vaultStatus === 'ready';
   return (
     <>
-      <SettingsGroup title={t.settings.groups.balances}>
+      <SettingsGroup title={t.settings.groups.atLogin}>
         {/* 6.0: every balance after the login, as "Alle Salden abrufen" reads them. Off unless switched on. */}
         <SwitchItem
           icon={<RefreshIcon />}
@@ -365,8 +401,21 @@ function AccountsPage({ onDialog }: { onDialog: (d: DataDialog) => void }) {
           title={t.settings.balances.atLogin}
           summary={t.settings.balances.atLoginHint}
         />
-        {/* 6.0: the last balances, for the overview's first look (lib/kept-balances.ts). On unless switched off; off deletes them. */}
-        {ready && (
+        {/* 6.0: every shown account's Umsätze after the login's own, as the Übersicht's "Umsätze abrufen" reads them. On unless switched off. */}
+        <SwitchItem
+          icon={<RefreshIcon />}
+          setting="loginBookings"
+          checked={bookingsAtLogin}
+          onChange={setBookingsAtLogin}
+          title={t.settings.bookingsAtLogin.title}
+          summary={t.settings.bookingsAtLogin.hint}
+        />
+      </SettingsGroup>
+
+      {/* What is kept lives in the vault, so it is offered only while the vault can be written. */}
+      {ready && (
+        <SettingsGroup title={t.settings.groups.keepHere}>
+          {/* 6.0: the last balances, for the overview's first look (lib/kept-balances.ts). On unless switched off; off deletes them. */}
           <SwitchItem
             icon={<WalletIcon />}
             setting="keepBalances"
@@ -378,25 +427,12 @@ function AccountsPage({ onDialog }: { onDialog: (d: DataDialog) => void }) {
             title={t.settings.balances.keep}
             summary={t.settings.balances.keepHint}
           />
-        )}
-      </SettingsGroup>
-
-      <SettingsGroup title={t.settings.groups.bookings}>
-        {/* 6.0: every shown account's Umsätze after the login's own, as the Übersicht's "Umsätze abrufen" reads them. On unless switched off. */}
-        <SwitchItem
-          icon={<RefreshIcon />}
-          setting="loginBookings"
-          checked={bookingsAtLogin}
-          onChange={setBookingsAtLogin}
-          title={t.settings.bookingsAtLogin.title}
-          summary={t.settings.bookingsAtLogin.hint}
-        />
-        {/* Keeping them lives in the vault, so it is offered only while the
-            vault can be written. Off is the default (owner to confirm). */}
-        {ready && <KeepRow onOff={() => onDialog('keepOff')} onReset={() => onDialog('historyReset')} />}
-        {/* Older Umsätze from the online banking's export, into the kept ones. */}
-        {ready && keepBookings && <ImportRow />}
-      </SettingsGroup>
+          {/* The Umsätze. Off is the default (owner to confirm). */}
+          <KeepRow onOff={() => onDialog('keepOff')} onReset={() => onDialog('historyReset')} />
+          {/* Older Umsätze from the online banking's export, into the kept ones. */}
+          {keepBookings && <ImportRow />}
+        </SettingsGroup>
+      )}
 
       {/* The guess with Gemini Nano (Android), then the user's own categories:
           made from a booking's menu, kept here. */}
@@ -421,14 +457,21 @@ function DevicesPage({ onDialog }: { onDialog: (d: DataDialog) => void }) {
     <>
       {/* Sync between devices (lib/sync.ts): once the first login's vault is loaded. */}
       {sync && (
-        <SettingsGroup title={t.sync.section}>
+        <SettingsGroup title={t.settings.groups.sync}>
           <SyncRow />
         </SettingsGroup>
       )}
 
-      {/* What is kept here, and the ways to take it elsewhere — once the saved data's state is known. */}
+      {/* What it keeps, as one file to take elsewhere, and back. */}
+      {vaultStatus === 'ready' && (
+        <SettingsGroup title={t.settings.groups.backup}>
+          <BackupRows />
+        </SettingsGroup>
+      )}
+
+      {/* What is kept here: once the saved data's state is known. */}
       {(kept || IS_DESKTOP_APP) && (
-        <SettingsGroup title={t.session.thisComputer}>
+        <SettingsGroup title={t.settings.groups.stored}>
           {vaultStatus === 'error' && (
             <SettingItem
               setting="data"
@@ -492,9 +535,6 @@ function DevicesPage({ onDialog }: { onDialog: (d: DataDialog) => void }) {
               onClick={() => onDialog('wipe')}
             />
           )}
-
-          {/* What it keeps, as one file to take elsewhere — and back. */}
-          {vaultStatus === 'ready' && <BackupRows />}
 
           {/* Said once, quietly: there is nothing the user can do about it here. */}
           {vaultStatus === 'unavailable' && (
@@ -562,17 +602,22 @@ function AppearancePage() {
   );
 }
 
-function PrivacyPage() {
+/**
+ * Sicherheit & Datenschutz → Was das Gerät verlässt: what can leave the
+ * machine besides the bank's own traffic (the Datenschutz page until
+ * 2026-11-14). Each off until the user agreed, and absent in a build that
+ * does not offer it; with neither, no group.
+ */
+function LeavesDeviceGroup() {
   const t = useT();
   const { meta, logoConsent, setLogoConsent } = useFints();
   const usage = useUsageConsent();
   // On the Nightly channel usage data is part of it (components/telemetry/NightlyUsage.tsx).
   const { state: update } = useUpdates();
   const withChannel = usageComesWithChannel(update?.channel, usage);
+  if (!meta?.merchantLogos && !usage) return null;
   return (
-    // What can leave the machine besides the bank's own traffic — each off
-    // until the user agreed, and absent in a build that does not offer it.
-    <SettingsGroup>
+    <SettingsGroup title={t.settings.groups.leavesDevice}>
       {meta?.merchantLogos && (
         <SwitchItem
           icon={<ImageIcon />}
@@ -599,10 +644,30 @@ function PrivacyPage() {
 }
 
 /**
+ * Updates: how they come. Listed only where one of its rows shows
+ * (lib/settings-pages.ts hasUpdateRows); the update's state and the button
+ * to look for one stay in Über Girovo's head.
+ */
+function UpdatesPage() {
+  return (
+    <SettingsGroup>
+      {/* The Google Play build, when Play has a newer version. */}
+      <PlayUpdateRow />
+      {/* Stable or Nightly: with the updater only. */}
+      <UpdateChannelRow />
+      {/* Staged releases at once, like Windows Update's switch. */}
+      <EarlyUpdatesRow />
+      {/* A Setup.exe downloaded by hand, checked against the signed releases. */}
+      <FromFileRow />
+    </SettingsGroup>
+  );
+}
+
+/**
  * Über Girovo: the app's name and version at its head, with the update's
- * state and the one button to look for a newer version; then how updates
- * come, where to write, the legal pages as plain links, and who makes it
- * (owner's pick, 2026-11-11: mock A in .impeccable/mocks/about).
+ * state and the one button to look for a newer version; then where to write,
+ * the legal pages as plain links, and who makes it (owner's pick, 2026-11-11:
+ * mock A in .impeccable/mocks/about). How updates come is on Updates.
  */
 function AboutPage() {
   const t = useT();
@@ -610,16 +675,6 @@ function AboutPage() {
   return (
     <>
       <AboutHead />
-      <SettingsGroup>
-        {/* The Google Play build, when Play has a newer version. */}
-        <PlayUpdateRow />
-        {/* Stable or Nightly: with the updater only. */}
-        <UpdateChannelRow />
-        {/* Staged releases at once, like Windows Update's switch. */}
-        <EarlyUpdatesRow />
-        {/* A Setup.exe downloaded by hand, checked against the signed releases. */}
-        <FromFileRow />
-      </SettingsGroup>
 
       {/* Girovo's own site, and the way to write to its maker (owner, 2026-10-23). */}
       <SettingsGroup title={t.settings.contact}>
@@ -631,7 +686,7 @@ function AboutPage() {
       <AboutFooter
         legal={[
           { label: t.settings.terms, href: termsUrl(locale) },
-          { label: t.settings.privacyPolicy, short: t.settings.pages.privacy, href: privacyUrl(locale) },
+          { label: t.settings.privacyPolicy, short: t.settings.privacyShort, href: privacyUrl(locale) },
           { label: t.settings.imprint, href: imprintUrl(locale) },
         ]}
       />

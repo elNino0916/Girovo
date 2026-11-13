@@ -1,6 +1,6 @@
 'use client';
 
-// Einstellungen → Über Girovo → Update-Kanal: which releases the updater
+// Einstellungen → Updates → Update-Kanal: which releases the updater
 // offers. Stabil and Nightly are the app's own; girovo.de can list more
 // (docs/update-channels.md, components/updates/channels.ts).
 // Only builds with an updater of their own have it — the desktop app

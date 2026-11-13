@@ -8,24 +8,26 @@ import { APP_NAME } from '../../edition.ts';
 export const de = {
   /** The pages the settings are sorted into (lib/settings-pages.ts), each shown on its own. */
   pages: {
-    security: 'Anmeldung & Sicherheit',
-    notifications: 'Benachrichtigungen',
-    accounts: 'Konten & Umsätze',
-    devices: 'Daten & Geräte',
-    appearance: 'Sprache & Darstellung',
-    privacy: 'Datenschutz',
     ask: 'Girovo AI',
+    api: 'Girovo API',
+    security: 'Sicherheit & Datenschutz',
+    notifications: 'Benachrichtigungen',
+    accounts: 'Umsätze & Kategorien',
+    devices: 'Daten & Sicherung',
+    appearance: 'Sprache & Darstellung',
+    updates: 'Updates',
     about: `Über ${APP_NAME}`,
   },
   /** The pages' names in the desktop's folded rail, under their glyphs: a word each. */
   pagesShort: {
+    ask: 'AI',
+    api: 'API',
     security: 'Sicherheit',
     notifications: 'Hinweise',
-    accounts: 'Konten',
+    accounts: 'Umsätze',
     devices: 'Daten',
     appearance: 'Darstellung',
-    privacy: 'Datenschutz',
-    ask: 'AI',
+    updates: 'Updates',
     about: 'Über',
   },
   /** Under each page's name in their list: what is on it, or how it is set. */
@@ -43,14 +45,21 @@ export const de = {
     usage: 'Nutzungsdaten',
     askOn: 'Antworten in ganzen Sätzen',
     askOff: 'Aus',
+    /** Girovo API, which has nothing to set yet. */
+    apiSoon: 'Kommt bald',
   },
   /** The subheaders inside a page. */
   groups: {
     signIn: 'Anmeldung',
     thisDevice: 'Dieses Gerät',
-    balances: 'Salden',
-    bookings: 'Umsätze',
+    /** Sicherheit & Datenschutz: company logos and usage data. */
+    leavesDevice: 'Was das Gerät verlässt',
+    atLogin: 'Beim Anmelden abrufen',
+    keepHere: 'Auf diesem Gerät behalten',
     categories: 'Kategorien',
+    sync: 'Abgleich',
+    backup: 'Sicherung',
+    stored: 'Gespeicherte Daten',
     updates: 'Updates',
     links: 'Kontakt & Rechtliches',
   },
@@ -63,6 +72,8 @@ export const de = {
   opensMail: '(öffnet die E-Mail-App)',
   source: 'Quellcode auf GitHub',
   privacyPolicy: 'Datenschutzerklärung',
+  /** The privacy policy's name where a phone's line is short. */
+  privacyShort: 'Datenschutz',
   terms: 'Nutzungsbedingungen',
   /** The provider's legal notice (§ 5 DDG), on the website. */
   imprint: 'Impressum',
@@ -189,7 +200,7 @@ export const de = {
     goesToo: 'Die PINs für deine Sicherheitsschlüssel werden dabei auch gelöscht.',
   },
   /**
-   * Über Girovo → which releases the updater offers (components/settings/UpdateChannel.tsx;
+   * Updates → which releases the updater offers (components/settings/UpdateChannel.tsx;
    * the desktop app and the GitHub APK only). `stable` and `preview` are also the row's value;
    * `preview` is the channel of the nightly builds (.github/workflows/nightly.yml), named Nightly.
    */
@@ -216,13 +227,13 @@ export const de = {
     apply: 'Übernehmen',
   },
 
-  /** Über Girovo → staged releases at once (components/settings/UpdateChannel.tsx EarlyUpdatesRow). */
+  /** Updates → staged releases at once (components/settings/UpdateChannel.tsx EarlyUpdatesRow). */
   early: {
     title: 'Neueste Updates sofort erhalten',
     hint: 'Sobald sie verfügbar sind. Sonst kommen neue Versionen nach und nach.',
   },
 
-  /** Über Girovo → a Setup.exe downloaded by hand (components/settings/UpdateChannel.tsx FromFileRow). */
+  /** Updates → a Setup.exe downloaded by hand (components/settings/UpdateChannel.tsx FromFileRow). */
   fromFile: {
     title: 'Update aus Datei installieren',
     hint: 'Eine Setup- oder Update-Datei von Girovo, auch eine ältere Version',
@@ -261,7 +272,7 @@ export const de = {
     remove: 'Löschen',
   },
 
-  /** Einstellungen → Dieses Gerät, the desktop app (components/settings/ResetApp.tsx, src-tauri/src/reset.rs). */
+  /** Einstellungen → Daten & Sicherung → Gespeicherte Daten, the desktop app (components/settings/ResetApp.tsx, src-tauri/src/reset.rs). */
   resetApp: {
     row: 'Girovo zurücksetzen',
     rowHint: 'Alles löschen, was Girovo auf diesem Rechner gespeichert hat',
@@ -306,23 +317,25 @@ export const de = {
 
 export const en: typeof de = {
   pages: {
-    security: 'Sign-in & security',
-    notifications: 'Notifications',
-    accounts: 'Accounts & transactions',
-    devices: 'Data & devices',
-    appearance: 'Language & appearance',
-    privacy: 'Privacy',
     ask: 'Girovo AI',
+    api: 'Girovo API',
+    security: 'Security & privacy',
+    notifications: 'Notifications',
+    accounts: 'Transactions & categories',
+    devices: 'Data & backup',
+    appearance: 'Language & appearance',
+    updates: 'Updates',
     about: `About ${APP_NAME}`,
   },
   pagesShort: {
+    ask: 'AI',
+    api: 'API',
     security: 'Security',
     notifications: 'Alerts',
-    accounts: 'Accounts',
+    accounts: 'Transactions',
     devices: 'Data',
     appearance: 'Appearance',
-    privacy: 'Privacy',
-    ask: 'AI',
+    updates: 'Updates',
     about: 'About',
   },
   summary: {
@@ -339,13 +352,18 @@ export const en: typeof de = {
     usage: 'Usage data',
     askOn: 'Answers in full sentences',
     askOff: 'Off',
+    apiSoon: 'Coming soon',
   },
   groups: {
     signIn: 'Sign-in',
     thisDevice: 'This device',
-    balances: 'Balances',
-    bookings: 'Transactions',
+    leavesDevice: 'What leaves this device',
+    atLogin: 'Fetch at login',
+    keepHere: 'Keep on this device',
     categories: 'Categories',
+    sync: 'Sync',
+    backup: 'Backup',
+    stored: 'Stored data',
     updates: 'Updates',
     links: 'Contact & legal',
   },
@@ -356,6 +374,7 @@ export const en: typeof de = {
   opensMail: '(opens your e-mail app)',
   source: 'Source code on GitHub',
   privacyPolicy: 'Privacy policy',
+  privacyShort: 'Privacy',
   terms: 'Terms of use',
   imprint: 'Legal notice',
   open: 'Settings',

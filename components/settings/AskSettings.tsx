@@ -1,7 +1,7 @@
 'use client';
 
-// Girovo Next: Einstellungen' page "Frag deine Umsätze" (lib/settings-pages.ts
-// 'ask'), after Datenschutz. The switch turns asking on or off everywhere
+// Girovo Next: Einstellungen' page "Girovo AI" (lib/settings-pages.ts
+// 'ask'), the first. The switch turns asking on or off everywhere
 // (vault.askOff, read by components/insights/ask-gate.ts), on the AI wash
 // with its spark; it turns on only once the model that answers is here
 // (ask-gate.ts useModelReady), so it never promises answers that cannot come.

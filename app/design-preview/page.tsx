@@ -56,7 +56,7 @@ import { IS_ANDROID } from '@/lib/platform';
 import { FloatingScrollbars } from '@/components/shell/FloatingScrollbars';
 import { EditionContext } from '@/components/shell/BrandMark';
 import { EDITION, type Edition } from '@/lib/edition';
-import { isSettingsPage, type SettingsPage } from '@/lib/settings-pages';
+import { pageFrom } from '@/lib/settings-pages';
 import { ACCT, MOCK_PAYEES, MOCK_TAN_KIND, MOCK_TAN_KINDS, SECOND_BANK, type MockTanKind } from './data';
 import { buildEpcPayload } from '@/lib/girocode';
 import { qrMatrix, qrPngBlob } from '@/lib/qr';
@@ -248,7 +248,7 @@ async function openSession(c: Ctx) {
 }
 
 /**
- * Einstellungen on its Konten & Umsätze page (settingsPage: 'accounts'),
+ * Einstellungen on its Umsätze & Kategorien page (settingsPage: 'accounts'),
  * scrolled to "Umsätze auf diesem Rechner behalten" ("… Telefon …" on a phone).
  */
 async function settingsAtKeep(c: Ctx): Promise<HTMLElement | null> {
@@ -1171,7 +1171,7 @@ const VIEWS: Record<string, ViewDef> = {
   'update-channel': {
     label: 'Update-Kanal wählen',
     group: 'Updates',
-    options: { tab: 'settings', settingsPage: 'about' },
+    options: { tab: 'settings', settingsPage: 'updates' },
     update: { scenario: 'current' },
     async script(c) {
       // The row's text begins with its glyph's name.
@@ -1181,7 +1181,7 @@ const VIEWS: Record<string, ViewDef> = {
   'update-channel-preview': {
     label: 'Auf der 6.0-Vorschau',
     group: 'Updates',
-    options: { tab: 'settings', settingsPage: 'about' },
+    options: { tab: 'settings', settingsPage: 'updates' },
     update: { scenario: 'preview' },
   },
 
@@ -1699,7 +1699,8 @@ export default function DesignPreview({ searchParams }: { searchParams: Promise<
     ...(one(params.unclear) === '1' ? { unclear: true } : {}),
     ...(SECONDS.includes(secondParam) ? { secondBank: secondParam } : {}),
     ...(isPlusScenario(plusParam) ? { plus: plusParam } : {}),
-    ...(isSettingsPage(one(params.page)) ? { settingsPage: one(params.page) as SettingsPage } : {}),
+    // An old page's id (privacy) opens where its settings are now.
+    ...(pageFrom(one(params.page)) ? { settingsPage: pageFrom(one(params.page))! } : {}),
   };
 
   const theme = one(params.theme);
@@ -1830,8 +1831,8 @@ const EXTRAS: { q: string; label: string }[] = [
   { q: 'view=overview-single&preset=error', label: 'Ein Konto, Abruf fehlgeschlagen' },
   { q: 'view=overview&privacy=1', label: 'Beträge ausgeblendet' },
   { q: 'view=overview&acct=karte&privacy=1', label: 'Kreditkarte ausgeblendet' },
-  { q: 'view=settings&logos=on&page=privacy', label: 'Einstellungen: Firmenlogos an' },
-  { q: 'view=settings&logos=unavailable&page=privacy', label: 'Einstellungen: ohne Firmenlogos' },
+  { q: 'view=settings&logos=on&page=security', label: 'Einstellungen: Firmenlogos an' },
+  { q: 'view=settings&logos=unavailable&page=security', label: 'Einstellungen: ohne Firmenlogos' },
   { q: 'view=session&unclear=1', label: 'Sitzung: Überweisung unklar' },
   { q: 'view=palette-logout&unclear=1', label: 'Suche „abm“, Überweisung unklar' },
   { q: 'view=login&logos=on', label: 'Anmeldung: Firmenlogos an' },
