@@ -493,6 +493,65 @@ export const de = {
       ['Dein Budget für ', category, ' ist fast aufgebraucht. Bis zum Monatsende bleiben noch ', rest, '.'],
     showBudget: 'Budget ansehen',
   },
+  /**
+   * Girovo Next: what Girovo AI does for you after "Ja, bitte" (lib/ask-actions.ts,
+   * components/insights/ask/ActionAnswers.tsx): a payee's category, a Sparziel,
+   * a budget, a contract's reminder, a transfer filled in. The buttons "Ja, bitte"
+   * and "Abbrechen" and "Abgebrochen" are `actions`'.
+   */
+  tasks: {
+    fileNoName: 'Welchen Empfänger meinst du? Schreib etwa: Ordne Shell Mobilität zu.',
+    fileNoCategory: (name: string) => `Zu welcher Kategorie soll ${name} kommen?`,
+    fileNotFound: (name: string) => `„${name}“ findet Girovo nicht in deinen Umsätzen.`,
+    fileHandFiled: (name: string) => `Die Umsätze von ${name} hast du selbst einsortiert. Daran ändert Girovo nichts.`,
+    fileAsk: (n: number, name: string, category: string) => (n === 1
+      ? `Der Umsatz von ${name} kommt zu ${category}, auch künftige.`
+      : `Alle ${n} Umsätze von ${name} kommen zu ${category}, auch künftige.`),
+    fileNames: (names: string) => `Dazu gehören: ${names}.`,
+    fileSkipped: 'Was du selbst einsortiert hast, bleibt, wie es ist.',
+    fileDone: (name: string, category: string) => `Erledigt, ${name} ist jetzt unter ${category}.`,
+    fileAlready: (name: string, category: string) => `${name} ist schon unter ${category}.`,
+    goalNoAmount: 'Wie viel willst du sparen? Schreib etwa: Sparziel über 500 € bis Juni.',
+    goalNoAccount: 'Für ein Sparziel brauchst du ein Sparkonto.',
+    goalAllTaken: 'Jedes deiner Sparkonten hat schon ein Ziel. Du kannst es beim Sparkonto ändern.',
+    goalTooHigh: 'So hoch kann ein Sparziel nicht sein.',
+    goalLocked: 'Sparziele lassen sich gerade nicht speichern.',
+    goalName: 'Sparziel',
+    goalAsk: (name: string, amount: ReactNode, month: string | null, account: string): ReactNode[] => [
+      'Soll Girovo für ', account, ' das Sparziel „', name, '“ über ', amount, month ? ` bis ${month}` : '', ' anlegen?',
+    ],
+    goalDone: (name: string) => `Erledigt, dein Sparziel „${name}“ ist angelegt.`,
+    budgetNoCategory: 'Für welche Kategorie? Schreib etwa: Budget für Lebensmittel 250 €.',
+    budgetNotFor: (category: string) => `Für ${category} gibt es kein Budget.`,
+    budgetTooHigh: 'So hoch kann ein Budget nicht sein.',
+    budgetAsk: (category: string, amount: ReactNode, before: ReactNode | null): ReactNode[] => (before
+      ? ['Soll Girovo das Budget für ', category, ' von ', before, ' auf ', amount, ' im Monat ändern?']
+      : ['Soll Girovo für ', category, ' ein Budget von ', amount, ' im Monat anlegen?']),
+    budgetDone: (category: string, amount: ReactNode): ReactNode[] => ['Erledigt, ', category, ' hat jetzt ', amount, ' im Monat.'],
+    budgetRemoveAsk: (category: string, amount: ReactNode): ReactNode[] => ['Soll Girovo das Budget für ', category, ' über ', amount, ' löschen?'],
+    budgetRemoved: (category: string) => `Erledigt, das Budget für ${category} ist gelöscht.`,
+    budgetNone: (category: string) => `Für ${category} ist kein Budget gesetzt.`,
+    openBudgets: 'Budgets ansehen',
+    remindNoName: 'Für welchen Vertrag? Schreib etwa: Erinner mich an die Kündigung von Spotify.',
+    remindSeveral: (names: string) => `Dazu passen mehrere: ${names}. Nenn einen davon.`,
+    remindUnknown: (name: string) => `Für ${name} kennt Girovo keine Kündigungsfrist.`,
+    remindPast: 'Dieser Tag ist schon vorbei.',
+    remindLead: { 7: 'eine Woche', 14: 'zwei Wochen', 30: 'einen Monat' } as Record<number, string>,
+    remindAsk: (name: string, day: string, lead: string) => `Soll Girovo dich ${lead} vor dem ${day} an die Kündigung von ${name} erinnern?`,
+    remindDone: (name: string, day: string) => `Erledigt, Girovo erinnert dich rechtzeitig vor dem ${day} an ${name}.`,
+    remindAlready: (name: string, day: string, lead: string) => `Girovo erinnert dich schon ${lead} vor dem ${day} an ${name}.`,
+    transferAsk: (name: string, amount: ReactNode | null): ReactNode[] => (amount
+      ? ['Soll Girovo eine Überweisung an ', name, ' über ', amount, ' vorbereiten?']
+      : ['Soll Girovo eine Überweisung an ', name, ' vorbereiten?']),
+    transferPurpose: (purpose: string) => `Verwendungszweck: ${purpose}.`,
+    transferNote: 'Du prüfst sie und gibst sie selbst frei.',
+    transferOpen: 'Überweisung öffnen',
+    transferNoName: 'An wen soll das Geld gehen? Das trägst du im Formular ein.',
+    transferNoIban: (name: string) => `Für ${name} findet Girovo keine IBAN in deinen Umsätzen.`,
+    transferSeveral: (name: string, names: string) => `Mehrere Empfänger heißen ${name}: ${names}.`,
+    transferForm: 'Formular öffnen',
+    transferOpened: 'Das Formular ist offen. Prüf alles und gib die Überweisung selbst frei.',
+  },
 };
 
 export const en: typeof de = {
@@ -881,5 +940,58 @@ export const en: typeof de = {
     budgetOver: (when, category, over, past) => [when, past ? ', you went ' : ', you’re ', over, ' over your ', category, ' budget.'],
     budgetNear: (category, rest) => ['Your ', category, ' budget is almost used up. ', rest, ' is left until the end of the month.'],
     showBudget: 'See budget',
+  },
+  tasks: {
+    fileNoName: 'Which payee do you mean? Try: file Shell under transport.',
+    fileNoCategory: (name) => `Which category should ${name} go to?`,
+    fileNotFound: (name) => `Girovo can’t find “${name}” in your transactions.`,
+    fileHandFiled: (name) => `You sorted the transactions from ${name} yourself. Girovo leaves them as they are.`,
+    fileAsk: (n, name, category) => (n === 1
+      ? `The transaction from ${name} goes to ${category}, and future ones too.`
+      : `All ${n} transactions from ${name} go to ${category}, and future ones too.`),
+    fileNames: (names) => `That covers: ${names}.`,
+    fileSkipped: 'What you sorted yourself stays as it is.',
+    fileDone: (name, category) => `Done, ${name} is now under ${category}.`,
+    fileAlready: (name, category) => `${name} is already under ${category}.`,
+    goalNoAmount: 'How much do you want to save? Try: savings goal of 500 € by June.',
+    goalNoAccount: 'You need a savings account for a savings goal.',
+    goalAllTaken: 'Each of your savings accounts already has a goal. You can change it at the account.',
+    goalTooHigh: 'A savings goal can’t be that high.',
+    goalLocked: 'Savings goals can’t be saved right now.',
+    goalName: 'Savings goal',
+    goalAsk: (name, amount, month, account) => [
+      'Should Girovo set up the savings goal “', name, '” of ', amount, month ? ` by ${month}` : '', ' for ', account, '?',
+    ],
+    goalDone: (name) => `Done, your savings goal “${name}” is set up.`,
+    budgetNoCategory: 'Which category? Try: groceries budget 250 €.',
+    budgetNotFor: (category) => `${category} can’t have a budget.`,
+    budgetTooHigh: 'A budget can’t be that high.',
+    budgetAsk: (category, amount, before) => (before
+      ? ['Should Girovo change the budget for ', category, ' from ', before, ' to ', amount, ' a month?']
+      : ['Should Girovo set a budget of ', amount, ' a month for ', category, '?']),
+    budgetDone: (category, amount) => ['Done, ', category, ' now has ', amount, ' a month.'],
+    budgetRemoveAsk: (category, amount) => ['Should Girovo delete the budget of ', amount, ' for ', category, '?'],
+    budgetRemoved: (category) => `Done, the budget for ${category} is deleted.`,
+    budgetNone: (category) => `${category} has no budget.`,
+    openBudgets: 'View budgets',
+    remindNoName: 'Which contract? Try: remind me before Spotify renews.',
+    remindSeveral: (names) => `Several match: ${names}. Name one of them.`,
+    remindUnknown: (name) => `Girovo doesn’t know the notice period for ${name}.`,
+    remindPast: 'That day has already passed.',
+    remindLead: { 7: 'a week', 14: 'two weeks', 30: 'a month' },
+    remindAsk: (name, day, lead) => `Should Girovo remind you ${lead} before ${day} to cancel ${name}?`,
+    remindDone: (name, day) => `Done, Girovo will remind you about ${name} in good time before ${day}.`,
+    remindAlready: (name, day, lead) => `Girovo already reminds you about ${name} ${lead} before ${day}.`,
+    transferAsk: (name, amount) => (amount
+      ? ['Should Girovo prepare a transfer of ', amount, ' to ', name, '?']
+      : ['Should Girovo prepare a transfer to ', name, '?']),
+    transferPurpose: (purpose) => `Reference: ${purpose}.`,
+    transferNote: 'You check it and approve it yourself.',
+    transferOpen: 'Open transfer',
+    transferNoName: 'Who should the money go to? You fill that in on the form.',
+    transferNoIban: (name) => `Girovo can’t find an IBAN for ${name} in your transactions.`,
+    transferSeveral: (name, names) => `Several recipients are called ${name}: ${names}.`,
+    transferForm: 'Open form',
+    transferOpened: 'The form is open. Check everything and approve the transfer yourself.',
   },
 };

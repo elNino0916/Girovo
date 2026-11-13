@@ -22,7 +22,8 @@ import type { FormEvent, ReactNode } from 'react';
 import { monthBefore } from '@/lib/ask-followup';
 import { checkPlan, plannerInput, plannerSystem } from '@/lib/ask-planner';
 import { readAsked } from '@/lib/ask-read';
-import { intentOf, type AskIntent, type FactIntent } from '@/lib/ask-intents';
+import { intentOf, type ActionIntent, type AskIntent, type FactIntent } from '@/lib/ask-intents';
+import { isAction } from '@/lib/ask-actions';
 import { isFact } from '@/lib/ask-facts';
 import { seriesTitle } from '@/lib/recurring';
 import { setThemePref } from '@/lib/theme';
@@ -53,6 +54,7 @@ import { AskNotes, thisMonth } from './ask/Notes';
 import { ListLine, ListRows, RankLine, RankRows } from './ask/ListAnswer';
 import { useCanAsk } from './ask-gate';
 import { FactAnswer } from './ask/FactAnswers';
+import { ActionAnswer } from './ask/ActionAnswers';
 import {
   askInThread, clearAsk, closeAsk, currentConversation, deleteAllConversations, deleteConversation, dropCurrent, hiddenRecaps,
   newConversation, openAskWithRecap, settleOutcome, settleTurn, settleWritten, showConversation, updateTurnQuery, useAskThread, type Turn,
@@ -138,7 +140,7 @@ export function AskReader() {
           const q = turn.question;
           const today = dayKey(new Date());
           // Verträge & Abos, a setting, a change: by the rules, before any model reads it.
-          const intent = intentOf(q, contracts);
+          const intent = intentOf(q, contracts, undefined, own);
           if (intent) {
             settleTurn(turn.id, { state: 'answered', intent });
             return;
@@ -530,6 +532,7 @@ function IntentAnswer({ turn, intent, onShown }: { turn: Turn; intent: AskIntent
   if (intent.kind === 'contracts') return <ContractsAnswer onShown={onShown} />;
   if (intent.kind === 'read') return <SettingsAnswer setting={intent.setting} />;
   if (isFact(intent)) return <FactAnswer intent={intent} onShown={onShown} />;
+  if (isAction(intent)) return <ActionAnswer turn={turn} intent={intent} onShown={onShown} />;
   return <ChangeAnswer turn={turn} intent={intent} />;
 }
 
@@ -590,7 +593,7 @@ function SettingsAnswer({ setting }: { setting: Extract<AskIntent, { kind: 'read
  * A change, asked first: the question, "Ja, bitte" and "Abbrechen". Made only
  * on the yes; then what happened, in a word. Already so: said, nothing asked.
  */
-function ChangeAnswer({ turn, intent }: { turn: Turn; intent: Exclude<AskIntent, { kind: 'contracts' } | { kind: 'read' } | FactIntent> }) {
+function ChangeAnswer({ turn, intent }: { turn: Turn; intent: Exclude<AskIntent, { kind: 'contracts' } | { kind: 'read' } | FactIntent | ActionIntent> }) {
   const words = useT().ask.actions;
   const theme = useThemePref();
   const { privacy, togglePrivacy, loadAllBalances } = useFints();
