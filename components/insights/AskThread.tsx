@@ -674,8 +674,14 @@ function GirovoTile({ children, phase = null }: { children: ReactNode; phase?: P
       <span className="sr-only">{words.girovo}</span>
       <AiMarkIcon size={16} className={cx('mb-1.5 block', phase && 'ask-breathe')} aria-hidden />
       {phase ? <Thinking phase={phase} /> : <div className="ask-reveal">{children}</div>}
+      {!phase && <Mistakes />}
     </div>
   );
+}
+
+/** The small line under every answer of Girovo AI. */
+function Mistakes() {
+  return <p className="mt-2 text-[12px] leading-4 text-ink-2">{useT().ask.thread.mistakes}</p>;
 }
 
 function TurnView({ turn, data, ctx, own, onShown, latest }: {
@@ -996,6 +1002,7 @@ export function MonthRecap({ narrower = false }: { narrower?: boolean }) {
       </div>
       <RecapText recap={recap} own={own} />
       <AskNotes data={data} ctx={ctx} own={own} month={month} />
+      <Mistakes />
       <div className="mt-3 flex flex-wrap gap-2">
         <Button variant="secondary" size="sm" onClick={() => openAskWithRecap(month, words.conversation(name))}>{words.more}</Button>
       </div>

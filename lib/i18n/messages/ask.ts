@@ -98,6 +98,8 @@ export const de = {
     empty: 'Frag etwas zu deinen Umsätzen. Girovo antwortet in ganzen Sätzen.',
     you: 'Du:',
     girovo: 'Girovo:',
+    /** Under every answer of Girovo AI, small. */
+    mistakes: 'Girovo AI kann Fehler machen.',
     show: (n: number) => (n === 1 ? 'Umsatz zeigen' : `${n} Umsätze zeigen`),
     copy: 'Antwort kopieren',
     copied: 'Antwort kopiert',
@@ -525,6 +527,7 @@ export const en: typeof de = {
     empty: 'Ask something about your transactions. Girovo answers in full sentences.',
     you: 'You:',
     girovo: 'Girovo:',
+    mistakes: 'Girovo AI can make mistakes.',
     show: (n) => (n === 1 ? 'Show transaction' : `Show ${n} transactions`),
     copy: 'Copy answer',
     copied: 'Answer copied',
