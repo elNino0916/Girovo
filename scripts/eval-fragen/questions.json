@@ -250,6 +250,25 @@
     {"id":"e041","lang":"en","turns":[{"q":"balance on October 1st","expect":{"intent":"balanceAt","day":"2026-10-01"}}],"note":"past balance (lib/ask-facts.ts balanceAt)"},
     {"id":"e042","lang":"en","turns":[{"q":"How much money did I have in July?","expect":{"intent":"balanceAt","day":"2026-07-31"}}],"note":"past balance (lib/ask-facts.ts balanceAt)"},
     {"id":"e043","lang":"en","turns":[{"q":"Who still owes me money?","expect":{"intent":"owed","name":null}}],"note":"Aufteilen requests (lib/split-requests.ts)"},
-    {"id":"e044","lang":"en","turns":[{"q":"How much does Max still owe me?","expect":{"intent":"owed","name":"max"}}],"note":"Aufteilen requests (lib/split-requests.ts)"}
+    {"id":"e044","lang":"en","turns":[{"q":"How much does Max still owe me?","expect":{"intent":"owed","name":"max"}}],"note":"Aufteilen requests (lib/split-requests.ts)"},
+    {"id":"d240","lang":"de","turns":[{"q":"ordne alle shell buchungen mobilität zu","expect":{"intent":"fileUnder","name":"shell","category":"mobility"}}],"note":"Girovo AI does it after \"Ja, bitte\" (lib/ask-actions.ts)"},
+    {"id":"d241","lang":"de","turns":[{"q":"rewe soll immer lebensmittel sein","expect":{"intent":"fileUnder","name":"rewe","category":"groceries"}}],"note":"Girovo AI does it after \"Ja, bitte\" (lib/ask-actions.ts)"},
+    {"id":"d242","lang":"de","turns":[{"q":"leg ein sparziel über 500 € bis juni an","expect":{"intent":"createGoal","cents":50000,"by":"2027-06"}}],"note":"Girovo AI does it after \"Ja, bitte\" (lib/ask-actions.ts)"},
+    {"id":"d243","lang":"de","turns":[{"q":"ich will für urlaub 1.000 € sparen","expect":{"intent":"createGoal","name":"urlaub","cents":100000,"by":null}}],"note":"Girovo AI does it after \"Ja, bitte\" (lib/ask-actions.ts)"},
+    {"id":"d244","lang":"de","turns":[{"q":"leg für essen ein budget von 300 € an","expect":{"intent":"budget","category":"dining","cents":30000}}],"note":"Girovo AI does it after \"Ja, bitte\" (lib/ask-actions.ts)"},
+    {"id":"d245","lang":"de","turns":[{"q":"budget lebensmittel 250 im monat","expect":{"intent":"budget","category":"groceries","cents":25000}}],"note":"Girovo AI does it after \"Ja, bitte\" (lib/ask-actions.ts)"},
+    {"id":"d246","lang":"de","turns":[{"q":"budget für essen löschen","expect":{"intent":"budget","category":"dining","remove":true}}],"note":"Girovo AI does it after \"Ja, bitte\" (lib/ask-actions.ts)"},
+    {"id":"d247","lang":"de","turns":[{"q":"erinner mich vor der verlängerung von spotify","expect":{"intent":"remindContract","name":"spotify"}}],"note":"Girovo AI does it after \"Ja, bitte\" (lib/ask-actions.ts)"},
+    {"id":"d248","lang":"de","turns":[{"q":"erinnere mich an die kündigungsfrist von meinem handyvertrag","expect":{"intent":"remindContract","name":"handyvertrag"}}],"note":"Girovo AI does it after \"Ja, bitte\" (lib/ask-actions.ts)"},
+    {"id":"d249","lang":"de","turns":[{"q":"erinner mich eine woche vor dem 31.3. an die kündigung von netflix","expect":{"intent":"remindContract","name":"netflix","by":"2027-03-31"}}],"note":"Girovo AI does it after \"Ja, bitte\" (lib/ask-actions.ts)"},
+    {"id":"d250","lang":"de","turns":[{"q":"bereite eine überweisung an lea über 20 € vor","expect":{"intent":"prepareTransfer","name":"lea","cents":2000}}],"note":"Girovo AI does it after \"Ja, bitte\" (lib/ask-actions.ts)"},
+    {"id":"d251","lang":"de","turns":[{"q":"überweis mama 50 euro für pizza","expect":{"intent":"prepareTransfer","name":"mama","cents":5000}}],"note":"Girovo AI does it after \"Ja, bitte\" (lib/ask-actions.ts)"},
+    {"id":"d252","lang":"de","turns":[{"q":"kannst du lea 20 euro überweisen","expect":{"intent":"prepareTransfer","name":"lea","cents":2000}}],"note":"Girovo AI does it after \"Ja, bitte\" (lib/ask-actions.ts)"},
+    {"id":"e060","lang":"en","turns":[{"q":"file shell under transport","expect":{"intent":"fileUnder","name":"shell","category":"mobility"}}],"note":"Girovo AI does it after \"Ja, bitte\" (lib/ask-actions.ts)"},
+    {"id":"e061","lang":"en","turns":[{"q":"set a groceries budget of 250","expect":{"intent":"budget","category":"groceries","cents":25000}}],"note":"Girovo AI does it after \"Ja, bitte\" (lib/ask-actions.ts)"},
+    {"id":"e062","lang":"en","turns":[{"q":"i want to save 1000 euros for a new bike by june","expect":{"intent":"createGoal","name":"bike","cents":100000,"by":"2027-06"}}],"note":"Girovo AI does it after \"Ja, bitte\" (lib/ask-actions.ts)"},
+    {"id":"e063","lang":"en","turns":[{"q":"remind me before my netflix renews","expect":{"intent":"remindContract","name":"netflix"}}],"note":"Girovo AI does it after \"Ja, bitte\" (lib/ask-actions.ts)"},
+    {"id":"e064","lang":"en","turns":[{"q":"send 20 euros to lea for pizza","expect":{"intent":"prepareTransfer","name":"lea","cents":2000}}],"note":"Girovo AI does it after \"Ja, bitte\" (lib/ask-actions.ts)"},
+    {"id":"e065","lang":"en","turns":[{"q":"delete my eating out budget","expect":{"intent":"budget","category":"dining","remove":true}}],"note":"Girovo AI does it after \"Ja, bitte\" (lib/ask-actions.ts)"}
 ]
 }

@@ -6,14 +6,17 @@
 // - set         "Mach das helle Design an", "Beträge ausblenden", "Stell auf Englisch": a change, asked first
 // - refresh     "Aktualisiere alle Konten": every balance read again, asked first (it can cost a Freigabe)
 // - balance, balanceAt, monthEnd, contractCost, priceRises, salary, owed, goal: the app's own figures (lib/ask-facts.ts)
+// - fileUnder, createGoal, budget, remindContract, prepareTransfer: things done for you, asked first (lib/ask-actions.ts)
 //
 // Rules only: the words are few and plain, and a change is never made on a
 // model's guess. Every change waits for the user's "Ja" in the thread.
 //
 // Pure: no path aliases, `.ts` on sibling imports.
 
+import { actionOf, type ActionIntent, type OwnCategory } from './ask-actions.ts';
 import { factOf, type FactIntent } from './ask-facts.ts';
 
+export type { ActionIntent } from './ask-actions.ts';
 export type { FactIntent } from './ask-facts.ts';
 
 export type ThemeValue = 'light' | 'dark' | 'system';
@@ -25,7 +28,8 @@ export type AskIntent =
   | { kind: 'set'; setting: 'privacy'; value: boolean }
   | { kind: 'set'; setting: 'language'; value: 'de' | 'en' }
   | { kind: 'refresh' }
-  | FactIntent;
+  | FactIntent
+  | ActionIntent;
 
 const fold = (s: string) => ` ${s.toLocaleLowerCase('de').replace(/[?!.,;:„“"'()]/g, ' ').replace(/\s+/g, ' ').trim()} `;
 
@@ -59,10 +63,14 @@ const IDLE = / (?:abmelden|abmeldung|automatisch abgemeldet|logout|log out|timeo
 
 /**
  * What a message wants, when it is not (only) a question about the bookings' sums; null for those.
- * `contracts`: the live contracts' names (lib/ask-facts.ts factOf); `today` for a past balance's day.
+ * `contracts`: the live contracts' names (lib/ask-facts.ts factOf); `today` for a past balance's day;
+ * `own`: the user's own categories, for a payee filed or a budget set under one of them.
  */
-export function intentOf(question: string, contracts: readonly string[] = [], today?: string): AskIntent | null {
+export function intentOf(question: string, contracts: readonly string[] = [], today?: string, own: readonly OwnCategory[] = []): AskIntent | null {
   const q = fold(question);
+  // Something to do, before anything is read as a question: a category rule, a Sparziel, a budget, a reminder, a transfer.
+  const action = actionOf(question, own, today);
+  if (action) return action;
   const asking = ASK_STATE.test(q) || / (?:an|aus|on|off) $/.test(q) && /^ (?:ist|is|sind|are) /.test(q);
 
   if (REFRESH.test(q) && ACCOUNTS.test(q)) return { kind: 'refresh' };

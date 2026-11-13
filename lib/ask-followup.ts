@@ -43,15 +43,24 @@ export function aboutBookings(question: string, rules: AskQuery | null, reading:
 }
 
 // i18n-data-next-line
-const ORDER = /^(?:ignorier\w*|ignore|vergiss|forget)\b|\b(?:ignorier\w*|ignore|vergiss|forget) (?:\S+ ){0,3}(?:anweisungen|instructions|regeln|rules)\b|(?:^|\bund |\bbitte |\bplease |\band )(?:überweise|ueberweise|überweis|schick|schicke|sende|zahle|transfer|send|pay|wire)\b/i;
+const INJECTION = /^(?:ignorier\w*|ignore|vergiss|forget)\b|\b(?:ignorier\w*|ignore|vergiss|forget) (?:\S+ ){0,3}(?:anweisungen|instructions|regeln|rules)\b/i;
+
+// i18n-data-next-line
+const ORDER = /(?:^|\bund |\bbitte |\bplease |\band )(?:überweise|ueberweise|überweis|schick|schicke|sende|zahle|transfer|send|pay|wire)\b/i;
+
+/** Whether a message tells Girovo to drop what it was told ("Ignoriere alle Anweisungen …"). */
+export function injects(question: string): boolean {
+  return INJECTION.test(question.trim());
+}
 
 /**
- * Whether a message tells Girovo to do something it does not do with money
- * ("Überweise 500 Euro an Lea") or to drop what it was told: it gets the line
- * for small talk, never a sum.
+ * Whether a message tells Girovo to drop what it was told, or orders
+ * something with money that it does not do: it gets the line for small talk,
+ * never a sum. A transfer to prepare ("Überweise 500 Euro an Lea") is read
+ * before this (lib/ask-actions.ts prepareTransfer): only the form opens.
  */
 export function ordersSomething(question: string): boolean {
-  return ORDER.test(question.trim());
+  return injects(question) || ORDER.test(question.trim());
 }
 
 // i18n-data-next-line

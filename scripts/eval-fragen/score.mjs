@@ -7,7 +7,10 @@
 //   intent (+ setting, value, name, day)                                (contracts, read, set, refresh, and the
 //                                                                         app's figures: balance, monthEnd, contractCost,
 //                                                                         priceRises, salary, owed, goal, and
-//                                                                         balanceAt, whose day is a yyyy-mm-dd)
+//                                                                         balanceAt, whose day is a yyyy-mm-dd;
+//                                                                         the actions fileUnder, createGoal, budget,
+//                                                                         remindContract, prepareTransfer, with
+//                                                                         name, category, cents, by, remove)
 //   offTopic: true                                                      (small talk, nonsense, injections)
 //   anyOf: [expect, …]                                                  (any one of these readings is right;
 //                                                                         fields beside anyOf apply to each)
@@ -47,8 +50,10 @@ function what(result) {
 function scoreOne(result, expect, today) {
   const misses = [];
   if (expect.offTopic) {
-    // Not understood is as good as small talk here: neither answers with a sum.
-    if (!result || !('offTopic' in result || 'notUnderstood' in result)) misses.push(`offTopic: want offTopic, got ${what(result)}`);
+    // Not understood is as good as small talk here: neither answers with a sum. So is a transfer order
+    // read as one to prepare (lib/ask-actions.ts prepareTransfer): Girovo only opens the form, it never sends.
+    const prepared = !!result && 'intent' in result && result.intent.kind === 'prepareTransfer';
+    if (!result || !('offTopic' in result || 'notUnderstood' in result || prepared)) misses.push(`offTopic: want offTopic, got ${what(result)}`);
     return misses;
   }
   if (expect.intent) {
@@ -58,11 +63,16 @@ function scoreOne(result, expect, today) {
     if ('setting' in expect && !alts(expect.setting).includes(got.setting)) misses.push(`setting: want ${show(expect.setting)}, got ${show(got.setting)}`);
     if ('value' in expect && !alts(expect.value).includes(got.value)) misses.push(`value: want ${show(expect.value)}, got ${show(got.value)}`);
     // The contract, person or goal a fact is about: a lowercase piece of it, or null for none.
-    if ('name' in expect && !alts(expect.name).some((want) => (want == null ? got.name == null : String(got.name ?? '').includes(String(want).toLocaleLowerCase('de'))))) {
+    // An action's name is kept as typed ("Shell"): compared in lowercase too.
+    if ('name' in expect && !alts(expect.name).some((want) => (want == null ? got.name == null : String(got.name ?? '').toLocaleLowerCase('de').includes(String(want).toLocaleLowerCase('de'))))) {
       misses.push(`name: want ${show(expect.name)}, got ${show(got.name ?? null)}`);
     }
     // A past balance's day (balanceAt).
     if ('day' in expect && !alts(expect.day).includes(got.day)) misses.push(`day: want ${show(expect.day)}, got ${show(got.day ?? null)}`);
+    // An action's figures (lib/ask-actions.ts): its category, amount in cents, month or day, a budget removed.
+    for (const field of ['category', 'cents', 'by', 'remove']) {
+      if (field in expect && !alts(expect[field]).includes(got[field] ?? null)) misses.push(`${field}: want ${show(expect[field])}, got ${show(got[field] ?? null)}`);
+    }
     return misses;
   }
   const query = result && 'query' in result ? result.query : null;

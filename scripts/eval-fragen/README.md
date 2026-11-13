@@ -60,8 +60,8 @@ Add an item to `questions.json`. Give it the next free id (`d…` German, `e…`
 | `search` | a lowercase piece the reading's name must contain (`"rewe"`), or null for no name |
 | `period`, `against` | an AskPeriod, compared by the days it spans on the set's `today` (2026-11-12), so `lastMonth` equals `{ "kind": "month", "month": "2026-10" }` |
 | `rankBy`, `rankMetric` | for a ranking: category or payee, sum or count |
-| `intent` | contracts, read, set, refresh, with `setting` and `value` where they matter; or one of the app's figures (`lib/ask-facts.ts`): balance, monthEnd, contractCost, priceRises, salary, owed, goal, with `name` (a lowercase piece of the contract, person or goal, or null) where it matters |
-| `offTopic` | true for small talk, nonsense and orders Girovo cannot carry out |
+| `intent` | contracts, read, set, refresh, with `setting` and `value` where they matter; or one of the app's figures (`lib/ask-facts.ts`): balance, monthEnd, contractCost, priceRises, salary, owed, goal, with `name` (a lowercase piece of the contract, person or goal, or null) where it matters; or something Girovo does after "Ja, bitte" (`lib/ask-actions.ts`): fileUnder, createGoal, budget, remindContract, prepareTransfer, with `name`, `category`, `cents`, `by` (a yyyy-mm or yyyy-mm-dd) or `remove` where they matter |
+| `offTopic` | true for small talk, nonsense and orders Girovo cannot carry out. A transfer order read as prepareTransfer counts too: Girovo only opens the form |
 
 The set's top-level `contracts` lists the Verträge & Abos it assumes (Netflix, Spotify): "was kostet mich netflix im jahr" is a contract's year only for one of them, any other name is a sum of the bookings.
 

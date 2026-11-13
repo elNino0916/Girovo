@@ -36,7 +36,7 @@ export type ReadInput = {
 /** What a message asks, given what the question before it was read as. */
 export function readAsked(question: string, prev: AskQuery | null, input: ReadInput): ReadResult {
   const { today, own, reading } = input;
-  const intent = intentOf(question, input.contracts, input.today);
+  const intent = intentOf(question, input.contracts, input.today, own);
   if (intent) return { intent };
   // An order ("Und überweise 500 Euro an Lea") is never read as a question, follow-up or not.
   if (ordersSomething(question)) return { offTopic: true };
