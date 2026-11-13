@@ -44,7 +44,7 @@ import { useFints } from '../FintsProvider';
 import { Money } from '../Money';
 import { ArrowRightIcon, BackIcon, CloseIcon, AiMarkIcon, HistoryIcon, PlusIcon, TrashIcon } from '../icons';
 import { usePhone } from '../shell/usePhone';
-import { Button, Dialog, IconButton, Menu, MenuItem, MenuSeparator, Overlay, cx } from '../ui';
+import { Button, IconButton, Menu, MenuItem, MenuSeparator, Overlay, cx } from '../ui';
 import { searchText, txText } from '../transactions/model';
 import { openTxDetail } from '../transactions/detail-host';
 import { useScopeData, type ScopeData } from './analysis-model';
@@ -56,7 +56,7 @@ import { useCanAsk } from './ask-gate';
 import { FactAnswer } from './ask/FactAnswers';
 import { ActionAnswer } from './ask/ActionAnswers';
 import {
-  askInThread, clearAsk, closeAsk, currentConversation, deleteAllConversations, deleteConversation, dropCurrent, hiddenRecaps,
+  askInThread, clearAsk, closeAsk, currentConversation, deleteAllConversations, deleteConversation, hiddenRecaps,
   newConversation, openAskWithRecap, settleOutcome, settleTurn, settleWritten, showConversation, updateTurnQuery, useAskThread, type Turn,
 } from './ask-thread-store';
 import { ReadingChips } from './ask/ReadingChips';
@@ -878,6 +878,7 @@ function Thread({ face, onClose }: { face: 'screen' | 'panel'; onClose: () => vo
             autoComplete="off"
             maxLength={160}
             data-autofocus={IS_ANDROID ? '' : 'fine'}
+            data-ask-field
             className="min-w-0 flex-1 bg-transparent text-[16px] leading-6 text-ink outline-none placeholder:text-ink-2 sm:text-[14px]"
           />
           <button
@@ -895,65 +896,18 @@ function Thread({ face, onClose }: { face: 'screen' | 'panel'; onClose: () => vo
   );
 }
 
-/**
- * Once, the first time the thread opens: what asking does. A sibling of the
- * thread's layer, never inside it, so it stacks above it and the thread's
- * inert page stays inert when it closes. "Später" leaves without asking: the
- * conversation it was opened with goes.
- */
-function AskIntro() {
-  const t = useT();
-  const words = t.ask.thread.intro;
-  const { vault, updateVault } = useFints();
-  const [done, setDone] = useState(false);
-  const later = () => {
-    setDone(true);
-    dropCurrent();
-  };
-  return (
-    <Dialog
-      open={!!vault && !vault.askIntroSeen && !done}
-      onClose={later}
-      title={words.title}
-      icon={<AiMarkIcon size={22} />}
-      actions={(
-        <>
-          <Button variant="tertiary" onClick={later}>{words.later}</Button>
-          <Button
-            onClick={() => {
-              setDone(true);
-              updateVault((v) => (v.askIntroSeen ? v : { ...v, askIntroSeen: true }));
-            }}
-          >
-            {words.go}
-          </Button>
-        </>
-      )}
-    >
-      <ul className="flex flex-col gap-2 text-[16px] leading-6 text-ink">
-        <li>{words.sentences}</li>
-        <li>{words.figures}</li>
-      </ul>
-    </Dialog>
-  );
-}
-
 /** The phone's face (and the classic shell's at any width): a full-screen view over the app. */
 export function AskThreadScreen() {
   const s = useAskThread();
   const canAsk = useCanAsk();
   const phone = usePhone();
   const t = useT();
-  const open = s.open && canAsk;
   return (
-    <>
-      <Overlay open={open} onClose={closeAsk} align="right" label={t.ask.thread.title}>
-        <div className={cx('anim-drawer flex h-dvh w-full flex-col bg-paper', !phone && 'max-w-[480px] shadow-[var(--shadow-pop)]')}>
-          <Thread face="screen" onClose={closeAsk} />
-        </div>
-      </Overlay>
-      {open && <AskIntro />}
-    </>
+    <Overlay open={s.open && canAsk} onClose={closeAsk} align="right" label={t.ask.thread.title}>
+      <div className={cx('anim-drawer flex h-dvh w-full flex-col bg-paper', !phone && 'max-w-[480px] shadow-[var(--shadow-pop)]')}>
+        <Thread face="screen" onClose={closeAsk} />
+      </div>
+    </Overlay>
   );
 }
 
@@ -965,7 +919,6 @@ export function AskPanel() {
   return (
     <aside className="flex w-[420px] shrink-0 flex-col border-l border-line">
       <Thread face="panel" onClose={closeAsk} />
-      <AskIntro />
     </aside>
   );
 }

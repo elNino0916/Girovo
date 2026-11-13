@@ -509,6 +509,13 @@
       color-mix(in srgb, #9b5cf0 12%, transparent) 55%,
       color-mix(in srgb, #0060a8 10%, transparent) 100%
     );
+    /* Stronger, for the one moment the wash is the whole surface ("Girovo AI ist bereit", components/insights/ai/AiReady.tsx). */
+    --ai-wash-strong: linear-gradient(
+      115deg,
+      color-mix(in srgb, #7b4fe0 34%, transparent) 0%,
+      color-mix(in srgb, #b085ff 20%, transparent) 55%,
+      color-mix(in srgb, #0060a8 14%, transparent) 100%
+    );
   }
   :root[data-look='material'][data-theme='dark'] {
     --ai-mark: #b085ff;
@@ -517,6 +524,12 @@
       color-mix(in srgb, #b085ff 20%, transparent) 0%,
       color-mix(in srgb, #9b5cf0 12%, transparent) 55%,
       color-mix(in srgb, #a2c9ff 8%, transparent) 100%
+    );
+    --ai-wash-strong: linear-gradient(
+      115deg,
+      color-mix(in srgb, #b085ff 30%, transparent) 0%,
+      color-mix(in srgb, #9b5cf0 18%, transparent) 55%,
+      color-mix(in srgb, #a2c9ff 12%, transparent) 100%
     );
   }
   :root[data-look='material'] [data-settings-group] > [data-item][data-tone='ai'] {
@@ -883,3 +896,245 @@
   to { opacity: 1; scale: 1; }
 }
 
+
+/* ---- "Girovo AI ist bereit" (components/insights/ai/AiReady.tsx) ----------
+   The moment Girovo AI is ready: on a phone the whole screen, from 640px a
+   560px card over the scrim. The violet wash opens out of the mark, the mark
+   draws itself arm by arm in its halo, then the words and the three questions
+   rise in. Every end state is the plain style; the motion only plays where
+   nobody asked for less of it (prefers-reduced-motion), so with less motion
+   the moment is simply there. */
+.ai-ready-layer {
+  --ai-ready-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ai-ready-snap: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ai-ready-origin: 50% 30%;
+  /* What the halo and the rows are lifted with above the wash: white by day, the raised tone by night. */
+  --ai-ready-lift: var(--md-surface-container-lowest);
+}
+:root[data-theme='dark'] .ai-ready-layer {
+  --ai-ready-lift: var(--md-surface-container-high);
+}
+@media (max-width: 639.98px) {
+  .ai-ready-layer {
+    padding: 0;
+    align-items: stretch;
+  }
+}
+.ai-ready {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  background-color: var(--paper);
+  color: var(--ink);
+}
+.ai-ready::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: var(--ai-wash-strong);
+  clip-path: circle(150% at var(--ai-ready-origin));
+  pointer-events: none;
+}
+.ai-ready-body {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: max(12px, env(safe-area-inset-top, 0px)) 24px max(24px, env(safe-area-inset-bottom, 0px));
+}
+.ai-ready-skip {
+  align-self: flex-end;
+  flex: none;
+}
+.ai-ready-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: clamp(16px, 10dvh, 96px);
+  text-align: center;
+}
+.ai-ready-halo {
+  display: grid;
+  flex: none;
+  width: 112px;
+  height: 112px;
+  place-items: center;
+  border-radius: 50%;
+  background-color: color-mix(in srgb, var(--ai-ready-lift) 55%, transparent);
+  box-shadow:
+    0 10px 30px color-mix(in srgb, var(--ai-mark) 22%, transparent),
+    0 2px 8px color-mix(in srgb, var(--ai-mark) 14%, transparent);
+}
+.ai-ready-mark {
+  display: block;
+  flex: none;
+  overflow: visible;
+  color: var(--ai-mark);
+}
+.ai-ready-halo .ai-ready-mark {
+  width: 56px;
+  height: 56px;
+}
+.ai-ready-arm {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+}
+.ai-ready-dia {
+  opacity: 0.55;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.ai-ready-title {
+  margin-top: 28px;
+  font-size: 36px;
+  line-height: 44px;
+  font-weight: 500;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+  color: var(--ink);
+}
+.ai-ready-lead {
+  max-width: 28ch;
+  margin-top: 12px;
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--ink-2);
+}
+.ai-ready-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 32px;
+}
+/* An example question: one tap asks it. */
+.ai-ready-ex {
+  display: flex;
+  width: 100%;
+  min-height: 48px;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 0;
+  border-radius: 16px;
+  background-color: color-mix(in srgb, var(--ai-ready-lift) 70%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ai-mark) 22%, transparent);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+  line-height: 22px;
+  text-align: left;
+  cursor: pointer;
+  transition: box-shadow var(--m3e-effects-fast-ms, 150ms) var(--m3e-effects-fast, ease);
+}
+.ai-ready-ex .ai-ready-mark {
+  width: 16px;
+  height: 16px;
+}
+@media (hover: hover) {
+  .ai-ready-ex:hover {
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--ai-mark) 22%, transparent),
+      inset 0 0 0 100vmax color-mix(in srgb, var(--ink) 6%, transparent);
+  }
+}
+.ai-ready-ex:active {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--ai-mark) 22%, transparent),
+    inset 0 0 0 100vmax color-mix(in srgb, var(--ink) 10%, transparent);
+}
+.ai-ready-ex:focus-visible {
+  outline: 2px solid var(--ai-mark);
+  outline-offset: 2px;
+}
+.ai-ready-end {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+.ai-ready-fine {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-2);
+}
+@media (min-width: 640px) {
+  .ai-ready {
+    width: 560px;
+    max-width: 100%;
+    height: 640px;
+    max-height: 100%;
+    border-radius: 28px;
+    background-color: var(--raised);
+    box-shadow: var(--shadow-pop);
+  }
+  .ai-ready-body {
+    padding: 12px 24px 24px;
+  }
+  .ai-ready-hero {
+    margin-top: clamp(8px, 4dvh, 40px);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ai-ready::before {
+    animation: ai-ready-open 1.1s var(--ai-ready-out) 0.15s both;
+  }
+  .ai-ready-halo {
+    animation: ai-ready-halo 0.7s var(--ai-ready-snap) 0.05s both;
+  }
+  .ai-ready-halo .ai-ready-arm {
+    animation: ai-ready-draw 0.55s var(--ai-ready-out) var(--ai-ready-delay, 0s) both;
+  }
+  .ai-ready-halo .ai-ready-dia {
+    animation: ai-ready-twinkle 0.5s var(--ai-ready-snap) var(--ai-ready-delay, 0s) both;
+  }
+  .ai-ready-rise {
+    animation: ai-ready-rise 0.6s var(--ai-ready-out) var(--ai-ready-delay, 0s) both;
+  }
+  .ai-ready-fade {
+    animation: ai-ready-fade 0.5s var(--ai-ready-out) var(--ai-ready-delay, 0s) both;
+  }
+}
+@media (prefers-reduced-motion: no-preference) and (min-width: 640px) {
+  .ai-ready {
+    animation: ai-ready-pop 0.45s var(--ai-ready-out) both;
+  }
+}
+@keyframes ai-ready-open {
+  from { clip-path: circle(0% at var(--ai-ready-origin)); }
+  to { clip-path: circle(150% at var(--ai-ready-origin)); }
+}
+@keyframes ai-ready-halo {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes ai-ready-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes ai-ready-twinkle {
+  0% { opacity: 0; transform: scale(0.2); }
+  60% { opacity: 0.7; transform: scale(1.25); }
+  100% { opacity: 0.55; transform: scale(1); }
+}
+@keyframes ai-ready-rise {
+  from { opacity: 0; transform: translateY(10px); filter: blur(4px); }
+  to { opacity: 1; transform: none; filter: blur(0); }
+}
+@keyframes ai-ready-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes ai-ready-pop {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: none; }
+}

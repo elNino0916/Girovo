@@ -72,8 +72,14 @@ export function AskPage() {
   // On unless switched off (the field is there only while it is off), and only with the model here.
   const ready = useModelReady() === true;
   const on = ready && !vault?.askOff;
+  // Off forgets that "Girovo AI ist bereit" was seen (components/insights/ai/AiReady.tsx): the next "on" shows it again.
   const setOn = (next: boolean) => updateVault((v) => {
-    if (!next) return v.askOff ? v : { ...v, askOff: true };
+    if (!next) {
+      if (v.askOff && !v.askIntroSeen) return v;
+      const off = { ...v, askOff: true as const };
+      delete off.askIntroSeen;
+      return off;
+    }
     if (!v.askOff) return v;
     const rest = { ...v };
     delete rest.askOff;
@@ -161,7 +167,18 @@ function ModelDownloadRow() {
   const words = t.settings.ask;
   const { locale } = useLocale();
   const gemma = useGemma();
+  const { updateVault } = useFints();
   const g = typeof window === 'undefined' ? undefined : window.electronGemma;
+  // The model gone, "Girovo AI ist bereit" shows again once it is back (components/insights/ai/AiReady.tsx).
+  const removeReady = () => {
+    updateVault((v) => {
+      if (!v.askIntroSeen) return v;
+      const rest = { ...v };
+      delete rest.askIntroSeen;
+      return rest;
+    });
+    void g?.remove();
+  };
   // Nothing to show until the shell answers, and nothing where no runtime is pinned for this system (an odd architecture).
   if (!gemma || !g || !gemma.supported) return null;
   const intl = locale === 'en' ? 'en-GB' : 'de-DE';
@@ -173,7 +190,7 @@ function ModelDownloadRow() {
         summary={words.aiReady}
         // Loaded, but it would not start on this computer (this run): the shell says so; the templates answer meanwhile.
         below={gemma.unavailable && gemma.error ? <span className="block text-[14px] leading-5 text-ink-2">{gemma.error}</span> : undefined}
-        trailing={<Button variant="tertiary" size="sm" onClick={() => void g.remove()}>{words.remove}</Button>}
+        trailing={<Button variant="tertiary" size="sm" onClick={removeReady}>{words.remove}</Button>}
       />
     );
   }

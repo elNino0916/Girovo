@@ -223,11 +223,6 @@ export function deleteAllConversations(): void {
   set({ ...state, current: null, conversations: [] });
 }
 
-/** "Später" on the first-use sheet: the conversation it was opened with goes, unasked. */
-export function dropCurrent(): void {
-  set({ open: false, current: null, conversations: state.conversations.filter((c) => c.id !== state.current) });
-}
-
 /** Month recaps hidden this session ("Rückblick ausblenden"): kept nowhere, forgotten with the session. */
 export const hiddenRecaps = new Set<string>();
 

@@ -171,13 +171,27 @@ export const de = {
       same: 'Genau gleich viel.',
       rank: (title: string, name: string, amount: ReactNode): ReactNode[] => [title, ' ', name, ': ', amount, '.'],
     },
-    /** Once, when the thread first opens. */
-    intro: {
-      title: 'Girovo AI',
-      sentences: 'Du bekommst die Antwort in ganzen Sätzen.',
-      figures: 'Jeden Betrag rechnet Girovo selbst aus deinen Umsätzen.',
-      later: 'Später',
-      go: 'Ausprobieren',
+  },
+  /**
+   * Girovo Next: the moment Girovo AI is ready (components/insights/ai/AiReady.tsx),
+   * once and again each time it is switched on. Its three questions come from
+   * the user's own bookings (lib/ai-welcome.ts).
+   */
+  welcome: {
+    title: 'Girovo AI ist bereit',
+    lead: 'Frag etwas zu deinen Umsätzen. Jeden Betrag rechnet Girovo selbst aus.',
+    examples: 'Zum Beispiel',
+    fine: 'Girovo AI kann Fehler machen.',
+    ask: 'Selbst fragen',
+    skip: 'Überspringen',
+    /** The questions, asked as written when tapped. */
+    q: {
+      payee: (month: string, name: string) => `Wie viel ging im ${month} an ${name}?`,
+      cancelSoon: 'Was kann ich bis Ende des Monats kündigen?',
+      subscriptions: 'Welche Abos habe ich?',
+      dining: (month: string) => `Wo war ich im ${month} essen?`,
+      /** When the bookings say too little for the questions above, in this order. */
+      fallbacks: ['Größte Ausgabe dieses Jahr', 'Lebensmittel letzten Monat', 'Wofür gebe ich am meisten aus?'],
     },
   },
   /** Girovo Next: the month recap at the head of the Analyse (components/insights/MonthRecap.tsx). */
@@ -686,12 +700,20 @@ export const en: typeof de = {
       same: 'Exactly the same.',
       rank: (title, name, amount) => [title, ' ', name, ': ', amount, '.'],
     },
-    intro: {
-      title: 'Girovo AI',
-      sentences: 'You get the answer in full sentences.',
-      figures: 'Girovo works out every amount itself from your transactions.',
-      later: 'Later',
-      go: 'Try it',
+  },
+  welcome: {
+    title: 'Girovo AI is ready',
+    lead: 'Ask something about your transactions. Girovo works out every amount itself.',
+    examples: 'For example',
+    fine: 'Girovo AI can make mistakes.',
+    ask: 'Ask a question',
+    skip: 'Skip',
+    q: {
+      payee: (month, name) => `How much went to ${name} in ${month}?`,
+      cancelSoon: 'What can I cancel by the end of the month?',
+      subscriptions: 'Which subscriptions do I have?',
+      dining: (month) => `Where did I eat out in ${month}?`,
+      fallbacks: ['Largest expense this year', 'Groceries last month', 'What do I spend the most on?'],
     },
   },
   recap: {
