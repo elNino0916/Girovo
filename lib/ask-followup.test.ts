@@ -147,3 +147,16 @@ test('after a list of both ways, a ranking, an average, the largest or a compari
   const total = followUp(list, 'Und wie viel insgesamt?', list, today);
   assert.deepEqual([total.kind, total.dir], ['sum', 'all']);
 });
+
+test('a follow-up keeps an average per year, "Pro Monat" turns it back, another kind drops it', () => {
+  const first = read('Was gebe ich im Jahr für Lebensmittel aus?');
+  assert.deepEqual([first.kind, first.per], ['average', 'year']);
+  const rewe = followUp(first, 'Und bei Rewe?', read('Und bei Rewe?'), today);
+  assert.deepEqual([rewe.kind, rewe.per, rewe.search], ['average', 'year', 'Rewe']);
+  const month = followUp(rewe, 'Pro Monat', read('Pro Monat'), today);
+  assert.deepEqual([month.kind, month.per], ['average', undefined]);
+  const year = followUp(month, 'Und pro Jahr?', read('Und pro Jahr?'), today);
+  assert.deepEqual([year.kind, year.per], ['average', 'year']);
+  assert.equal(followUp(year, 'Und im Schnitt?', read('Und im Schnitt?'), today).per, 'year');
+  assert.equal(followUp(year, 'Und wie oft?', read('Und wie oft?'), today).per, undefined);
+});

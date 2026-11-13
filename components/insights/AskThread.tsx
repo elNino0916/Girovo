@@ -332,6 +332,10 @@ function AnswerText({ answer, own, show, scopeAll, onShown, written }: {
     extra = <ListRows answer={answer} onOpen={(tx) => { openBooking(tx); onShown(); }} />;
   } else if (q.kind === 'count') {
     lines.push(say.count(when, <Fig onShow={() => open(null, answer.filter)}>{atLeast}{words.times(answer.count)}</Fig>, money(answer.cents), topic));
+  } else if (q.kind === 'average' && answer.year) {
+    // Per year: the last 12 whole months as they were, or the monthly average times 12.
+    const amount = <Fig onShow={() => open(null, answer.filter)}><Money value={answer.year.cents / 100} currency={currency} tone="plain" /></Fig>;
+    lines.push(answer.year.last12 ? say.averageLast12(amount) : say.averageYear(amount, words.averageBasis(answer.months)));
   } else if (q.kind === 'average' && answer.months > 0) {
     lines.push(say.average(<Fig onShow={() => open(null, answer.filter)}><Money value={Math.round(answer.monthCents / answer.months) / 100} currency={currency} tone="plain" /></Fig>, words.averageBasis(answer.months)));
   } else if (q.dir === 'all') {
@@ -729,7 +733,8 @@ function useNextQuestions(last: AskQuery | null): string[] {
   const months = days ? new Set([days.from.slice(0, 7), days.to.slice(0, 7)]).size : 2;
   // After both ways (a list) an average or "Größte Ausgabe" would be about another set than the answer.
   if (last.dir === 'all') return out;
-  if (last.kind !== 'average' && months > 1) out.push(words.thread.next.perMonth);
+  if ((last.kind !== 'average' || last.per === 'year') && months > 1) out.push(words.thread.next.perMonth);
+  if (last.kind === 'average' && last.per !== 'year') out.push(words.thread.next.perYear);
   if (last.kind !== 'largest' && last.dir !== 'in') out.push(words.thread.next.largest);
   return out;
 }

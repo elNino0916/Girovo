@@ -12,7 +12,7 @@
 import { Fragment, useId, type ReactNode } from 'react';
 import {
   categoryName, dirChoices, periodChoices, periodLabel, readingChips, samePeriod, sentenceCase, topicChoices,
-  withAgainst, withDir, withPeriod, withRank, withTopic, type ChipSlot, type OwnCategories, type ReadingChip,
+  withAgainst, withDir, withPer, withPeriod, withRank, withTopic, type ChipSlot, type OwnCategories, type ReadingChip,
 } from '@/lib/ask-chips';
 import { dayKey } from '@/lib/format';
 import { useT } from '@/lib/i18n/react';
@@ -21,6 +21,7 @@ import { FilterChip, Menu, MenuItem, MenuItemRadio, MenuSeparator } from '../../
 
 const RANK_BY: readonly AskRank['by'][] = ['payee', 'category'];
 const METRICS: readonly AskRank['metric'][] = ['sum', 'count'];
+const PERS = ['month', 'year'] as const;
 
 export function ReadingChips({ query, loaded, own, onChange }: {
   /** The reading the answer was worked out from (the answer's own, so a name that found nothing reads as the category used instead). */
@@ -114,6 +115,13 @@ function SlotItems({ slot, query, loaded, own, today, onChange }: {
         {/* The months of the loaded bookings, apart from the quick choices above them. */}
         {p.kind === 'all' && i < choices.length - 1 && <MenuSeparator />}
       </Fragment>
+    ));
+  }
+  if (slot === 'per') {
+    return PERS.map((per) => (
+      <MenuItemRadio key={per} checked={(query.per ?? 'month') === per} onSelect={() => onChange(withPer(query, per))}>
+        {sentenceCase(words.chips.per[per])}
+      </MenuItemRadio>
     ));
   }
   if (slot === 'rankBy') {

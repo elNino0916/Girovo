@@ -11,7 +11,7 @@ import { fmtMonth, fmtRange } from './format.ts';
 import { msgs } from './i18n/index.ts';
 
 /** Which part of the reading a chip stands for. */
-export type ChipSlot = 'dir' | 'topic' | 'period' | 'against' | 'rankBy' | 'metric';
+export type ChipSlot = 'dir' | 'topic' | 'period' | 'against' | 'rankBy' | 'metric' | 'per';
 
 export type ReadingChip = { slot: ChipSlot; label: string };
 
@@ -79,6 +79,7 @@ export function readingChips(q: AskQuery, today: string, own: OwnCategories = []
   if (!(rank?.by === 'category' && !q.category && !q.search)) out.push({ slot: 'topic', label: topicLabel(q, own) });
   out.push({ slot: 'period', label: periodLabel(q.period, today) });
   if (q.kind === 'compare' && q.against) out.push({ slot: 'against', label: words.versus(periodLabel(q.against, today, true)) });
+  if (q.kind === 'average') out.push({ slot: 'per', label: words.chips.per[q.per ?? 'month'] });
   if (rank) {
     out.push({ slot: 'rankBy', label: words.chips.rankBy[rank.by] });
     out.push({ slot: 'metric', label: words.chips.metric[rank.metric] });
@@ -172,6 +173,13 @@ export function withPeriod(q: AskQuery, period: AskPeriod): AskQuery {
 
 export function withAgainst(q: AskQuery, against: AskPeriod): AskQuery {
   return { ...q, against };
+}
+
+/** An average per month or per year. Per month is the default and leaves the field out, as a question read so has it. */
+export function withPer(q: AskQuery, per: 'month' | 'year'): AskQuery {
+  const next: AskQuery = { ...q, per };
+  if (per === 'month') delete next.per;
+  return next;
 }
 
 /** A ranking ordered another way. Ranked by category, a category it was narrowed to goes: it would rank one row. */

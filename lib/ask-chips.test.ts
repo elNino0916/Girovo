@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   dirChoices, periodChoices, periodLabel, readingChips, samePeriod, sameQuery, sentenceCase, topicChoices, topicLabel, withDir, withRank,
-  withTopic,
+  withPer, withTopic,
 } from './ask-chips.ts';
 import type { AskQuery } from './nano-ask.ts';
 
@@ -116,4 +116,16 @@ test('ranking by category lets go of the category it was narrowed to', () => {
   assert.deepEqual(q.rank, { by: 'category', metric: 'sum' });
   assert.equal(q.category, null);
   assert.equal(withRank({ ...base, kind: 'rank', category: 'dining', rank: { by: 'payee', metric: 'sum' } }, { metric: 'count' }).category, 'dining');
+});
+
+test('an average has a chip for per month or per year', () => {
+  const avg: AskQuery = { ...base, kind: 'average', period: { kind: 'all' } };
+  assert.deepEqual(labels(avg), ['Ausgaben', 'alle Kategorien', 'alles', 'pro Monat']);
+  const year = withPer(avg, 'year');
+  assert.equal(year.per, 'year');
+  assert.equal(labels(year).at(-1), 'pro Jahr');
+  // Per month is the default: the field goes, so it reads as a question read per month.
+  assert.equal('per' in withPer(year, 'month'), false);
+  assert.ok(sameQuery(withPer(year, 'month'), avg));
+  assert.equal(readingChips(base, today).some((c) => c.slot === 'per'), false);
 });

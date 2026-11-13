@@ -61,6 +61,8 @@ export type AskQuery = {
   rank?: AskRank;
   /** kind 'compare': the period `period` is set against ("letzten Monat" in "mehr als letzten Monat?"). */
   against?: AskPeriod;
+  /** kind 'average': per month (the default, also when left out) or per year ("pro Jahr", "jährlich"). */
+  per?: 'month' | 'year';
 };
 
 /** The categories Nano may name: those a question can mean. */
@@ -241,6 +243,14 @@ const KIND_RULES: Array<[RegExp, AskKind]> = [
   [/\bPRO MONAT\b|\bIM MONAT\b|\bMONATLICH|\bIM SCHNITT\b|\bDURCHSCHNITT|\bPER MONTH\b|\bA MONTH\b|\bMONTHLY\b|\bAVERAGE\b/, 'average'],
 ];
 
+/**
+ * An average per year: "pro Jahr", "im Jahr", "jährlich", "a year". Not "im
+ * Jahr 2025" (a period), not "half a year" or "a year ago".
+ */
+const PER_YEAR = /\bPRO JAHR\b|\bIM JAHRE?\b(?! (?:19|20)\d\d\b| DAVOR\b| ZUVOR\b| VORHER\b)|\bJAEHRLICH|\bJEDES JAHR\b|\bAUFS JAHR\b|\bAUF EIN JAHR\b|\bJAHRES(?:SCHNITT|DURCHSCHNITT)\b|\bPER YEAR\b|(?<!\bHALF )\bA YEAR\b(?! AGO\b)|\bEVERY YEAR\b|\bYEARLY\b|\bANNUAL(?:LY)?\b|\bPER ANNUM\b/;
+/** An average said per month in so many words ("im Schnitt" alone says neither). */
+const PER_MONTH = /\bPRO MONAT\b|\bIM MONAT\b|\bMONATLICH|\bPER MONTH\b|\bA MONTH\b|\bMONTHLY\b/;
+
 /** The bookings themselves: "Zeig alle Zahlungen an Amazon", "Liste Rewe", "alle Umsätze bei Rewe", "Show me all …". */
 const LIST = new RegExp(
   '^(?:BITTE |KANNST DU (?:MIR )?|PLEASE |CAN YOU )?(?:ZEIG|SHOW|LIST)\\b|\\bZEIG(?:E|ST)?\\b|\\bANZEIGEN\\b|\\bAUFLISTEN\\b|\\bLISTE\\b'
@@ -399,7 +409,18 @@ export function searchFromQuestion(question: string): string | null {
 export function kindFromQuestion(question: string): AskKind | null {
   const text = fold(question);
   for (const [re, kind] of KIND_RULES) if (re.test(text)) return kind;
+  if (PER_YEAR.test(text)) return 'average';
   return LIST.test(text) && !ASKS_TOTAL.test(text) ? 'list' : null;
+}
+
+/**
+ * Whether an average is asked per month or per year in so many words; null
+ * where the question says neither ("im Schnitt"). Per month where it says both.
+ */
+export function perFromQuestion(question: string): 'month' | 'year' | null {
+  const text = fold(question);
+  if (PER_MONTH.test(text)) return 'month';
+  return PER_YEAR.test(text) ? 'year' : null;
 }
 
 /** Whether the question asks for a total ("wie viel", "insgesamt", "how much"). */
@@ -607,6 +628,7 @@ export function readQuestion(
   return {
     ...(rank ? { rank } : {}),
     ...(compare ? { against: compare.against } : {}),
+    ...(kind === 'average' && perFromQuestion(q) === 'year' ? { per: 'year' as const } : {}),
     kind: kind ?? 'sum',
     // Income is what comes in, whatever else was said of the direction.
     dir: category === 'income' ? 'in' : kind === 'list' ? listDir(q, dir) : dir ?? nano?.dir ?? 'out',
@@ -635,9 +657,9 @@ const NOT_TOPIC = new Set(
     + 'KOSTEN KOSTET GEKOSTET ZAHLE ZAHLT ZAHLST ES SIND IST WAR WAREN HATTE HATTEN HABEN HAST WIR DU MIR MICH UNS EIN EINE EINEN '
     + 'EINEM EINER INSGESAMT ETWA UNGEFAEHR DENN EIGENTLICH SO NOCH SCHON MEHR WENIGER ALS GEGENUEBER VERGLICHEN VERGLEICH MIT '
     + 'ZU ZUM ZUR AUF AUS NACH UEBER UNTER FUERS INS BIS DAFUER DAVON MONATLICH JAEHRLICH WOECHENTLICH TAEGLICH AUSGEBEN BEZAHLE '
-    + 'GEBE GEBEN GEGEBEN KAUFE KAUFT GEKAUFT EINGEKAUFT EINKAUFEN '
+    + 'GEBE GEBEN GEGEBEN KAUFE KAUFT GEKAUFT EINGEKAUFT EINKAUFEN JEDES AUFS '
     + 'HOW MUCH MANY OFTEN AVERAGE PER BIGGEST LARGEST HIGHEST WHEN WHERE WHO WHOM WHICH WHAT DID DO DOES I WE YOU IS ARE WAS WERE '
-    + 'HAVE HAS HAD IN ON AT BY WITH ABOUT A AN MORE LESS THAN COMPARED VS MONTHLY YEARLY WEEKLY BUY BOUGHT PAY SPEND COST').split(' '),
+    + 'HAVE HAS HAD IN ON AT BY WITH ABOUT A AN MORE LESS THAN COMPARED VS MONTHLY YEARLY WEEKLY ANNUAL ANNUALLY ANNUM EVERY BUY BOUGHT PAY SPEND COST').split(' '),
 );
 // i18n-data-end
 
@@ -824,6 +846,12 @@ export type AskAnswer = {
   months: number;
   /** Cents like `cents`, of the bookings inside those whole months only: what the average divides. 0 when none is. */
   monthCents: number;
+  /**
+   * An average per year, when a whole month is loaded: with 12 or more whole
+   * months the real sum of the last 12 (`last12`), else the monthly average
+   * over all of them times 12.
+   */
+  year?: { cents: number; last12: boolean };
   /** Matching bookings in a currency other than the one summed, left out (as lib/analytics.ts does). */
   otherCurrency: number;
   /** The currency every figure here is in. */
@@ -947,8 +975,22 @@ export function computeAnswer(
     return !!whole && day >= whole.from && day <= whole.to;
   };
   const monthCents = whole ? sums(matched.filter(inWhole)).cents : 0;
+  // Per year: the last 12 whole months as they were, where that many are loaded; else the monthly average times 12.
+  let year: AskAnswer['year'];
+  let counted = whole;
+  if (query.kind === 'average' && query.per === 'year' && whole) {
+    if (whole.months >= 12) {
+      const [y, m] = whole.to.split('-').map(Number);
+      const start = y * 12 + (m - 1) - 11;
+      counted = { months: 12, from: `${Math.floor(start / 12)}-${pad((start % 12) + 1)}-01`, to: whole.to };
+      const span = counted;
+      year = { cents: sums(matched.filter((t) => bookingDay(t) >= span.from && bookingDay(t) <= span.to)).cents, last12: true };
+    } else {
+      year = { cents: Math.round((monthCents * 12) / whole.months), last12: false };
+    }
+  }
   // The way to the bookings follows what was counted.
-  const shown: TxFilter = query.kind === 'average' && whole ? { ...filter, from: whole.from, to: whole.to } : filter;
+  const shown: TxFilter = query.kind === 'average' && counted ? { ...filter, from: counted.from, to: counted.to } : filter;
 
   let tx: SerializedTransaction | null = null;
   if (query.kind === 'largest') {
@@ -960,6 +1002,7 @@ export function computeAnswer(
   return {
     query, filter: shown, from, to, outside, partial: !outside && asked.from < loaded.from,
     count: matched.length, cents, outCents, inCents, tx, months: whole?.months ?? 0, monthCents, otherCurrency, currency,
+    ...(year ? { year } : {}),
     ...(query.kind === 'rank' && query.rank ? { rank: rankRows(matched, query, filter, ctx.categoryOf, ctx.payeeOf ?? counterpartyName) } : {}),
     ...(query.kind === 'list' ? { latest: newest(matched, LIST_ROWS) } : {}),
   };
