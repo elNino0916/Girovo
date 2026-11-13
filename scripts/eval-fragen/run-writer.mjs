@@ -83,7 +83,28 @@ const questions = [
   'Hab ich im Oktober mehr ausgegeben als im September?',
   'Was hat mir Lea geschickt?',
   'How much did I spend on Amazon since August?',
+  'Was kam dieses Jahr von Lea Schmidt?',
+  'Wie viel Gehalt habe ich im Oktober bekommen?',
+  'Was kostet mich Spotify im Monat?',
+  'Wie viel geb ich im Schnitt für Essen gehen aus?',
+  'Wie oft hab ich bei Lieferando bestellt?',
+  'Wo kaufe ich am häufigsten ein?',
+  'Ein- und Ausgaben im Oktober',
+  'Wie viel ging an Ikea?',
+  'Ausgaben im März',
+  'Wie viel hab ich seit Juli bei Amazon ausgegeben?',
+  'Größter Eingang im September',
+  'Zeig alle Zahlungen an Amazon',
+  'Wie viel hab ich letzte Woche ausgegeben?',
+  'Mehr für Lebensmittel als letzten Monat?',
+  'What did I spend on groceries in October?',
+  'How often did I go to Rewe?',
+  'Where did I eat out in October?',
+  'Biggest expense this year',
+  'How much did Lea send me?',
+  'Tanken im Oktober',
 ];
+const stats = [];
 for (const q of questions) {
   const payees = [...new Set(txs.map((t) => t.remoteName))];
   const ctx = { question: q, today, own: [], payees, prev: null };
@@ -95,7 +116,13 @@ for (const q of questions) {
   const input = writerInput(q, answer, { lang, nameOf: (id) => ({ housing: 'Wohnen & Energie', groceries: 'Lebensmittel', dining: 'Essen & Trinken', media: 'Abos & Medien', shopping: 'Shopping', mobility: 'Mobilität', income: 'Einnahmen' })[id] ?? id, payeeOf: (tx) => tx.remoteName });
   const t = performance.now();
   const text = await prompt(writerSystem(lang), input.prompt);
-  console.log(`\n${q}\n  ${usable(text, input) ? 'OK ' : 'BAD'} ${Math.round(performance.now() - t)} ms  ${text.replace(/\s+/g, ' ')}`);
+  const ok = usable(text, input);
+  const ms = Math.round(performance.now() - t);
+  stats.push({ ok, ms, words: text.split(/\s+/).filter(Boolean).length });
+  console.log(`\n${q}\n  ${ok ? 'OK ' : 'BAD'} ${ms} ms  ${text.replace(/\s+/g, ' ')}`);
 }
+const okCount = stats.filter((x) => x.ok).length;
+const sorted = stats.map((x) => x.ms).sort((a, b) => a - b);
+console.log(`\nUsable: ${okCount}/${stats.length}   median ${sorted[Math.floor(sorted.length / 2)] ?? 0} ms   ${(stats.reduce((n, x) => n + x.words, 0) / (stats.length || 1)).toFixed(1)} words on average`);
 child.kill();
 process.exit(0);

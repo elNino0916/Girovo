@@ -137,7 +137,9 @@ export function periodOf(raw: unknown, today: string): AskPeriod | null {
 
 const fold = (s: string) => s.toLocaleLowerCase('de').normalize('NFKD').replace(/\p{M}/gu, '');
 // i18n-data-next-line
-const TIME_WORD = /\b(?:diese[nmrs]?|letzte[nmrs]?|vorige[nmrs]?|ganze[nms]?|jahr|monat|woche|heute|gestern|this|last|whole|year|month|week|today|yesterday)\b/;
+const LIST_WORD = /\b(?:zeig\w*|list\w*|alles?|aufzahl\w*|show|all)\b/;
+// i18n-data-next-line
+const TIME_WORD = /\b(?:diese[nmrs]?|letzte[nmrs]?|vorige[nmrs]?|ganze[nms]?|jahr|monat|woche|heute|gestern|this|last|whole|year|month|week|today|yesterday|sommer|winter|fruhling|fruhjahr|herbst|weihnacht\w*|ostern|urlaub|summer|spring|autumn|fall|christmas|easter|holiday\w*|anfang|ende|mitte|beginning|end|start)\b/;
 
 /**
  * Gemma's answer, checked: an AskQuery, a note that the message is not about
@@ -166,6 +168,9 @@ export function checkPlan(raw: string | null, ctx: PlanContext): PlanResult {
     if (q.includes(fold(p))) search = nameFromPayees(question, payees) ?? p;
     else if (continues && prev!.query.search && fold(prev!.query.search) === fold(p)) search = prev!.query.search;
   }
+  // A payee of the loaded bookings the message names, where Gemma named none ("Was hat mir Lea
+  // geschickt?" summed every income when Gemma left Lea out), as the reading without Gemma does.
+  if (!search) search = nameFromPayees(question, payees);
   // Gemma's "both" is mostly a guess: the rules' direction or money out unless the message says both.
   const dir = o.direction === 'in' ? 'in' as const : o.direction === 'out' ? 'out' as const : null;
   const reading: NanoReading = { dir, category, search };
@@ -190,8 +195,11 @@ export function checkPlan(raw: string | null, ctx: PlanContext): PlanResult {
   }
   const stated = !!(compareFromQuestion(question, today) || periodFromQuestion(question, today));
   // Gemma's period where the rules found none; for a follow-up only when it has a word for one ("Und dieses").
-  const planned = stated || (continues && !TIME_WORD.test(q)) ? null : periodOf(o.period, today);
-  let merged: AskQuery = planned ? { ...read, period: planned } : read;
+  // Only where the message has a word for one: "Wofür geb ich am meisten aus?" became "dieses Jahr".
+  const planned = stated || !TIME_WORD.test(q) ? null : periodOf(o.period, today);
+  // "Netflix pro Monat": an average across months; Gemma's "this month" read from "Monat" is no period.
+  const monthOfAverage = read.kind === 'average' && planned && (planned.kind === 'thisMonth' || planned.kind === 'lastMonth' || planned.kind === 'month');
+  let merged: AskQuery = planned && !monthOfAverage ? { ...read, period: planned } : read;
   // A comparison the rules did not see, with both periods: Gemma's ("Sprit 2026 gegen 2025" said loosely).
   const against = periodOf(o.compare_to, today);
   if (o.kind === 'compare' && merged.kind === 'sum' && !kindFromQuestion(question) && planned && against && JSON.stringify(planned) !== JSON.stringify(against)) {
@@ -199,7 +207,8 @@ export function checkPlan(raw: string | null, ctx: PlanContext): PlanResult {
   }
   // The bookings themselves, said in words the rules do not know ("Was ging alles an Amazon raus?");
   // never where the message asks for a total.
-  if (o.kind === 'list' && merged.kind === 'sum' && !kindFromQuestion(question) && !asksTotal(question)) {
+  // Only with a word for it: "Was kam dieses Jahr von Lea?" asks for a sum, whatever Gemma said.
+  if (o.kind === 'list' && merged.kind === 'sum' && LIST_WORD.test(q) && !kindFromQuestion(question) && !asksTotal(question)) {
     merged = { ...merged, kind: 'list', dir: merged.category === 'income' ? 'in' : listDir(question, dirFromQuestion(question)) };
   }
   // A ranking of categories the rules did not see ("Wofür die meisten Buchungen" said otherwise).
@@ -215,5 +224,5 @@ export function checkPlan(raw: string | null, ctx: PlanContext): PlanResult {
   if (merged.kind === 'rank' && merged.rank && !rankByFromQuestion(question) && (o.kind === 'places' || o.kind === 'categories')) {
     merged = { ...merged, rank: { ...merged.rank, by: o.kind === 'places' ? 'payee' : 'category' } };
   }
-  return { plan: followUp(prev?.query ?? null, question, merged, today, !!planned) };
+  return { plan: followUp(prev?.query ?? null, question, merged, today, !!planned && !monthOfAverage) };
 }

@@ -17,18 +17,22 @@ test('the facts hold their numbers by kind, the question\'s are none of them', (
   assert.match(de.prompt, /„Lieferando“/);
   assert.deepEqual([...de.numbers.amounts], [11235]);
   assert.deepEqual([...de.numbers.counts], [5]);
-  assert.deepEqual([...de.numbers.days].sort((a, b) => a - b), [1, 31]);
+  // The month in words ("Zeitraum: Oktober 2026"), not as a span of days.
+  assert.match(de.prompt, /Zeitraum: Oktober 2026/);
+  assert.deepEqual([...de.numbers.days], []);
   assert.deepEqual([...de.numbers.years], [2026]);
 });
 
 test('a sentence with only the facts\' numbers may be said', () => {
   for (const s of [
     'Im Oktober hast du 5-mal bei Lieferando bestellt, zusammen 112,35 €.',
-    'Vom 1. bis 31. Oktober 2026 waren es 112,35 € bei 5 Umsätzen.',
-    'Vom 1. bis 31. Oktober 2026 112,35 € an Lieferando.',
-    'Zuletzt 112,35 € bei Lieferando am 31. Oktober 2026.',
+    'Im Oktober 2026 waren es 112,35 € bei 5 Umsätzen.',
+    'Im Oktober 112,35 € an Lieferando.',
   ]) assert.equal(usable(s, de), true, s);
-  assert.equal(usable('You spent €112.35 at Lieferando between 1 October 2026 and 31 October 2026, across 5 transactions.', en), true);
+  assert.equal(usable('You spent €112.35 at Lieferando in October 2026, across 5 transactions.', en), true);
+  // A period the facts do not name, a name they do not hold, the largest said as a total.
+  assert.equal(usable('Im September 2026 waren es 112,35 €.', de), false);
+  assert.equal(usable('Von Lea hast du 112,35 € bekommen.', de), false);
 });
 
 test('numbers the facts do not hold are caught, of every kind', () => {

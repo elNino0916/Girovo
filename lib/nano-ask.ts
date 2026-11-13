@@ -318,7 +318,9 @@ const DEBIT_WORDS = /\b(?:ABGEBUCHT|BERECHNET|ABGEZOGEN|EINGEZOGEN|KOSTET|KOSTEN
 const IN_WORDS = /BEKOMMEN|\b(?:ERHALTEN|EINGEGANGEN|EINGAENGE|EINGANG|EINGENOMMEN|EINNAHME|EINNAHMEN|VERDIENT|ERSTATTET|RECEIVED|EARNED|INCOME|REFUND)/;
 const OUT_TO = /\b(?:AN|BEI|FUER|TO|AT)\b/;
 /** Money to the asker: "Wer hat mir … überwiesen", "Was hat mir Lea geschickt", "Who sent me …". */
-const TO_ME = /\b(?:HAT|HABEN|HAETTE) MIR\b|\bAN MICH\b|\b(?:SENT|PAID|GAVE|TRANSFERRED) ME\b|\bG(?:O|E)T PAID\b|\bBEEN PAID\b/;
+const TO_ME = /\b(?:HAT|HABEN|HAETTE) MIR\b|\bAN MICH\b|\b(?:SENT|SEND|SENDS|PAID|PAY|PAYS|GAVE|GIVE|GIVES|TRANSFERRED|TRANSFER) ME\b|\bG(?:O|E)T PAID\b|\bBEEN PAID\b/;
+/** Both ways in so many words: "Ein- und Ausgaben", "Einnahmen und Ausgaben", "income and spending". */
+const BOTH_WAYS = /\bEIN UND AUSGABEN\b|\bEINNAHMEN UND AUSGABEN\b|\bAUSGABEN UND EINNAHMEN\b|\bINCOME AND (?:SPENDING|EXPENSES)\b|\b(?:SPENDING|EXPENSES) AND INCOME\b/;
 const IN_FROM = /\b(?:VON|VOM|FROM)\b/;
 
 /** The words before a name: "an Amazon", "bei Rewe", "von Nadine", "für Netflix", "on Uber". */
@@ -423,6 +425,7 @@ export function saysDirection(question: string): boolean {
 /** Out or in, as the question's verbs say — or its "an"/"von" where no verb does; null where it says neither or both. */
 export function dirFromQuestion(question: string): AskDir | null {
   const text = fold(question);
+  if (BOTH_WAYS.test(text)) return 'all';
   if (TO_ME.test(text) && !DEBIT_WORDS.test(text)) return 'in';
   const out = OUT_WORDS.test(text);
   const into = IN_WORDS.test(text);

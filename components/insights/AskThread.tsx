@@ -431,7 +431,7 @@ function useWriter(turn: Turn, answer: AskAnswer | null, ctx: AskCtx, own: Own, 
   const current = turn.writtenFor === key;
   useEffect(() => {
     // Only the newest turn is written: older ones keep what they had, so a new question never waits behind them.
-    if (!ready || !answer || turn.seed || turn.edited || !turn.question || current || !latest) return;
+    if (!ready || !answer || turn.seed || turn.edited || answer.query.kind === 'list' || !turn.question || current || !latest) return;
     const job = `${turn.id}:${key}`;
     if (writing.has(job)) return;
     writing.add(job);
@@ -443,7 +443,7 @@ function useWriter(turn: Turn, answer: AskAnswer | null, ctx: AskCtx, own: Own, 
       .finally(() => writing.delete(job));
   }, [ready, answer, turn.id, turn.question, turn.seed, turn.edited, key, current, ctx, own, latest]);
   // A reading changed by a chip is said by the template: Gemma's sentences were about the question as asked.
-  if (!ready || !answer || turn.seed || turn.edited) return { pending: false };
+  if (!ready || !answer || turn.seed || turn.edited || answer.query.kind === 'list') return { pending: false };
   if (!current) return { pending: latest };
   return { pending: false, text: turn.written || undefined };
 }
