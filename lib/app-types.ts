@@ -148,6 +148,14 @@ export type TransferPrefill = {
    * (components/android/useLaunches.ts).
    */
   girocode?: { file?: File; scan?: boolean; docScan?: boolean };
+  /** yyyy-mm-dd: opens as a terminierte Überweisung on that day, where the account offers it. */
+  executeOn?: string;
+  /**
+   * Girovo API (transfers.request): an app asked for this transfer. The sheet
+   * says from whom (the shell's name and publisher, never the app's claim)
+   * and reports how it ended (components/api/transfer-requests.ts).
+   */
+  request?: { id: string; app: string; publisher: string | null };
 };
 
 /** Seeds the "Geld anfordern" GiroCode sheet. */

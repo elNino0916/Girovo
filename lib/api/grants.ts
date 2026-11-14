@@ -13,8 +13,8 @@
 // Pure and node-test-safe.
 
 import {
-  API_ERROR_CODES, API_PERMISSIONS, isApiPermission,
-  type ApiClient, type ApiGrant, type ApiLogEntry, type ApiPermission, type ApiProcess,
+  API_ERROR_CODES, API_PERMISSIONS, TRANSFER_STATES, isApiPermission,
+  type ApiClient, type ApiGrant, type ApiLogEntry, type ApiPermission, type ApiProcess, type TransferState,
 } from './types.ts';
 
 /** How much the vault keeps (lib/vault.ts sanitizeVault applies them). */
@@ -177,9 +177,14 @@ export function sanitizeApiLog(input: unknown): ApiLogEntry[] {
     const method = clip(raw.method, API_LIMITS.method);
     if (!at || !app || !method || typeof raw.ok !== 'boolean') continue;
     const code = API_ERROR_CODES.find((c) => c === raw.code);
+    const detail = clip(raw.detail, API_LIMITS.method);
+    const request = clip(raw.request, API_LIMITS.method);
+    const outcome = TRANSFER_STATES.find((st) => st === raw.outcome);
     out.push({
       at, app, name: clip(raw.name, API_LIMITS.name) || app, method, ok: raw.ok,
       ...(!raw.ok && code ? { code } : {}),
+      ...(detail ? { detail } : {}),
+      ...(request && outcome ? { request, outcome } : {}),
     });
   }
   return capLog(out);
@@ -202,3 +207,14 @@ export function capLog(log: readonly ApiLogEntry[]): ApiLogEntry[] {
 /** The Verlauf with new entries added at its end, capped. */
 export const appendLog = (log: readonly ApiLogEntry[], entries: readonly ApiLogEntry[]): ApiLogEntry[] =>
   entries.length ? capLog([...log, ...entries]) : [...log];
+
+/** The Verlauf with a transfer request's line saying where it stands now (transfers.request, once the user acted). */
+export function withLogOutcome(log: readonly ApiLogEntry[], request: string, outcome: TransferState): ApiLogEntry[] {
+  let changed = false;
+  const next = log.map((e) => {
+    if (e.request !== request || e.outcome === outcome) return e;
+    changed = true;
+    return { ...e, outcome };
+  });
+  return changed ? next : [...log];
+}

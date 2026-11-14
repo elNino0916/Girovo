@@ -31,6 +31,20 @@ export type GirovoApiBridge = {
    * 150 s passed).
    */
   reply: (id: ApiCall['id'], payload: ApiReplyPayload) => Promise<boolean>;
+  /**
+   * Phase 2: a JSON-RPC notification to one connection (no id, no answer).
+   * `params` must be an object or an array; false when the connection is gone,
+   * the notification is refused, or it is over 1 MiB. Absent in shells from
+   * before phase 2.
+   */
+  notify?: (connection: ApiCall['connection'], method: string, params: object) => Promise<boolean>;
+  /**
+   * Phase 2: shows and raises Girovo's window (a consent dialog, a transfer
+   * request, the bank's Freigabe). True only when it really is in front; on
+   * false the shell has already flashed the taskbar button. Absent in shells
+   * from before phase 2.
+   */
+  focus?: () => Promise<boolean>;
 };
 
 /** What src-tauri/src/publisher_cert.rs reads from the machine's trust stores. */

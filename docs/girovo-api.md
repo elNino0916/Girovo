@@ -158,6 +158,65 @@ Errors: `locked`, `denied`, `not_permitted` (with the permission it needs),
   JSON-RPC client of the pipe; tools are made from the methods the app is
   allowed.
 
+## Phase 2 as built (2026-11-15)
+
+Page side in `lib/api/` (writes.ts, settings.ts, transfers.ts, events.ts,
+router.ts) and `components/api/` (ApiHost.tsx, host-actions.tsx,
+transfer-requests.ts). Every write goes through the provider's own setters,
+the ones the screens and Girovo AI's actions use, so it is kept, cleaned and
+synced like a change made by hand. Every call is in the Verlauf; writes show a
+pencil, settings.set names the setting, a transfer request names its outcome.
+
+| Method | Permission | Params → result |
+|---|---|---|
+| `categories.set` | categories.write | `{ booking, category\|null }` (null: back to the rule or the guess) |
+| `rules.add` | categories.write | `{ booking, category }` or `{ payee, category }`; a payee the user filed by hand is left alone (`applied: false, reason: 'filed_by_hand'`) |
+| `categories.create` | categories.write | `{ name, direction?: 'out'\|'in' }` → `{ category: { id, name } }` |
+| `notes.set` | notes.write | `{ booking, text\|null }` (one line, 280 characters) |
+| `budgets.set` | budgets.write | `{ category, cents\|null }` (spending categories only) |
+| `goals.set` | budgets.write | `{ account, name, target\|null, by? }` (savings accounts, Plus where it applies) |
+| `reminders.set` | budgets.write | `{ contract, by\|null, lead?: 7\|14\|30 }` |
+| `contracts.rename` | budgets.write | `{ contract, name\|null }` |
+| `settings.get` | settings.read | → `{ settings, onlyOn[], onlyOff[] }` |
+| `settings.set` | settings.write | `{ key, value }` → `{ key, value, changed }` |
+| `bank.refresh` | bank.refresh | `{ account? }` → `{ accounts: [{ account, state, newBookings?, balance? }], newBookings }`; `refused_by_user`, `bank_error` (data.text: the bank's words) |
+| `transfers.request` | transfers.request | `{ iban, name, cents, purpose?, executeOn?, account? }` → `{ request, state: 'pending' }` |
+| `transfers.status` | transfers.request | `{ request }` → `{ request, state, text?, changed? }` (own requests only) |
+| `events.subscribe` / `events.unsubscribe` | per kind | `{ kinds[] }` → `{ subscribed[] }` |
+
+**Settings allowlist:** `language`, `theme`, `blackBackground`, `idleMinutes`
+(5, 10, 15, 30), `balancesAtLogin`, `bookingsAtLogin`, `keepBalances` and
+`keepBookings` (on only: off deletes kept data, which Einstellungen asks
+about first; refused with reason `deletes_data`), `companyLogos` (off only:
+on sends shop names to the logo service, the user's own consent; reason
+`consent`), `ai`, `aiTone`, `aiLength`, `aiUseName`, `aiNames` (with the
+desktop's Gemma), `singleKeyShortcuts`, `accountOrder` (every account id
+once), `accountGrouping` (type, bank, none), `hiddenAccounts` (one stays
+shown). A key the app does not offer right now is left out of settings.get
+and `invalid` (reason `unavailable`) for settings.set.
+
+**Never** (reason `never`), beyond the list above: usage data (consent),
+"Neue Umsätze melden" (keeps PINs, asks the system) and the sync (pairs
+devices). The payment alerts' own switches live in the shell's sealed box
+and are not on the list yet. *(For the owner: confirm these three.)*
+
+**Transfers:** the sheet opens filled in, marked "Angefragt von <app>
+(<publisher>)", in front (`focus()`, else the taskbar flashes); one at a
+time behind a sheet already open; at most 3 waiting per app, 10 in all
+(reason `busy`). States: `sent` (the bank took it), `refused` (closed
+without sending, or the logout), `failed` (the bank refused it or it could
+not be sent, its words in `text`), `unclear` (the sheet's "Status unklar":
+nobody can say yet whether it went through). `changed: true` when the user
+sent other values than asked, never which. The final state goes to the
+asking connection as `girovo.transfer.updated` and to the app's other
+connections subscribed to `transfer.updated`.
+
+**Events:** `bookings.new` (transactions.read) `{ account, count,
+bookings[] }` for an account already loaded; `balances.changed`
+(accounts.read) `{ account, balance, available }`; `transfer.updated`
+(transfers.request). An account first loaded after the API went on is a
+starting point, not news. A permission taken back stops its events at once.
+
 ## Phases
 
 1. Transport, identification and signatures, `hello`, the dialog, grants,

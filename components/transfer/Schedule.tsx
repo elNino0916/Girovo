@@ -44,8 +44,9 @@ const capitalised = (s: string) => s.charAt(0).toLocaleUpperCase() + s.slice(1);
  * lead time still allows (a change applies from there; the dates already run
  * are the bank's).
  */
-export function useScheduleForm(account: SerializedAccount | undefined, change?: OrderSchedule | null) {
-  const [seed] = useState(() => seedOf(change, account));
+export function useScheduleForm(account: SerializedAccount | undefined, change?: OrderSchedule | null, datedOn?: string) {
+  // `datedOn`: a new transfer that opens as a terminierte Überweisung on that day (an app's request, lib/api/transfers.ts).
+  const [seed] = useState(() => seedOf(change ?? datedOrder(datedOn, account), account));
   const [chosen, setChosen] = useState<When>(seed?.when ?? 'now');
   const [date, setDate] = useState(seed?.date ?? '');
   const [rhythm, setRhythm] = useState(seed?.rhythm ?? '');
@@ -149,6 +150,11 @@ export function useScheduleForm(account: SerializedAccount | undefined, change?:
 export type ScheduleForm = ReturnType<typeof useScheduleForm>;
 
 /** Where a change of `s` opens: its own date, rhythm and day, from the first run the lead time still allows. */
+/** A day asked for ahead of time as a terminierte Überweisung; none where the account offers none (seedOf moves it to the earliest day allowed). */
+function datedOrder(day: string | undefined, account: SerializedAccount | undefined): OrderSchedule | null {
+  return day && isDayKey(day) && account?.dated?.create ? { kind: 'dated', date: day } : null;
+}
+
 function seedOf(s: OrderSchedule | null | undefined, account: SerializedAccount | undefined) {
   if (!s) return null;
   const today = isoDate(new Date());

@@ -12,7 +12,8 @@
 // Pure and node-test-safe.
 
 import type { SerializedAccount, SerializedBalance, SerializedTransaction } from '../fints-types';
-import type { CategoryId } from '../categories';
+import type { CategoryId, CustomCategory } from '../categories';
+import type { ContractReminder } from '../contract-watch';
 import type { RecurringSeries } from '../recurring';
 import type { Budgets } from '../budgets';
 import type { SavingsGoal } from '../savings-goal';
@@ -21,6 +22,7 @@ import { budgetLines, monthCoverage, type MonthCoverage } from '../budgets.ts';
 import { counterpartyName, txKey } from '../categories.ts';
 import { bankDay, dayKey } from '../format.ts';
 import { goalProgress } from '../savings-goal.ts';
+import type { ApiErrorCode } from './types.ts';
 
 export type Money = { cents: number; currency: string };
 
@@ -52,10 +54,22 @@ export type ApiData = {
   goals: readonly SavingsGoal[];
   /** yyyy-mm-dd */
   today: string;
+  /** Phase 2 (lib/api/writes.ts): the user's own categories, for checking a category id. */
+  customCategories?: readonly CustomCategory[];
+  /** Verträge & Abos' cancellation reminders, by the series' own id. */
+  reminders?: Readonly<Record<string, ContractReminder>>;
 };
 
-/** A method's answer, or why it can't answer: the router turns the latter into `invalid`. */
-export type MethodOutcome = { result: unknown } | { invalid: string };
+/**
+ * A method's answer, or why it can't answer: `invalid` names the parameter
+ * (the router answers `invalid` with `data.param` and any `data` beside it);
+ * `fail` is any other refusal (`not_permitted` with a reason, `bank_error`,
+ * `refused_by_user`, …).
+ */
+export type MethodOutcome =
+  | { result: unknown }
+  | { invalid: string; data?: Record<string, unknown> }
+  | { fail: ApiErrorCode; data?: unknown; message?: string };
 
 // ---------------------------------------------------------------------------
 // Opaque ids
@@ -145,6 +159,42 @@ function allRows(data: ApiData): Row[] {
     }
   }
   return rows.sort((x, y) => (x.day < y.day ? 1 : x.day > y.day ? -1 : 0) || (x.id < y.id ? -1 : x.id > y.id ? 1 : 0));
+}
+
+/** The loaded booking an opaque id names, with its account's key; null when none does (any more). */
+export function findBooking(data: ApiData, id: unknown): { key: string; tx: SerializedTransaction } | null {
+  if (typeof id !== 'string' || !/^t_[0-9a-z]{1,14}(?:-\d{1,4})?$/.test(id)) return null;
+  const row = allRows(data).find((r) => r.id === id);
+  return row ? { key: row.key, tx: row.tx } : null;
+}
+
+/** The account an opaque id names, or null. */
+export function findAccount(data: ApiData, id: unknown): ApiAccountInput | null {
+  if (typeof id !== 'string' || id.length > 20) return null;
+  return data.accounts.find((a) => accountId(a.key) === id) ?? null;
+}
+
+/** The live contract an opaque id names (Verträge & Abos), or null. */
+export function findSeries(data: ApiData, id: unknown): RecurringSeries | null {
+  if (typeof id !== 'string' || id.length > 20) return null;
+  return data.contracts.find((s) => seriesId(s.id) === id) ?? null;
+}
+
+/** A booking as the read methods answer it (transactions.list), for the events. */
+export function bookingById(data: ApiData, id: string) {
+  const row = allRows(data).find((r) => r.id === id);
+  return row ? bookingOf(data, row) : null;
+}
+
+/** Every loaded booking's opaque id, per account key: what the events compare. */
+export function bookingIds(data: ApiData): Map<string, Set<string>> {
+  const out = new Map<string, Set<string>>();
+  for (const r of allRows(data)) {
+    const set = out.get(r.key);
+    if (set) set.add(r.id);
+    else out.set(r.key, new Set([r.id]));
+  }
+  return out;
 }
 
 function bookingOf(data: ApiData, row: Row) {

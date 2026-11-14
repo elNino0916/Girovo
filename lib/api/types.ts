@@ -115,6 +115,28 @@ export type ApiGrant = {
   used?: string;
 };
 
+/**
+ * Where a transfer an app asked for stands (transfers.request): pending until
+ * the user acts; sent when the bank took it; refused when the user closed it
+ * without sending; failed when the bank refused it or it could not be sent;
+ * unclear when nobody can say yet whether it went through (the sheet's
+ * "Status unklar"). Every state but pending is final.
+ */
+export const TRANSFER_STATES = ['pending', 'sent', 'refused', 'failed', 'unclear'] as const;
+export type TransferState = (typeof TRANSFER_STATES)[number];
+
+/** What an app can subscribe to (events.subscribe), each covered by one permission. */
+export const API_EVENT_KINDS = ['bookings.new', 'balances.changed', 'transfer.updated'] as const;
+export type ApiEventKind = (typeof API_EVENT_KINDS)[number];
+
+/** The methods that change something: the Verlauf marks them apart from the reads. */
+export const API_WRITE_METHODS = [
+  'categories.set', 'rules.add', 'categories.create', 'notes.set', 'budgets.set', 'goals.set', 'reminders.set',
+  'contracts.rename', 'settings.set', 'bank.refresh', 'transfers.request',
+] as const;
+
+export const isWriteMethod = (method: string): boolean => (API_WRITE_METHODS as readonly string[]).includes(method);
+
 /** One call in the Verlauf: what, when, allowed or not. This device's own, never synced. */
 export type ApiLogEntry = {
   /** ISO */
@@ -129,4 +151,9 @@ export type ApiLogEntry = {
   ok: boolean;
   /** The error's code when not. */
   code?: ApiErrorCode;
+  /** settings.set: the key it changed (lib/api/settings.ts), so the Verlauf can name the setting. */
+  detail?: string;
+  /** transfers.request: the request's id, and where it stands (updated once the user acted). */
+  request?: string;
+  outcome?: TransferState;
 };

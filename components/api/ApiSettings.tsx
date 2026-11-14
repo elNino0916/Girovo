@@ -9,6 +9,8 @@
 //   - Apps: each allowed app with its icon, name, publisher and last use, its
 //     permissions as switches, and "Zugriff entziehen";
 //   - Verlauf: the newest calls, what and when, and why one was not answered;
+//     a call that changed something with a pencil, the setting it changed,
+//     and a transfer request with how it ended (phase 2);
 //   - Für Entwickler: the documentation, later on girovo.de.
 // Grants and the Verlauf are this computer's (lib/api/grants.ts), never synced.
 
@@ -16,9 +18,9 @@ import { createElement, useContext, useId, useState } from 'react';
 import { intlLocale } from '@/lib/i18n';
 import { useT } from '@/lib/i18n/react';
 import { grantKey, withPermission, withoutGrant } from '@/lib/api/grants';
-import type { ApiGrant, ApiLogEntry, ApiPermission } from '@/lib/api/types';
+import { isWriteMethod, type ApiGrant, type ApiLogEntry, type ApiPermission } from '@/lib/api/types';
 import { useFints } from '../FintsProvider';
-import { CodeIcon, HistoryIcon, InfoIcon, LockIcon } from '../icons';
+import { CodeIcon, EyeIcon, HistoryIcon, InfoIcon, LockIcon, PencilIcon, TransferIcon } from '../icons';
 import { GroupHeading, MainSwitch, SettingItem, SettingsGroup, SwitchItem } from '../settings/rows';
 import { Button } from '../ui';
 import { AppIcon } from './ApiConsent';
@@ -153,13 +155,28 @@ function LogRows({ log }: { log: readonly ApiLogEntry[] }) {
   const newest = log.slice(-LOG_SHOWN).reverse();
   return (
     <>
-      {newest.map((e, i) => (
-        <SettingItem
-          key={`${e.at}-${i}`}
-          title={e.name}
-          summary={[words.methods[e.method] ?? e.method, when(e.at), !e.ok && e.code ? words.outcomes[e.code] : null].filter(Boolean).join(' · ')}
-        />
-      ))}
+      {newest.map((e, i) => {
+        const write = isWriteMethod(e.method);
+        const what = words.methods[e.method] ?? e.method;
+        // settings.set names the setting; a transfer request how it ended.
+        const setting = e.detail ? words.settings[e.detail] ?? e.detail : null;
+        const parts = [
+          setting ? `${what}: ${setting}` : what,
+          when(e.at),
+          !e.ok && e.code ? words.outcomes[e.code] : null,
+          e.ok && e.outcome ? words.transfer[e.outcome] : null,
+        ];
+        return (
+          <SettingItem
+            key={`${e.at}-${i}`}
+            icon={e.method === 'transfers.request'
+              ? <TransferIcon />
+              : write ? <PencilIcon /> : <EyeIcon />}
+            title={e.name}
+            summary={parts.filter(Boolean).join(' · ')}
+          />
+        );
+      })}
     </>
   );
 }

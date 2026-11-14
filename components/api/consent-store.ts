@@ -7,6 +7,7 @@
 
 import { useSyncExternalStore } from 'react';
 import type { ConsentAnswer, ConsentRequest } from '@/lib/api/router';
+import { bringForward } from './bridge';
 
 type Waiting = { request: ConsentRequest; answer: (a: ConsentAnswer) => void };
 
@@ -14,11 +15,14 @@ let queue: readonly Waiting[] = [];
 const listeners = new Set<() => void>();
 
 function set(next: readonly Waiting[]) {
+  const arrived = next.length > queue.length;
   queue = next;
   for (const l of listeners) l();
-  // The window asks for attention while a request waits, and stops once none does
-  // (components/shell: the taskbar button flashes until Girovo is in front).
-  if (typeof window !== 'undefined') window.electronWindow?.requestAttention(next.length > 0);
+  // A new request brings the window to the front (the shell's focus, phase 2);
+  // the taskbar button flashes while one waits and stops once none does.
+  if (typeof window === 'undefined') return;
+  if (arrived) bringForward();
+  if (!arrived || !window.electronGirovoApi?.focus) window.electronWindow?.requestAttention(next.length > 0);
 }
 
 /** Queues a request; settles with the user's answer. An aborted signal takes it out unanswered. */

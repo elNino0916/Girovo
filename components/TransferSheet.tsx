@@ -38,8 +38,9 @@ import {
 } from '@/lib/transfer-checks';
 import { useFints, type TransferHandlers } from './FintsProvider';
 import { useShowBankOrders } from './BankOrders';
+import { endTransfer, type TransferEnd } from './api/transfer-requests';
 import {
-  AccountTypeIcon, AlertTriangleIcon, ArrowRightIcon, BoltIcon, ClockIcon, DocScanIcon, InfoIcon, PaperclipIcon, QrIcon, RepeatIcon,
+  AccountTypeIcon, AlertTriangleIcon, ApiMarkIcon, ArrowRightIcon, BoltIcon, ClockIcon, DocScanIcon, InfoIcon, PaperclipIcon, QrIcon, RepeatIcon,
   StarIcon, UndoIcon,
 } from './icons';
 import { Money, formatMoney, useMoneyText } from './Money';
@@ -262,6 +263,9 @@ export function TransferSheet() {
       instant: !!p.instant,
       source: p.source ? ({ kind: p.source } as Source) : null,
       girocode: p.girocode ?? null,
+      executeOn: p.executeOn,
+      // Girovo API: an app asked for this transfer (lib/api/transfers.ts). The sheet says from whom and reports how it ended.
+      request: p.request ?? null,
     };
   });
 
@@ -311,7 +315,7 @@ export function TransferSheet() {
   const account = eligible.find((a) => a.accountNumber === accountNumber);
   const canInstant = !!account?.canInstant;
   // "Sofort", "An einem Datum" or "Regelmäßig" — what the account offers (transfer/Schedule.tsx).
-  const sched = useScheduleForm(account);
+  const sched = useScheduleForm(account, null, initial.executeOn);
   // Echtzeit is a transfer carried out now: a date or a rhythm leaves it out.
   const useInstant = instant && canInstant && sched.when === 'now';
 
@@ -780,9 +784,32 @@ export function TransferSheet() {
     void keepReceipt(invoice, draft.accountNumber, { awaiting }).then(setInvoiceKept);
   };
 
+  // ---- an app's request: how it ended -------------------------------------
+  // Sent and unclear are final at once (neither can be sent again from here);
+  // a refusal by the bank or an error can still be corrected and sent, so
+  // they count only once the sheet closes. Closed without sending: refused.
+  // The app hears the state and the bank's words, never the TAN.
+  const requestId = initial.request?.id ?? null;
+  const apiEnd = useRef<{ settled: boolean; last: TransferEnd | null; changed: boolean }>({ settled: false, last: null, changed: false });
+  const endRequest = useCallback((end: TransferEnd) => {
+    if (!requestId || apiEnd.current.settled) return;
+    apiEnd.current.settled = true;
+    endTransfer(requestId, { ...end, ...(apiEnd.current.changed ? { changed: true } : {}) });
+  }, [requestId]);
+  // On the next tick, so React's development double mount (unmount, mount again) ends nothing.
+  const ending = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (ending.current) clearTimeout(ending.current);
+    ending.current = null;
+    return () => {
+      ending.current = setTimeout(() => endRequest(apiEnd.current.last ?? { state: 'refused' }), 0);
+    };
+  }, [endRequest]);
+
   const handlers: TransferHandlers = {
     onTanStarted: () => { setSubmitting(false); setStep('awaiting'); },
     onExecuted: (answers?: string) => {
+      endRequest({ state: 'sent', text: bankAnswerLines(answers).join(' ') });
       setSubmitting(false);
       setBankAnswers(answers);
       setStep('done');
@@ -791,6 +818,7 @@ export function TransferSheet() {
       fileInvoice();
     },
     onUnknown: (answers?: string) => {
+      endRequest({ state: 'unclear', text: bankAnswerLines(answers).join(' ') });
       setSubmitting(false);
       setBankAnswers(answers);
       setCheck(null);
@@ -800,6 +828,7 @@ export function TransferSheet() {
       fileInvoice();
     },
     onRefused: (answers: string) => {
+      apiEnd.current.last = { state: 'failed', text: formatBankAnswer(answers).lines.join(' ') };
       setSubmitting(false);
       setBankAnswers(answers);
       setVop(null);
@@ -807,7 +836,13 @@ export function TransferSheet() {
       haptic('reject');
       reviewMoment('trouble');
     },
-    onError: (message: string) => { setSubmitting(false); setError(message); haptic('reject'); reviewMoment('trouble'); },
+    onError: (message: string) => {
+      apiEnd.current.last = { state: 'failed', text: message };
+      setSubmitting(false);
+      setError(message);
+      haptic('reject');
+      reviewMoment('trouble');
+    },
     onVop: (result: SerializedVop) => { setSubmitting(false); setVop(result); setStep('vop'); },
   };
 
@@ -831,6 +866,16 @@ export function TransferSheet() {
 
   const send = () => {
     if (!draft || submitting || settling) return;
+    if (requestId) {
+      // Whether the user sent other values than the app asked for (the app hears only that, not which).
+      const p = transferPrefill ?? {};
+      const askedCents = checkAmount(p.amount ?? '').cents;
+      apiEnd.current.changed = apiEnd.current.changed
+        || draft.name !== squash(p.name ?? '') || draft.iban !== rawIban(p.iban) || draft.cents !== askedCents
+        || draft.purpose !== squash(p.purpose ?? '') || (!!p.accountNumber && draft.accountNumber !== p.accountNumber)
+        || (draft.schedule?.kind === 'dated' ? draft.schedule.date : undefined) !== p.executeOn
+        || (!!draft.schedule && draft.schedule.kind !== 'dated');
+    }
     setError(null);
     setSubmitting(true);
     const at = Date.now();
@@ -881,6 +926,7 @@ export function TransferSheet() {
   /** Take the name the bank holds and check again — a new order, a new Namensabgleich. */
   const adoptSuggested = (suggested: string) => {
     const next = clip(squash(suggested), MAX_NAME);
+    apiEnd.current.changed = true;
     settleVop();
     setName(next);
     setSource(null);
@@ -1040,6 +1086,16 @@ export function TransferSheet() {
           ? <PartBar at={step === 'review' ? 2 : part === 'amount' ? 0 : 1} label={words.form.part(step === 'review' ? 3 : part === 'amount' ? 1 : 2, 3)} />
           : undefined}
         compactExtra
+        // An app asked for it: said at the head of the form and the review, in the shell's words for the app.
+        intro={initial.request && (step === 'form' || step === 'review') ? (
+          <div data-api-request className="mt-1 mb-4 flex items-start gap-3 rounded-[12px] bg-inset py-3 pr-3 pl-4">
+            <ApiMarkIcon size={20} className="mt-px" />
+            <div className="min-w-0 text-[14px] leading-5">
+              <p className="font-medium break-words text-ink">{tr.api.request.from(initial.request.app, initial.request.publisher)}</p>
+              <p className="text-ink-2">{tr.api.request.hint}</p>
+            </div>
+          </div>
+        ) : undefined}
         scrollKey={step}
         onPaste={onPaste}
         {...drop.handlers}
