@@ -624,10 +624,12 @@ export function AiMarkIcon({ size = 18, className, ...rest }: IconProps) {
 }
 
 /**
- * Girovo API's mark ("Knoten", owner's pick 2026-11-14,
- * .impeccable/mocks/decision/api-mark/): the AI mark's four arms, short,
- * each ending in a round point to connect to. Girovo's blue (--api-mark,
- * app/material.css), a brand colour like the AI mark's violet.
+ * Girovo API's mark ("Klammern", owner's pick 2026-11-14,
+ * .impeccable/mocks/decision/ai-wordmark/pair.html): two angle brackets
+ * around a point, the sign for code, in the AI mark's rounded strokes but
+ * none of its four arms (the first pick, "Knoten", read too much like it
+ * beside it in the sidebar). Girovo's blue (--api-mark, app/material.css), a
+ * brand colour like the AI mark's violet.
  */
 export function ApiMarkIcon({ size = 18, className, ...rest }: IconProps) {
   return (
@@ -638,17 +640,13 @@ export function ApiMarkIcon({ size = 18, className, ...rest }: IconProps) {
       fill="none"
       stroke="currentColor"
       strokeLinecap="round"
+      strokeLinejoin="round"
       aria-hidden="true"
       className={join('shrink-0 text-[var(--api-mark)]', className)}
       {...rest}
     >
-      <path d="M12 9.4V7.4M14.6 12h2M12 14.6v2M9.4 12h-2" strokeWidth={2.7} />
-      <g fill="currentColor" stroke="none">
-        <circle cx="12" cy="3.5" r="2.3" />
-        <circle cx="20.5" cy="12" r="2.3" />
-        <circle cx="12" cy="20.5" r="2.3" />
-        <circle cx="3.5" cy="12" r="2.3" />
-      </g>
+      <path d="M8.6 6.2 3.4 12l5.2 5.8M15.4 6.2 20.6 12l-5.2 5.8" strokeWidth={2.7} />
+      <circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none" />
     </svg>
   );
 }

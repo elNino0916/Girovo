@@ -1,0 +1,48 @@
+/* Girovo AI wordmark directions. Girovo's tokens, the AI violet. Mock only. */
+@import url('https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wdth,wght,ROND@6..144,25..151,1..1000,0..100&display=block');
+*{box-sizing:border-box}
+body{margin:0;padding:40px;width:1600px;background:#e9eef7;font-family:'Google Sans Flex',sans-serif;color:#161c24;-webkit-font-smoothing:antialiased;font-variation-settings:'ROND' 0}
+h1{font-size:32px;font-weight:500;margin:0 0 6px}.intro{font-size:16px;color:#404753;margin:0 0 24px;max-width:1100px}
+.cols,section{display:grid;grid-template-columns:260px 1fr 1fr;gap:20px;margin-bottom:28px;align-items:start}
+.cols>span{font-size:13px;font-weight:500;color:#404753}
+.cols.base{opacity:.7}
+.lead h2{font-size:22px;font-weight:500;margin:0 0 8px}.lead p{font-size:15px;line-height:22px;color:#404753;margin:0}
+
+.ctx{--ink:#161c24;--ink-2:#404753;--bg:#ffffff;--row:#eff4ff;--ai:#7b4fe0;--ai-2:#9b5cf0;--to:#0060a8;--wash:linear-gradient(115deg,rgb(123 79 224/.22),rgb(176 133 255/.12) 55%,rgb(0 96 168/.10));
+  background:var(--bg);color:var(--ink);border-radius:16px;padding:22px 24px;display:grid;grid-template-columns:1fr 1fr;gap:16px 20px;box-shadow:0 1px 3px rgb(0 0 0/.08)}
+.ctx.dark{--ink:#dde3ee;--ink-2:#bfc7d5;--bg:#161c24;--row:#1a2028;--ai:#b085ff;--ai-2:#c9a6ff;--to:#9ecaff;--wash:linear-gradient(115deg,rgb(176 133 255/.20),rgb(155 92 240/.12) 55%,rgb(0 96 168/.12))}
+.c{min-width:0}
+.c-head{grid-column:1/-1;font-size:22px;line-height:28px;font-weight:500}
+.c-row{grid-column:1/-1;display:flex;align-items:center;gap:16px;padding:12px 20px;border-radius:16px;background:var(--wash)}
+.c-row>div{flex:1}
+.c-row .t{font-size:16px;line-height:22px;font-weight:500}.c-row .s{font-size:14px;line-height:20px;color:var(--ink-2)}
+.sw{width:52px;height:32px;border-radius:16px;background:var(--to);position:relative;flex:none}
+.sw::after{content:'';position:absolute;right:4px;top:4px;width:24px;height:24px;border-radius:50%;background:var(--bg)}
+.c-bar{display:flex;align-items:center;gap:10px;height:48px;padding:0 14px;border-radius:14px;background:var(--row);font-size:16px;font-weight:500}
+.c-bar .bt{flex:1}.c-bar .x{color:var(--ink-2);font-size:14px}
+.c-ready{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:14px 8px;border-radius:14px;background:var(--wash)}
+.c-ready .disc{width:44px;height:44px;border-radius:50%;background:var(--bg);display:grid;place-items:center;color:var(--ai)}
+.c-ready .disc .mk{width:24px;height:24px}
+.c-ready .rt{font-size:22px;line-height:28px;font-weight:500}.c-ready .rs{font-size:13px;color:var(--ink-2)}
+.mkwrap{color:var(--ai);display:grid;place-items:center}.mkwrap .mk{width:24px;height:24px}.mkwrap.sm .mk{width:20px;height:20px}
+.mk,.spk{display:block}
+.rest{font-weight:inherit}
+
+
+/* A · Zweifarbig */
+.wm-a .ai{font-weight:700;color:var(--ai)}
+
+/* B · Plakette */
+.wm-b{display:inline-flex;align-items:center;gap:.28em;vertical-align:middle}
+.wm-b .ai{font-size:.62em;line-height:1;font-weight:700;letter-spacing:.04em;padding:.28em .45em .26em;border-radius:.45em;color:#fff;background:linear-gradient(110deg,#7b4fe0,#9b5cf0 55%,#0060a8)}
+.dark .wm-b .ai{color:#1b1033;background:linear-gradient(110deg,#b085ff,#c9a6ff 55%,#9ecaff)}
+.wm-b .rest{margin-left:.05em}
+
+/* C · Breit */
+.wm-c .g{font-weight:400}
+.wm-c .ai{margin-left:.22em;font-weight:800;font-variation-settings:'wdth' 140,'ROND' 0;letter-spacing:.02em;color:var(--ai)}
+
+/* D · Funke */
+.wm-d .ai{font-weight:700;color:var(--ai)}
+.wm-d .i{position:relative;display:inline-block}
+.wm-d .spk{position:absolute;width:.42em;height:.42em;left:50%;top:-.28em;transform:translateX(-50%);color:var(--ai)}
