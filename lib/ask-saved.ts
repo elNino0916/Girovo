@@ -220,6 +220,12 @@ export function sanitizeIntent(raw: unknown, isCategory: IsCategory): AskIntent 
       if (name === undefined || cents === undefined || purpose === undefined) return null;
       return { kind: 'prepareTransfer', name, cents, purpose };
     }
+    case 'cancelLetter': {
+      const name = nameOrNull(raw.name);
+      const end = raw.end === null ? null : isDay(raw.end) ? raw.end : undefined;
+      if (name === undefined || end === undefined) return null;
+      return { kind: 'cancelLetter', name, end };
+    }
     default:
       return null;
   }

@@ -229,6 +229,7 @@ test('every intent the app reads can be kept: a new kind needs its sanitiser', (
     budget: { kind: 'budget', category: 'dining', cents: 20000, remove: true },
     remindContract: { kind: 'remindContract', name: 'spotify', by: '2026-12-01', lead: 14 },
     prepareTransfer: { kind: 'prepareTransfer', name: 'Lea', cents: 2000, purpose: 'Pizza' },
+    cancelLetter: { kind: 'cancelLetter', name: 'fitnessstudio', end: '2026-12-31' },
   };
   for (const kind of [...FACT_KINDS, ...ACTION_KINDS, 'contracts', 'refresh', 'read', 'set']) {
     assert.ok(samples[kind], `no sample for the intent ${kind}`);
