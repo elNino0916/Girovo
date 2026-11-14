@@ -414,6 +414,30 @@ export const de = {
     noGiro: 'Für eine Prognose braucht Girovo ein Girokonto.',
     forecastPlus: 'Die Prognose gibt es mit Girovo Plus.',
     openForecast: 'Prognose ansehen',
+    /** "Kann ich mir 800 € leisten?": the forecast's lowest balance less the amount (lib/ask-afford.ts). day: the lowest day, null when it is today. */
+    affordFits: (amount: ReactNode, left: ReactNode, day: string | null): ReactNode[] => (day
+      ? ['Das passt. Nach ', amount, ' blieben dir am knappsten Tag, dem ', day, ', noch etwa ', left, '.']
+      : ['Das passt. Nach ', amount, ' blieben dir noch etwa ', left, '.']),
+    affordTight: (amount: ReactNode, left: ReactNode, day: string | null): ReactNode[] => (day
+      ? ['Das wird knapp. Nach ', amount, ' blieben dir am knappsten Tag, dem ', day, ', nur noch etwa ', left, '.']
+      : ['Das wird knapp. Nach ', amount, ' blieben dir nur noch etwa ', left, '.']),
+    affordShort: (amount: ReactNode, under: ReactNode, day: string | null): ReactNode[] => (day
+      ? ['Das passt nicht. Mit ', amount, ' wärst du am ', day, ' etwa ', under, ' im Minus.']
+      : ['Das passt nicht. Mit ', amount, ' wärst du etwa ', under, ' im Minus.']),
+    /** Below zero, within the Dispositionsrahmen. */
+    affordDispo: (amount: ReactNode, under: ReactNode, day: string | null): ReactNode[] => (day
+      ? ['Das passt nur mit dem Dispo. Mit ', amount, ' wärst du am ', day, ' etwa ', under, ' im Minus.']
+      : ['Das passt nur mit dem Dispo. Mit ', amount, ' wärst du etwa ', under, ' im Minus.']),
+    affordOverDispo: (amount: ReactNode, over: ReactNode, day: string | null): ReactNode[] => (day
+      ? ['Das passt nicht, auch nicht mit dem Dispo. Mit ', amount, ' wärst du am ', day, ' etwa ', over, ' über dem Dispo.']
+      : ['Das passt nicht, auch nicht mit dem Dispo. Mit ', amount, ' wärst du etwa ', over, ' über dem Dispo.']),
+    affordAlready: 'Auch ohne diese Ausgabe könnte das Konto ins Minus gehen.',
+    /** What the answer counts: the Girokonto of the forecast, the payments due, and the usual spending where it is known. */
+    affordBasis: (account: string, month: string, usual: boolean) => (usual
+      ? `Gerechnet mit ${account}, den fälligen Zahlungen bis Ende ${month} und deinen üblichen Ausgaben.`
+      : `Gerechnet mit ${account} und den fälligen Zahlungen bis Ende ${month}.`),
+    affordAsk: 'Um wie viel Geld geht es? Schreib zum Beispiel: „Kann ich mir 300 € leisten?“',
+    affordThisMonthOnly: (month: string) => `Girovo schaut nur bis Ende ${month} voraus.`,
     contractYear: (name: string, year: ReactNode, month: ReactNode): ReactNode[] => [name, ' kostet dich ', year, ' im Jahr, also ', month, ' im Monat.'],
     contractRose: (month: string, delta: ReactNode): ReactNode[] => ['Seit ', month, ' zahlst du ', delta, ' mehr.'],
     contractMore: (names: string) => `Dazu passt auch: ${names}.`,
@@ -912,6 +936,27 @@ export const en: typeof de = {
     noGiro: 'A forecast needs a current account.',
     forecastPlus: 'The forecast comes with Girovo Plus.',
     openForecast: 'See forecast',
+    affordFits: (amount, left, day) => (day
+      ? ['That fits. After ', amount, ' you’d still have about ', left, ' on your tightest day, ', day, '.']
+      : ['That fits. After ', amount, ' you’d still have about ', left, '.']),
+    affordTight: (amount, left, day) => (day
+      ? ['That’s tight. After ', amount, ' you’d have only about ', left, ' left on your tightest day, ', day, '.']
+      : ['That’s tight. After ', amount, ' you’d have only about ', left, ' left.']),
+    affordShort: (amount, under, day) => (day
+      ? ['That doesn’t fit. With ', amount, ' you’d be about ', under, ' below zero on ', day, '.']
+      : ['That doesn’t fit. With ', amount, ' you’d be about ', under, ' below zero.']),
+    affordDispo: (amount, under, day) => (day
+      ? ['That only fits with your overdraft. With ', amount, ' you’d be about ', under, ' below zero on ', day, '.']
+      : ['That only fits with your overdraft. With ', amount, ' you’d be about ', under, ' below zero.']),
+    affordOverDispo: (amount, over, day) => (day
+      ? ['That doesn’t fit, not even with your overdraft. With ', amount, ' you’d be about ', over, ' past it on ', day, '.']
+      : ['That doesn’t fit, not even with your overdraft. With ', amount, ' you’d be about ', over, ' past it.']),
+    affordAlready: 'The account could go below zero even without it.',
+    affordBasis: (account, month, usual) => (usual
+      ? `Counted: ${account}, the payments due by the end of ${month} and your usual spending.`
+      : `Counted: ${account} and the payments due by the end of ${month}.`),
+    affordAsk: 'How much is it? For example: “Can I afford €300?”',
+    affordThisMonthOnly: (month) => `Girovo only looks ahead to the end of ${month}.`,
     contractYear: (name, year, month) => [name, ' costs you ', year, ' a year, that’s ', month, ' a month.'],
     contractRose: (month, delta) => ['Since ', month, ' you pay ', delta, ' more.'],
     contractMore: (names) => `Also matching: ${names}.`,

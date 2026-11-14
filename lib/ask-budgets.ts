@@ -42,12 +42,13 @@ const fold = (s: string) => ` ${s.toLocaleLowerCase('de').replace(/[?!.,;:„“
 // i18n-data-start — the words people use, German and English
 const BUDGET = /budget/;
 const OVER = / (?:über|ueber|übers|überm|drüber|drueber|darüber|überschritten|ueberschritten|überzogen|ueberzogen|reicht nicht|reichen nicht|reicht\w* (?:\S+ ){0,2}nicht|knapp|fast (?:aufgebraucht|leer|weg|alle|ausgeschöpft|ausgeschoepft|durch)|aufgebraucht|ausgeschöpft|ausgeschoepft|over|exceeded|blown|running (?:low|out)|almost (?:gone|used up|out|spent)|used up|not enough) /;
-const LEFT_ASK = / (?:noch|übrig|uebrig|rest|left|remaining|remain|wie ?viel|how much|was|what|stand|steht|stehe|status|wie|how|wo|where) /;
+const LEFT_ASK = / (?:noch|übrig|uebrig|rest|left|remaining|remain|wie ?viel|how much|was|what|stand|steht|stehe|status|wie|how|wo|where|reicht|reichen|reichts|langt) /;
 /** "Wie viel darf ich noch für Essen ausgeben?": what is left, without the word budget. */
 const ALLOWANCE = / (?:darf|kann|könnte|koennte|sollte) ich (?:\S+ ){0,5}noch (?:\S+ ){0,5}ausgeben | (?:how much|what) (?:more )?(?:can|may|should) i (?:still )?spend | how much (?:do i have |have i got |is )?left (?:to spend )?(?:for|on) /;
 /** Making, changing or removing a budget is another thing ("Leg ein Budget für Essen an", "Budget Lebensmittel 250 im Monat"). */
 const CREATE = /^ (?:bitte |please )?(?:leg|lege|setz|setze|erstell\w*|richte?|mach|mache|neues?|änder\w*|aender\w*|erhöh\w*|erhoeh\w*|senk\w*|lösch\w*|loesch\w*|entfern\w*|create|set|add|make|new|change|raise|lower|delete|remove) | (?:anlegen|festlegen|einrichten|erstellen|setzen|hinzufügen|hinzufuegen|ändern|aendern|erhöhen|erhoehen|senken|löschen|loeschen|entfernen|set up|change|delete|remove) |\d/;
-const QUESTION_START = /^ (?:wie|was|wo|welche\w*|wann|bin|ist|sind|how|what|where|which|am|is|are|do|does) /;
+/** A question, not an order, even with an amount: "Reicht mein Budget für 200 € Essen?". */
+const QUESTION_START = /^ (?:wie|was|wo|welche\w*|wann|bin|ist|sind|reicht|reichen|reichts|langt|how|what|where|which|am|is|are|do|does|will) /;
 /** Words around a category's name that are no part of it. */
 const FILLER = new Set((
   'monats monat gesamt mein meine meinem meinen meiner dem den das die der des im in ins am an fürs für fuer for on my the a this '
@@ -71,7 +72,8 @@ function budgetName(q: string): string | null {
   if (after && ok(after[1])) return after[1];
   const before = / (\S+) budgets? /.exec(q);
   if (before && ok(before[1])) return before[1];
-  const forWhat = / (?:für|fuer|fürs|for|on) (?:den |das |die |my |the )?(\S+)/.exec(q);
+  // "für 200 € Essen": the amount is no name.
+  const forWhat = / (?:für|fuer|fürs|for|on) (?:den |das |die |my |the )?(?:\d[\d.,]* (?:€ |euro |eur )?)?(\S+)/.exec(q);
   // "Was hab ich fürs Budget ausgegeben": the budget is no category's name.
   if (forWhat && ok(forWhat[1]) && !/^(?:den|das|die|diesen|this|the|a)$/.test(forWhat[1]) && !/budget/.test(forWhat[1])) return forWhat[1];
   return null;

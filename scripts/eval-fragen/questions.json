@@ -287,6 +287,17 @@
     {"id":"e062","lang":"en","turns":[{"q":"i want to save 1000 euros for a new bike by june","expect":{"intent":"createGoal","name":"bike","cents":100000,"by":"2027-06"}}],"note":"Girovo AI does it after \"Ja, bitte\" (lib/ask-actions.ts)"},
     {"id":"e063","lang":"en","turns":[{"q":"remind me before my netflix renews","expect":{"intent":"remindContract","name":"netflix"}}],"note":"Girovo AI does it after \"Ja, bitte\" (lib/ask-actions.ts)"},
     {"id":"e064","lang":"en","turns":[{"q":"send 20 euros to lea for pizza","expect":{"intent":"prepareTransfer","name":"lea","cents":2000}}],"note":"Girovo AI does it after \"Ja, bitte\" (lib/ask-actions.ts)"},
-    {"id":"e065","lang":"en","turns":[{"q":"delete my eating out budget","expect":{"intent":"budget","category":"dining","remove":true}}],"note":"Girovo AI does it after \"Ja, bitte\" (lib/ask-actions.ts)"}
+    {"id":"e065","lang":"en","turns":[{"q":"delete my eating out budget","expect":{"intent":"budget","category":"dining","remove":true}}],"note":"Girovo AI does it after \"Ja, bitte\" (lib/ask-actions.ts)"},
+    {"id":"d273","lang":"de","turns":[{"q":"kann ich mir 800 € leisten","expect":{"intent":"afford","cents":80000,"month":null}}],"note":"one amount against the month-end forecast (lib/ask-afford.ts)"},
+    {"id":"d274","lang":"de","turns":[{"q":"reicht mein geld für einen urlaub für 600 euro","expect":{"intent":"afford","cents":60000,"month":null}}],"note":"one amount against the month-end forecast (lib/ask-afford.ts)"},
+    {"id":"d275","lang":"de","turns":[{"q":"kann ich diesen monat noch 200€ ausgeben","expect":{"intent":"afford","cents":20000,"month":null}}],"note":"one amount against the month-end forecast (lib/ask-afford.ts)"},
+    {"id":"d276","lang":"de","turns":[{"q":"geht sich eine 1.200 € reparatur im dezember aus","expect":{"intent":"afford","cents":120000,"month":"2026-12"}}],"note":"one amount against the month-end forecast (lib/ask-afford.ts)"},
+    {"id":"d277","lang":"de","turns":[{"q":"kann ich mir das leisten","expect":{"intent":"afford","cents":null}}],"note":"one amount against the month-end forecast (lib/ask-afford.ts)"},
+    {"id":"d278","lang":"de","turns":[{"q":"hab ich genug geld für ein handy um 900 euro","expect":{"intent":"afford","cents":90000}}],"note":"one amount against the month-end forecast (lib/ask-afford.ts)"},
+    {"id":"d279","lang":"de","turns":[{"q":"reicht mein budget für 200 € essen","expect":{"intent":"budgetLeft","name":"essen"}}],"note":"a budget question stays one (lib/ask-budgets.ts), not afford"},
+    {"id":"e075","lang":"en","turns":[{"q":"can i afford €800","expect":{"intent":"afford","cents":80000,"month":null}}],"note":"one amount against the month-end forecast (lib/ask-afford.ts)"},
+    {"id":"e076","lang":"en","turns":[{"q":"do i have enough money for a 600 euro holiday","expect":{"intent":"afford","cents":60000}}],"note":"one amount against the month-end forecast (lib/ask-afford.ts)"},
+    {"id":"e077","lang":"en","turns":[{"q":"can i spend 200 more this month","expect":{"intent":"afford","cents":20000,"month":null}}],"note":"one amount against the month-end forecast (lib/ask-afford.ts)"},
+    {"id":"e078","lang":"en","turns":[{"q":"can i afford it","expect":{"intent":"afford","cents":null}}],"note":"one amount against the month-end forecast (lib/ask-afford.ts)"}
 ]
 }

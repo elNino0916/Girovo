@@ -3,7 +3,8 @@
 // Girovo AI's answers from the app's own figures (lib/ask-facts.ts): the
 // balances, the month-end forecast, Verträge & Abos (a contract's year, the
 // price rises, the next salary, the days to cancel by), Aufteilen and
-// Sparziele, the Monatsbudgets this month, and a past day's
+// Sparziele, the Monatsbudgets this month, whether an amount fits into the
+// month-end forecast, and a past day's
 // balance rebuilt from today's. A few template
 // sentences (lib/i18n/messages/ask.ts facts) over the same figures the pages
 // show, every amount drawn by <Money> or <RoundMoney> so "Beträge ausblenden"
@@ -14,6 +15,7 @@
 import { Fragment, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { liveValue, overviewFigures, type AccountValue } from '@/lib/account-overview';
+import { affordOutcome, forecastReaches, monthlySpending, tightLine } from '@/lib/ask-afford';
 import { bookingDay } from '@/lib/analytics';
 import { budgetsAsked, monthBudgets, perDayLeft, daysLeftInMonth, tightBudgets, usedShare } from '@/lib/ask-budgets';
 import { contractsAsked, deadlines } from '@/lib/ask-contracts';
@@ -119,6 +121,7 @@ export function FactAnswer({ intent, onShown }: { intent: FactIntent; onShown: (
     case 'budgetsOver': return <BudgetsOverAnswer onShown={onShown} />;
     case 'cancelBy': return <CancelByAnswer until={intent.until} onShown={onShown} />;
     case 'renewal': return <RenewalAnswer name={intent.name} onShown={onShown} />;
+    case 'afford': return <AffordAnswer cents={intent.cents} month={intent.month} onShown={onShown} />;
   }
 }
 
@@ -241,10 +244,75 @@ function BalanceAtAnswer({ day, onShown }: { day: string; onShown: () => void })
   );
 }
 
+/** Zahlungen at its first level, where the forecast stands. */
+function OpenForecastButton({ onShown }: { onShown: () => void }) {
+  const words = useT().ask.facts;
+  const { setTab } = useFints();
+  return (
+    <OpenButton
+      label={words.openForecast}
+      onClick={() => {
+        setTab('contracts');
+        // The desktop's Zahlungen back at its first level, where the forecast stands.
+        window.dispatchEvent(new CustomEvent(PLACE_ROOT_EVENT, { detail: 'contracts' }));
+        onShown();
+      }}
+    />
+  );
+}
+
+/**
+ * "Kann ich mir 800 € leisten?": the Zahlungen forecast of the open Girokonto
+ * (or the first), its lowest balance until the month's end less the amount,
+ * as if paid today (lib/ask-afford.ts affordOutcome). It fits, it is tight,
+ * or it does not, by how much below zero or past the Dispo; then what was
+ * counted. Without an amount it asks for one; a month past this one is said,
+ * not worked out.
+ */
+function AffordAnswer({ cents, month, onShown }: { cents: number | null; month: string | null; onShown: () => void }) {
+  const words = useT().ask.facts;
+  const { accounts, activeAccount, accountLabel, balances, plus } = useFints();
+  const account = forecastAccount(accounts, activeAccount);
+  const result = useMonthEndForecast(account);
+  if (cents == null) return <Lines lines={[words.affordAsk]} />;
+  if (!forecastAllowed(plus.state)) return <Lines lines={[words.forecastPlus]} />;
+  if (!account) return <Lines lines={[words.noGiro]} />;
+  if (result === 'stale') return <Lines lines={[words.staleForecast]} />;
+  if (!result) return <Lines lines={[words.noForecast]} />;
+  const { f, currency, series } = result;
+  const monthName = new Intl.DateTimeFormat(intlLocale(), { month: 'long' }).format(new Date(`${f.until}T12:00:00`));
+  if (!forecastReaches(month, f.until)) return <Lines lines={[words.affordThisMonthOnly(monthName)]} />;
+  const regular = series.filter((s) => s.kind === 'expense' && !s.ended).map((s) => s.monthlyAmount);
+  const o = affordOutcome({
+    low: f.low,
+    cents,
+    creditLimit: balances[account.accountNumber]?.creditLimit ?? null,
+    tight: tightLine(monthlySpending(regular, f.usualPerDay)),
+  });
+  const asked = <Fig><Money value={cents / 100} currency={currency} tone="plain" /></Fig>;
+  const about = (c: number) => <Fig><RoundMoney value={c / 100} currency={currency} /></Fig>;
+  // The lowest point today is said without a day.
+  const day = o.day === f.today ? null : dayWords(o.day);
+  const lines: Line[] = [
+    o.state === 'fits' ? words.affordFits(asked, about(o.left), day)
+      : o.state === 'tight' ? words.affordTight(asked, about(o.left), day)
+        : o.state === 'short' ? (o.dispo ? words.affordDispo : words.affordShort)(asked, about(o.under), day)
+          : words.affordOverDispo(asked, about(o.over), day),
+    (o.state === 'short' || o.state === 'overDispo') && o.already && words.affordAlready,
+    words.affordBasis(accountLabel(account), monthName, f.usualPerDay != null),
+  ];
+  return (
+    <>
+      <Lines lines={lines} />
+      <OpenForecastButton onShown={onShown} />
+    </>
+  );
+}
+
 /** "Reicht es bis Monatsende?": the Zahlungen forecast of the open Girokonto (or the first). */
 function MonthEndAnswer({ onShown }: { onShown: () => void }) {
   const words = useT().ask.facts;
-  const { accounts, activeAccount, accountLabel, plus, setTab } = useFints();
+  const { accounts, activeAccount, accountLabel, plus } = useFints();
   const account = forecastAccount(accounts, activeAccount);
   const result = useMonthEndForecast(account);
   if (!forecastAllowed(plus.state)) return <Lines lines={[words.forecastPlus]} />;
@@ -261,15 +329,7 @@ function MonthEndAnswer({ onShown }: { onShown: () => void }) {
   return (
     <>
       <Lines lines={lines} />
-      <OpenButton
-        label={words.openForecast}
-        onClick={() => {
-          setTab('contracts');
-          // The desktop's Zahlungen back at its first level, where the forecast stands.
-          window.dispatchEvent(new CustomEvent(PLACE_ROOT_EVENT, { detail: 'contracts' }));
-          onShown();
-        }}
-      />
+      <OpenForecastButton onShown={onShown} />
     </>
   );
 }
