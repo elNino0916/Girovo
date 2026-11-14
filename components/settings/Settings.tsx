@@ -58,7 +58,7 @@ import {
   BellIcon, BuildingIcon, ChartIcon, CheckCircleIcon, ClockIcon, CodeIcon, DownloadIcon, FileIcon, AiMarkIcon, ApiMarkIcon, GlobeIcon, ImageIcon, InfoIcon, KeyboardIcon,
   LockIcon, MailIcon, MonitorIcon, MoonIcon, PhoneIcon, RefreshIcon, ShieldIcon, SunIcon, WalletIcon,
 } from '../icons';
-import { BrandName, BrandPlate } from '../shell/BrandMark';
+import { ApiWordmark, BrandName, BrandPlate } from '../shell/BrandMark';
 import { PAGE_TITLE_ID } from '../shell/ids';
 import { useDesktopFrame } from '../shell/frame';
 import { Button, Dot, Kbd, Segmented, Spinner, cx } from '../ui';
@@ -112,6 +112,8 @@ export type PageEntry = {
   summary: string;
   /** Something on it needs a look: the saved data cannot be read. */
   alert: boolean;
+  /** Its name as a wordmark where it has one (Girovo API), shown wherever the name is a title. */
+  brand?: ReactNode;
   Icon: IconComponent;
 };
 
@@ -180,6 +182,7 @@ export function useSettingsPages(): PageEntry[] {
       short: words.pagesShort[id],
       summary: summary[id],
       alert: id === 'devices' && vaultStatus === 'error',
+      brand: id === 'api' ? <ApiWordmark /> : undefined,
       Icon: ICONS[id],
     }));
   }, [t, locale, bank, backgroundChecks, windowsHello, sync, vaultStatus, theme, askPage, askOff, update, playUpdate, words]);
@@ -234,7 +237,7 @@ export function Settings() {
           {/* The desktop names the page on the sheet; a phone in its top app bar. */}
           {/* Über Girovo's head names the app itself: its title is there only for a screen reader. */}
           {frame && (
-            <h2 className={page.id === 'about' ? 'sr-only' : '-mb-2 px-4 text-[22px] leading-7 font-medium text-ink'}>{page.title}</h2>
+            <h2 className={page.id === 'about' ? 'sr-only' : '-mb-2 px-4 text-[22px] leading-7 font-medium text-ink'}>{page.brand ?? page.title}</h2>
           )}
           <GroupHeading.Provider value={frame ? 'h3' : 'h2'}>
             <PageContent page={page.id} onDialog={setDialog} />
@@ -268,7 +271,7 @@ function SettingsHome({ pages, onOpen }: { pages: PageEntry[]; onOpen: (page: Se
             <PageItem
               key={p.id}
               icon={createElement(p.Icon, { size: 22 })}
-              title={p.title}
+              title={p.brand ?? p.title}
               summary={p.summary}
               alert={p.alert}
               onClick={() => onOpen(p.id)}

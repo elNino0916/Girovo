@@ -248,7 +248,7 @@ function SettingsSections({ open }: { open: boolean }) {
     const scored: (SideResult & { score: number })[] = [];
     for (const p of pages) {
       const score = scoreEntry({ label: p.title, keywords: [p.short, p.summary] }, q);
-      if (score > 0) scored.push({ key: `page-${p.id}`, score, title: p.title, summary: p.summary, page: p, run: () => setSettingsPage(p.id) });
+      if (score > 0) scored.push({ key: `page-${p.id}`, score, title: p.brand ?? p.title, summary: p.summary, page: p, run: () => setSettingsPage(p.id) });
     }
     for (const f of finds) {
       const page = pages.find((p) => p.id === PAGE_OF[f.target]);
@@ -362,7 +362,7 @@ function SettingsSections({ open }: { open: boolean }) {
                 <li key={p.id}>
                   <SideRow
                     page={p}
-                    title={p.title}
+                    title={p.brand ?? p.title}
                     summary={p.summary}
                     on={current === p.id}
                     alert={p.alert ? t.session.vaultUnreadable : undefined}
@@ -381,7 +381,7 @@ function SettingsSections({ open }: { open: boolean }) {
 /** What the sidebar's search found: a page, or one setting on its page. */
 type SideResult = {
   key: string;
-  title: string;
+  title: ReactNode;
   summary: string;
   page?: PageEntry;
   glyph?: (p: { size?: number; className?: string }) => ReactNode;
@@ -398,7 +398,7 @@ const MARK_DISC: Partial<Record<SettingsPage, string>> = {
 function SideRow({ page, glyph, title, summary, on, alert, onClick }: {
   page?: PageEntry;
   glyph?: SideResult['glyph'];
-  title: string;
+  title: ReactNode;
   summary: string;
   on?: boolean;
   /** Something on the page needs a look: said after its name. */

@@ -48,7 +48,7 @@ export function SettingsGroup({
  * and what is on it or how it is set. Pressed whole, it opens the page.
  */
 export function PageItem({ icon, title, summary, alert, onClick }: {
-  icon: ReactNode; title: string; summary?: ReactNode; alert?: boolean; onClick: () => void;
+  icon: ReactNode; title: ReactNode; summary?: ReactNode; alert?: boolean; onClick: () => void;
 }) {
   return (
     <button type="button" data-item data-pressable onClick={onClick} className={cx(ITEM, 'min-h-[72px]')}>

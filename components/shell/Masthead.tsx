@@ -27,7 +27,7 @@
 // bar stops dragging the window.
 
 import { useState } from 'react';
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { hasOverview } from '@/lib/account-overview';
 import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
@@ -51,7 +51,7 @@ const NO_DRAG = { WebkitAppRegion: 'no-drag' } as CSSProperties;
 
 
 /** The page's name, as Material's top app bar says where you are — or an account's, on its page. */
-function PageTitle({ hidden = false, text }: { hidden?: boolean; text?: string }) {
+function PageTitle({ hidden = false, text }: { hidden?: boolean; text?: ReactNode }) {
   const { tab } = useFints();
   const t = useT();
   return (
@@ -198,7 +198,7 @@ export function Masthead() {
           </IconButton>
         )}
         <PageTitle
-          text={settingsOn ? settingsOn.title : phoneAccount && activeAccount ? accountLabel(activeAccount) : ordersPage ? t.orders.page.title : undefined}
+          text={settingsOn ? settingsOn.brand ?? settingsOn.title : phoneAccount && activeAccount ? accountLabel(activeAccount) : ordersPage ? t.orders.page.title : undefined}
         />
 
         <div className="min-w-2 flex-1" />

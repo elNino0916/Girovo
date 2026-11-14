@@ -139,3 +139,22 @@ export function BrandMark({
     </span>
   );
 }
+
+/**
+ * Girovo API's wordmark ("Eingabe", owner's pick 2026-11-14,
+ * .impeccable/mocks/decision/ai-brand/wordmarks.html D): "Girovo" in the
+ * line's own face and weight, "API" in Girovo's mono at 600 in Girovo's blue
+ * (--api-mark), and a cursor after it, a block of the same blue at 45%. It
+ * stands where Girovo API's name is a title (its page, its row), never in a
+ * sentence. The words are real text, so it reads and is found as "Girovo API";
+ * the cursor is a picture.
+ */
+export function ApiWordmark({ className }: { className?: string }) {
+  return (
+    <span className={cx('whitespace-nowrap', className)}>
+      Girovo{' '}
+      <span className="font-mono text-[0.94em] font-semibold tracking-[-0.01em] text-[var(--api-mark)]">API</span>
+      <span aria-hidden className="ml-[0.08em] inline-block h-[0.92em] w-[0.42em] rounded-[0.08em] bg-[var(--api-mark)] align-[-0.12em] opacity-45" />
+    </span>
+  );
+}
