@@ -7,17 +7,14 @@
 // and the tidied name (lib/format.ts displayName) for names.
 //
 //   node scripts/eval-gemma-bookings.mjs [--dir <gemma folder>] [--only categories|names|clean] [--verbose]
+//     [--model <file.gguf>] [--server <llama-server>]
 //
 // clean: the cleanup prompt (lib/ai-names.ts), a name for every booking. The
 // even entries of the names set are the ones to tune on, the odd ones only
 // measured.
-import { spawn } from 'node:child_process';
-import crypto from 'node:crypto';
-import fs from 'node:fs';
-import net from 'node:net';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { costLine, modelArgs, spread, startLlama } from './eval-llama.mjs';
 import { CASES, HOLDOUT } from './category-sets.mjs';
 import { NAMES } from './eval-names-set.mjs';
 
@@ -33,36 +30,11 @@ const args = process.argv.slice(2);
 const arg = (name) => { const i = args.indexOf(`--${name}`); return i >= 0 ? args[i + 1] : null; };
 const verbose = args.includes('--verbose');
 const only = arg('only');
-const dir = arg('dir') ?? path.join(process.env.LOCALAPPDATA ?? os.homedir(), 'de.elnino0916.sooskasse-fints', 'gemma');
-const find = (d, name) => {
-  for (const e of fs.readdirSync(d, { withFileTypes: true })) {
-    const p = path.join(d, e.name);
-    if (e.isDirectory()) { const f = find(p, name); if (f) return f; } else if (e.name === name) return p;
-  }
-  return null;
-};
-const exe = find(path.join(dir, 'llama-b12250'), process.platform === 'win32' ? 'llama-server.exe' : 'llama-server');
-const model = path.join(dir, 'gemma-4-E2B_q4_0-it.gguf');
-if (!exe || !fs.existsSync(model)) throw new Error(`no Gemma in ${dir}`);
-const port = await new Promise((r) => { const s = net.createServer().listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => r(p)); }); });
-const key = crypto.randomBytes(32).toString('hex');
-const BASE = `http://127.0.0.1:${port}`;
-const child = spawn(exe, ['-m', model, '--host', '127.0.0.1', '--port', String(port), '--jinja', '-c', '4096', '-np', '1', '-ngl', '99', '--device', 'Vulkan0', '--no-webui'],
-  { env: { ...process.env, LLAMA_API_KEY: key }, stdio: 'ignore', windowsHide: true });
-process.on('exit', () => child.kill());
-for (let i = 0; ; i++) {
-  if (child.exitCode != null || i > 600) throw new Error('llama-server did not start');
-  try { if ((await fetch(`${BASE}/health`, { headers: { authorization: `Bearer ${key}` } })).ok) break; } catch { /* starting */ }
-  await new Promise((r) => setTimeout(r, 200));
-}
+const llama = await startLlama(modelArgs(args));
 const times = [];
 async function prompt(system, user, maxTokens) {
   const t = performance.now();
-  const r = await fetch(`${BASE}/v1/chat/completions`, {
-    method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
-    body: JSON.stringify({ messages: [{ role: 'system', content: system }, { role: 'user', content: user }], temperature: 0, top_k: 1, seed: 0, max_tokens: maxTokens, cache_prompt: true, chat_template_kwargs: { enable_thinking: false } }),
-  });
-  const text = String((await r.json()).choices?.[0]?.message?.content ?? '').trim();
+  const text = await llama.chat([{ role: 'system', content: system }, { role: 'user', content: user }], { maxTokens });
   times.push(performance.now() - t);
   return text;
 }
@@ -155,7 +127,7 @@ if (only === 'clean') {
   if (args.includes('--holdout')) await clean('Clean names, holdout (odd entries, measured only)', NAMES.filter((_, i) => i % 2 === 1));
   console.log(`
 median ${median(times)} ms per booking`);
-  child.kill();
+  console.log(costLine(llama.label, await llama.stop(), spread(times)));
   process.exit(0);
 }
 if (only !== 'names') {
@@ -164,5 +136,5 @@ if (only !== 'names') {
 }
 if (only !== 'categories') await names();
 console.log(`\nmedian ${median(times)} ms per booking`);
-child.kill();
+console.log(costLine(llama.label, await llama.stop(), spread(times)));
 process.exit(0);

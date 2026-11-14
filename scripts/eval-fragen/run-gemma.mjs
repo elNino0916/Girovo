@@ -4,15 +4,15 @@
 // no usable plan comes back. Writes results/gemma-latest.json.
 //
 //   node scripts/eval-fragen/run-gemma.mjs [--dir <gemma folder>] [--failures] [--only d001,d002] [--set holdout.json]
+//     [--model <file.gguf>] [--server <llama-server>]
 //
-// Another set (relative to this folder) writes results/gemma-<set>-latest.json.
-import { spawn } from 'node:child_process';
-import crypto from 'node:crypto';
+// Another set (relative to this folder) writes results/gemma-<set>-latest.json;
+// another model writes results/<model>-<set>-latest.json. blind.json prints
+// only its score, never a miss (README: nobody tuning reads them).
 import fs from 'node:fs';
-import net from 'node:net';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { costLine, modelArgs, spread, startLlama } from '../eval-llama.mjs';
 import { report, runSet } from './run.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -24,38 +24,11 @@ const { intentOf } = await lib('ask-intents.ts');
 
 const args = process.argv.slice(2);
 const arg = (name) => { const i = args.indexOf(`--${name}`); return i >= 0 ? args[i + 1] : null; };
-const dir = arg('dir') ?? path.join(process.env.LOCALAPPDATA ?? os.homedir(), 'de.elnino0916.sooskasse-fints', 'gemma');
-const find = (d, name) => {
-  for (const e of fs.readdirSync(d, { withFileTypes: true })) {
-    const p = path.join(d, e.name);
-    if (e.isDirectory()) { const f = find(p, name); if (f) return f; } else if (e.name === name) return p;
-  }
-  return null;
-};
-const exe = find(path.join(dir, 'llama-b12250'), process.platform === 'win32' ? 'llama-server.exe' : 'llama-server');
-const model = path.join(dir, 'gemma-4-E2B_q4_0-it.gguf');
-if (!exe || !fs.existsSync(model)) throw new Error(`no Gemma in ${dir}`);
-
-const port = await new Promise((r) => { const s = net.createServer().listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => r(p)); }); });
-const key = crypto.randomBytes(32).toString('hex');
-const BASE = `http://127.0.0.1:${port}`;
-const child = spawn(exe, ['-m', model, '--host', '127.0.0.1', '--port', String(port), '--jinja', '-c', '4096', '-np', '1', '-ngl', '99', '--device', 'Vulkan0', '--no-webui'],
-  { env: { ...process.env, LLAMA_API_KEY: key }, stdio: ['ignore', 'ignore', 'ignore'], windowsHide: true });
-process.on('exit', () => child.kill());
-for (let i = 0; ; i++) {
-  if (child.exitCode != null || i > 600) throw new Error('llama-server did not start');
-  try { if ((await fetch(`${BASE}/health`, { headers: { authorization: `Bearer ${key}` } })).ok) break; } catch { /* starting */ }
-  await new Promise((r) => setTimeout(r, 200));
-}
+const llama = await startLlama(modelArgs(args));
 
 // The request the app's shell sends (src-tauri/src/gemma.rs chat_body), JSON held.
 async function prompt(system, user, maxTokens) {
-  const r = await fetch(`${BASE}/v1/chat/completions`, {
-    method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
-    body: JSON.stringify({ messages: [{ role: 'system', content: system }, { role: 'user', content: user }], temperature: 0, top_k: 1, seed: 0, max_tokens: maxTokens, cache_prompt: true, chat_template_kwargs: { enable_thinking: false }, response_format: { type: 'json_object' } }),
-  });
-  const j = await r.json();
-  return String(j.choices?.[0]?.message?.content ?? '').trim() || null;
+  return (await llama.chat([{ role: 'system', content: system }, { role: 'user', content: user }], { maxTokens, json: true })) || null;
 }
 
 const setFile = arg('set') ?? 'questions.json';
@@ -66,6 +39,7 @@ const system = plannerSystem(today, []);
 let lastQuestion = null;
 const times = [];
 const raws = {};
+const plans = { asked: 0, json: 0, usable: 0 };
 
 async function readTurn(question, prevQuery) {
   const prev = prevQuery && lastQuestion ? { question: lastQuestion, query: prevQuery } : null;
@@ -78,6 +52,9 @@ async function readTurn(question, prevQuery) {
   times.push(performance.now() - t);
   raws[question] = raw;
   const planned = checkPlan(raw, ctx);
+  plans.asked++;
+  try { JSON.parse(raw); plans.json++; } catch { /* not JSON */ }
+  if (planned) plans.usable++;
   if (planned && 'offTopic' in planned) return { offTopic: true };
   if (planned) return { query: planned.plan, by: 'plan' };
   return readAsked(question, prevQuery, { today, own: [], reading: null, contracts: set.contracts ?? [] });
@@ -85,13 +62,15 @@ async function readTurn(question, prevQuery) {
 
 const only = arg('only')?.split(',') ?? null;
 const failures = args.includes('--failures');
+const blind = own === 'blind';
 const { rows, summary } = await runSet({
   readTurn, only, set,
-  onTurn: (row) => { if (!failures || !row.ok) console.log(`${row.ok ? '✓' : '✗'} ${row.id}.${row.turn} ${row.q}${row.ok ? '' : `\n    ${row.misses.join('; ')}\n    gemma: ${raws[row.q]}`}`); },
+  onTurn: (row) => { if (!blind && (!failures || !row.ok)) console.log(`${row.ok ? '✓' : '✗'} ${row.id}.${row.turn} ${row.q}${row.ok ? '' : `\n    ${row.misses.join('; ')}\n    gemma: ${raws[row.q]}`}`); },
 });
-times.sort((a, b) => a - b);
-console.log(`\n${report(summary)}\nmedian planner ${Math.round(times[Math.floor(times.length / 2)] ?? 0)} ms`);
+const cost = await llama.stop();
+const calls = spread(times);
+console.log(`\n${blind ? report(summary).split('\n')[0] : report(summary)}\nplans: ${plans.json}/${plans.asked} valid JSON, ${plans.usable}/${plans.asked} usable (the rest fell back to the rules)\nmedian planner ${calls.median} ms, p90 ${calls.p90} ms\n${costLine(llama.label, cost, calls)}`);
+const runner = args.includes('--model') ? llama.label : 'gemma';
 fs.mkdirSync(path.join(HERE, 'results'), { recursive: true });
-fs.writeFileSync(path.join(HERE, 'results', own === 'questions' ? 'gemma-latest.json' : `gemma-${own}-latest.json`), JSON.stringify({ summary, rows, raws }, null, 1));
-child.kill();
+fs.writeFileSync(path.join(HERE, 'results', own === 'questions' ? `${runner}-latest.json` : `${runner}-${own}-latest.json`), JSON.stringify({ summary, rows, raws, plans, cost, calls }, null, 1));
 process.exit(0);
