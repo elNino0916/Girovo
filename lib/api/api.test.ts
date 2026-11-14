@@ -418,3 +418,27 @@ test('an app named only by its file reads as people say it', async () => {
   assert.equal(appName('Claude'), 'Claude');
   assert.equal(appName('Visual Studio Code'), 'Visual Studio Code');
 });
+
+test('router: a logout keeps who greeted, so connections the shell held work after the next login', async () => {
+  const h = harness();
+  await h.call(verified, 'girovo.hello', { app: 'Haushalt', permissions: ['accounts.read'] });
+  h.router.reset();
+  assert.ok((await h.call(verified, 'girovo.accounts.list')).result, 'no second hello needed');
+  h.router.closed('c1');
+  assert.equal((await h.call(verified, 'girovo.accounts.list')).error.code, 'invalid', 'a connection that ended must greet again');
+});
+
+test('router: a hello that waited behind another dialog and hung up opens none', async () => {
+  let release!: () => void;
+  const first = new Promise<void>((r) => { release = r; });
+  const h = harness({ answer: (r) => (r.connection === 'c1' ? 'hang' : { allow: r.permissions }) });
+  const one = h.call(verified, 'girovo.hello', { app: 'Haushalt', permissions: ['accounts.read'] }, 'c1');
+  const two = h.call(verified, 'girovo.hello', { app: 'Haushalt', permissions: ['transactions.read'] }, 'c2');
+  h.router.closed('c2');
+  h.router.closed('c1');
+  release();
+  await first;
+  assert.equal((await one).error.code, 'timeout');
+  assert.equal((await two).error.code, 'timeout');
+  assert.equal(h.asked.length, 1, 'no dialog for the connection that is gone');
+});

@@ -64,6 +64,14 @@ const live: { current: Live | null } = { current: null };
 /** Grant changes, Verlauf lines and transfer outcomes not yet in the vault. */
 const pendingGrants: Array<(g: readonly ApiGrant[]) => ApiGrant[]> = [];
 const pendingLog: ApiLogEntry[] = [];
+/** The grants the last flush saved, and the vault state's grants it was made from: used until that state changes. */
+let savedGrants: { grants: ApiGrant[]; from: ApiGrant[] | undefined } | null = null;
+function currentGrants(): ApiGrant[] {
+  const inState = live.current?.vault?.apiGrants;
+  if (savedGrants && savedGrants.from === inState) return savedGrants.grants;
+  savedGrants = null;
+  return inState ?? [];
+}
 const pendingOutcomes: Array<{ request: string; outcome: TransferState }> = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -77,6 +85,8 @@ function flush() {
   const outcomes = pendingOutcomes.splice(0);
   l.updateVault((v) => {
     const grants = fns.reduce<ApiGrant[]>((g, fn) => fn(g), v.apiGrants ?? []);
+    // Until the next render brings them in the vault state, calls read these (host.grants).
+    savedGrants = { grants, from: l.vault?.apiGrants };
     const log = outcomes.reduce((all, o) => withLogOutcome(all, o.request, o.outcome), appendLog(v.apiLog ?? [], lines));
     const next: VaultData = { ...v };
     if (grants.length) next.apiGrants = grants;
@@ -93,8 +103,8 @@ const schedule = () => {
 
 const host: RouterHost = {
   vaultOpen: () => !!live.current?.open,
-  // What the vault holds, with what is still on its way there.
-  grants: () => pendingGrants.reduce<ApiGrant[]>((g, fn) => fn(g), live.current?.vault?.apiGrants ?? []),
+  // What the vault holds, with what is still on its way there (and what was just saved but not rendered yet).
+  grants: () => pendingGrants.reduce<ApiGrant[]>((g, fn) => fn(g), currentGrants()),
   setGrants: (fn) => {
     pendingGrants.push(fn);
     schedule();

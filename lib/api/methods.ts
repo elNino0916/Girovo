@@ -96,8 +96,16 @@ const cents = (v: number) => Math.round(Number(v) * 100);
 const money = (amount: number, currency: string): Money => ({ cents: cents(amount), currency: currency || 'EUR' });
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
+/** A real calendar day ("2026-02-31" is none, though Date.parse takes it). */
+export function realDay(day: string): boolean {
+  if (!DAY.test(day)) return false;
+  const [y, m, d] = day.split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
+}
+
 const MONTH = /^\d{4}-\d{2}$/;
-const isDay = (v: unknown): v is string => typeof v === 'string' && DAY.test(v) && Number.isFinite(Date.parse(v));
+const isDay = (v: unknown): v is string => typeof v === 'string' && realDay(v);
 const isMonth = (v: unknown): v is string => typeof v === 'string' && MONTH.test(v) && +v.slice(5) >= 1 && +v.slice(5) <= 12;
 const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 

@@ -231,10 +231,18 @@ export class ApiRouter {
     this.waiting.delete(conn);
   }
 
-  /** Every connection gone (the API switched off, the logout): nothing of them is kept, refusals are. */
+  /**
+   * The logout or the API switched off: open dialogs end and subscriptions stop.
+   * Which connections said hello is kept: the shell keeps them open through a
+   * logout (their calls wait for the next login), and every call checks the
+   * grants again, so a connection that greeted before needs no second hello
+   * (Girovo MCP never sends one). A connection that really ends says so through closed().
+   */
   reset(): void {
-    for (const conn of [...this.waiting.keys()]) this.closed(conn);
-    this.hellos.clear();
+    for (const conn of [...this.waiting.keys()]) {
+      for (const c of this.waiting.get(conn) ?? []) c.abort();
+      this.waiting.delete(conn);
+    }
     this.subs.clear();
     this.declined.clear();
     this.snapshot = null;
@@ -424,6 +432,8 @@ export class ApiRouter {
       if (!waiting) break;
       await waiting.catch(() => {});
     }
+    // The app hung up while it waited behind another dialog: no dialog for a connection that is gone.
+    if (!this.hellos.has(conn)) return fail('timeout');
     if (this.refused.has(key)) return fail('denied');
 
     const have = findGrant(this.host.grants(), call.client)?.permissions ?? [];

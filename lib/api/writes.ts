@@ -24,7 +24,7 @@ import { REMINDER_LEADS } from '../contract-watch.ts';
 import { cleanNote } from '../notes.ts';
 import { GOAL_LIMITS } from '../savings-goal.ts';
 import { categoryValidator, cleanCategoryName } from '../splits.ts';
-import { accountId, findAccount, findBooking, findSeries, seriesId, type ApiData, type MethodOutcome } from './methods.ts';
+import { accountId, findAccount, findBooking, findSeries, realDay, seriesId, type ApiData, type MethodOutcome } from './methods.ts';
 
 /** What the write methods change, made by the host from the provider's own setters. */
 export type ApiActions = {
@@ -47,7 +47,7 @@ export type WriteOutcome = MethodOutcome;
 const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const MONTH = /^\d{4}-\d{2}$/;
-const isDay = (v: unknown): v is string => typeof v === 'string' && DAY.test(v) && Number.isFinite(Date.parse(v));
+const isDay = (v: unknown): v is string => typeof v === 'string' && realDay(v);
 const isMonth = (v: unknown): v is string => typeof v === 'string' && MONTH.test(v) && +v.slice(5) >= 1 && +v.slice(5) <= 12;
 const isCents = (v: unknown, max: number): v is number => typeof v === 'number' && Number.isInteger(v) && v > 0 && v <= max;
 // eslint-disable-next-line no-control-regex

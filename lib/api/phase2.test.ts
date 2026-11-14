@@ -585,3 +585,13 @@ test('eventTargets and dataEvents: filtered by kind and permission; an account l
   assert.deepEqual(dataEvents(snapshotOf(empty), snapshotOf(d), d).filter((e) => e.kind === 'bookings.new'), []);
   assert.equal(bookingIds(d).get('1001')!.size, 8);
 });
+
+test('transfers.request: a day ahead without an account opens on one that offers it; impossible days are refused', async () => {
+  const { realDay } = await import('./methods.ts');
+  assert.equal(realDay('2026-02-31'), false);
+  assert.equal(realDay('2028-02-29'), true);
+  const d = data();
+  const dated = transferAsk(d, { iban: IBAN, name: 'A', cents: 1, executeOn: '2026-12-01' }) as { ask: TransferAsk };
+  assert.equal(dated.ask.accountKey, '1001', 'the account that offers dated transfers');
+  assert.equal((transferAsk(d, { iban: IBAN, name: 'A', cents: 1, executeOn: '2027-02-31' }) as { invalid: string }).invalid, 'executeOn');
+});

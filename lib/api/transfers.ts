@@ -18,7 +18,7 @@
 
 import { ibanValid, compactIban } from '../format.ts';
 import { sepaLength, sepaSanitize, SEPA_NAME_MAX, SEPA_PURPOSE_MAX } from '../sepa-text.ts';
-import { accountId, bookingIds, findAccount, type ApiData, type MethodOutcome } from './methods.ts';
+import { accountId, bookingIds, findAccount, realDay, type ApiData, type MethodOutcome } from './methods.ts';
 import type { TransferState } from './types.ts';
 
 /** The highest amount a request may name, in cents (the form's own field takes no more). */
@@ -72,11 +72,14 @@ export function transferAsk(data: ApiData, params: unknown): { ask: TransferAsk 
   let executeOn: string | undefined;
   if (params.executeOn !== undefined && params.executeOn !== null) {
     const day = params.executeOn;
-    if (typeof day !== 'string' || !DAY.test(day) || !Number.isFinite(Date.parse(day)) || day < data.today) return { invalid: 'executeOn' };
+    if (typeof day !== 'string' || !realDay(day) || day < data.today) return { invalid: 'executeOn' };
     if (day > data.today) {
       // A day ahead is a terminierte Überweisung: the account (the one asked for, else every one that sends) must offer it.
       const senders = account ? [account] : data.accounts.filter((a) => a.account.canTransfer);
-      if (!senders.some((a) => a.account.dated?.create)) return { invalid: 'executeOn', data: { reason: 'not_offered' } };
+      const dated = senders.find((a) => a.account.dated?.create);
+      if (!dated) return { invalid: 'executeOn', data: { reason: 'not_offered' } };
+      // Without an account named, the sheet opens on one that offers it, never on one that would quietly send now.
+      if (!accountKey) accountKey = dated.key;
       executeOn = day;
     }
   }
