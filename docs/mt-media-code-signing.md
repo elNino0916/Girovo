@@ -41,8 +41,8 @@ certificates: what it can sign is code, with this one key.
 
 ## Installing it (optional)
 
-In Girovo on Windows: **Einstellungen → Sicherheit → Herausgeber → MT-Media
-als Herausgeber → Details → Zertifikat installieren.** The dialog explains
+In Girovo on Windows: **Einstellungen → Sicherheit → Signatur →
+MT-Media-Zertifikat → Zertifikat installieren.** The dialog explains
 what installing means and shows the fingerprint. After the confirmation
 Windows asks for administrator rights (UAC), and `girovo-cert.exe` adds the
 certificate to:
@@ -88,7 +88,7 @@ Remove-Item "Cert:\LocalMachine\Root\$t", "Cert:\LocalMachine\TrustedPublisher\$
 
 | Status | Meaning |
 |---|---|
-| Nicht installiert | in neither store |
+| Optional, damit Windows MT-Media als Herausgeber erkennt | in neither store (the dialog says "Zertifikat nicht installiert") |
 | Installiert, Windows vertraut MT-Media | in both stores, and Windows builds a valid chain for code signing |
 | Installiert, aber Windows vertraut ihm nicht | in only one store, in a Disallowed store, or Windows rejects the chain |
 | Abgelaufen | the certificate's validity has ended |

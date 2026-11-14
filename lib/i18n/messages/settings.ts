@@ -296,16 +296,16 @@ export const de = {
   },
 
   /**
-   * Sicherheit → Herausgeber, Windows only (components/settings/PublisherCert.tsx,
+   * Sicherheit → Signatur, Windows only (components/settings/PublisherCert.tsx,
    * src-tauri/src/publisher_cert.rs, docs/mt-media-code-signing.md): the
    * MT-Media code-signing certificate in Windows' trust stores.
    */
   publisherCert: {
-    group: 'Herausgeber',
-    row: 'MT-Media als Herausgeber',
+    group: 'Signatur',
+    row: 'MT-Media-Zertifikat',
     state: {
       checking: 'Wird geprüft …',
-      notInstalled: 'Zertifikat nicht installiert',
+      notInstalled: 'Optional, damit Windows MT-Media als Herausgeber erkennt',
       trusted: 'Installiert, Windows vertraut MT-Media',
       invalid: 'Installiert, aber Windows vertraut ihm nicht',
       expired: 'Zertifikat abgelaufen',
@@ -321,7 +321,8 @@ export const de = {
     validUntil: 'Gültig bis',
     sha256: 'Fingerabdruck (SHA-256)',
     thumbprint: 'Fingerabdruck (SHA-1)',
-    status: 'Status',
+    trustedLine: 'Windows vertraut MT-Media als Herausgeber',
+    notInstalledLine: 'Zertifikat nicht installiert',
     install: 'Zertifikat installieren',
     remove: 'Zertifikat entfernen',
     installTitle: 'Zertifikat installieren?',
@@ -592,11 +593,11 @@ export const en: typeof de = {
   },
 
   publisherCert: {
-    group: 'Publisher',
-    row: 'MT-Media as publisher',
+    group: 'Signature',
+    row: 'MT-Media certificate',
     state: {
       checking: 'Checking …',
-      notInstalled: 'Certificate not installed',
+      notInstalled: 'Optional, so Windows recognises MT-Media as the publisher',
       trusted: 'Installed, Windows trusts MT-Media',
       invalid: 'Installed, but Windows doesn’t trust it',
       expired: 'Certificate expired',
@@ -612,7 +613,8 @@ export const en: typeof de = {
     validUntil: 'Valid until',
     sha256: 'Fingerprint (SHA-256)',
     thumbprint: 'Thumbprint (SHA-1)',
-    status: 'Status',
+    trustedLine: 'Windows trusts MT-Media as the publisher',
+    notInstalledLine: 'Certificate not installed',
     install: 'Install certificate',
     remove: 'Remove certificate',
     installTitle: 'Install the certificate?',
