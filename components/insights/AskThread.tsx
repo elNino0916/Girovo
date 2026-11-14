@@ -54,6 +54,7 @@ import { openTxDetail } from '../transactions/detail-host';
 import { useScopeData, type ScopeData } from './analysis-model';
 import { AskTile } from './Ask';
 import { ExplainAnswer } from './ask/ExplainAnswer';
+import { HelpAnswer } from './ask/HelpAnswer';
 import { AskNotes, thisMonth } from './ask/Notes';
 import { ListLine, ListRows, RankLine, RankRows } from './ask/ListAnswer';
 import { useCanAsk } from './ask-gate';
@@ -573,10 +574,11 @@ export function RecapText({ recap, own, onShown }: { recap: NonNullable<ReturnTy
   );
 }
 
-/** A turn that is no sum of bookings: Verträge & Abos, a setting as it is, or a change asked first. */
+/** A turn that is no sum of bookings: Verträge & Abos, a setting as it is, what Girovo AI can do, or a change asked first. */
 function IntentAnswer({ turn, intent, onShown }: { turn: Turn; intent: AskIntent; onShown: () => void }) {
   if (intent.kind === 'contracts') return <ContractsAnswer onShown={onShown} />;
   if (intent.kind === 'read') return <SettingsAnswer setting={intent.setting} />;
+  if (intent.kind === 'help') return <HelpAnswer turn={turn} onShown={onShown} />;
   if (isFact(intent)) return <FactAnswer intent={intent} onShown={onShown} />;
   if (isAction(intent)) return <ActionAnswer turn={turn} intent={intent} onShown={onShown} />;
   return <ChangeAnswer turn={turn} intent={intent} />;
@@ -639,7 +641,7 @@ function SettingsAnswer({ setting }: { setting: Extract<AskIntent, { kind: 'read
  * A change, asked first: the question, "Ja, bitte" and "Abbrechen". Made only
  * on the yes; then what happened, in a word. Already so: said, nothing asked.
  */
-function ChangeAnswer({ turn, intent }: { turn: Turn; intent: Exclude<AskIntent, { kind: 'contracts' } | { kind: 'read' } | FactIntent | ActionIntent> }) {
+function ChangeAnswer({ turn, intent }: { turn: Turn; intent: Exclude<AskIntent, { kind: 'contracts' } | { kind: 'read' } | { kind: 'help' } | FactIntent | ActionIntent> }) {
   const words = useT().ask.actions;
   const theme = useThemePref();
   const { privacy, togglePrivacy, loadAllBalances } = useFints();
@@ -794,10 +796,11 @@ function TurnView({ turn, data, ctx, own, onShown, latest, first }: {
 }
 
 /** The next questions, built from the last answer: asked as they read. */
-function useNextQuestions(last: AskQuery | null): string[] {
+function useNextQuestions(last: AskQuery | null, empty: boolean): string[] {
   const t = useT();
   const words = t.ask;
-  if (!last) return words.suggestions;
+  // The empty conversation also offers what Girovo AI can do, first.
+  if (!last) return empty ? [words.thread.helpChip, ...words.suggestions] : words.suggestions;
   const out: string[] = [];
   const before = monthBefore(last.period, dayKey(new Date()));
   if (before) out.push(words.thread.next.monthBefore(fmtMonth(before)));
@@ -826,7 +829,7 @@ function Thread({ face, onClose }: { face: 'screen' | 'panel'; onClose: () => vo
   const listRef = useRef<HTMLDivElement>(null);
   const turns = conversation?.turns ?? [];
   const last = [...turns].reverse().find((x) => x.query)?.query ?? null;
-  const next = useNextQuestions(last);
+  const next = useNextQuestions(last, turns.length === 0);
   const busy = turns.some((x) => x.state === 'reading');
   // The empty conversation greets by first name; the first question's answer may open with it.
   const style = useAskStyle();

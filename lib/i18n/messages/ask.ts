@@ -122,6 +122,8 @@ export const de = {
     deleteConversation: 'Gespräch löschen',
     deleteAll: 'Alle Gespräche löschen',
     /** Small talk, or anything that is not about the bookings. */
+    /** The empty conversation's first chip: what Girovo AI can do (help). */
+    helpChip: 'Was kannst du?',
     offTopic: 'Dazu kann Girovo nichts sagen. Frag etwas zu deinen Umsätzen, etwa „Was ging im Oktober an Rewe?“',
     /** The chips over the field: the next questions. */
     next: {
@@ -350,6 +352,63 @@ export const de = {
    * every one follows as a row. `when` opens the line (null: every loaded booking);
    * `often`: ranked by how often, else by money.
    */
+  /**
+   * "Was kannst du?", "Hilfe" (components/insights/ask/HelpAnswer.tsx): what Girovo AI can do,
+   * in short groups. Every example is asked as it reads when tapped, so each must be read
+   * as the question it shows (lib/ask-help.test.ts). `shown`: the groups before "Mehr zeigen".
+   */
+  help: {
+    intro: 'Das kannst du Girovo AI fragen. Tipp auf eine Frage, um sie zu stellen.',
+    shown: 3,
+    groups: [
+      {
+        title: 'Ausgaben und Einnahmen',
+        text: 'Summen, pro Monat oder Jahr, Vergleiche, größte und letzte Zahlung, wie oft.',
+        examples: ['Lebensmittel letzten Monat', 'Essen gehen pro Monat', 'Wie oft war ich dieses Jahr tanken?'],
+      },
+      {
+        title: 'Listen',
+        text: 'Wo du warst, wen du bezahlst, wofür am meisten draufgeht.',
+        examples: ['Wo war ich im Oktober essen?', 'Wofür gebe ich am meisten aus?', 'Zeig alle Zahlungen an Amazon'],
+      },
+      {
+        title: 'Kontostand',
+        text: 'Jetzt, an einem früheren Tag, am Monatsende und ob du dir etwas leisten kannst.',
+        examples: ['Wie viel Geld habe ich?', 'Reicht es bis Monatsende?', 'Kann ich mir 800 € leisten?'],
+      },
+      {
+        title: 'Verträge & Abos',
+        text: 'Was läuft, was du bis wann kündigen kannst, was teurer geworden ist.',
+        examples: ['Welche Abos habe ich?', 'Was kann ich bald kündigen?', 'Welche Abos sind teurer geworden?'],
+      },
+      {
+        title: 'Budgets und Sparziele',
+        text: 'Was im Budget übrig ist, wo es nicht reicht, wie weit deine Ziele sind.',
+        examples: ['Wo bin ich über dem Budget?', 'Wie viel ist noch im Lebensmittel-Budget?', 'Wie stehen meine Sparziele?'],
+      },
+      {
+        title: 'Geld von anderen',
+        text: 'Wer dir aus Aufteilen noch etwas schuldet und wann das Gehalt kommt.',
+        examples: ['Wer schuldet mir noch Geld?', 'Wann kommt das Gehalt?'],
+      },
+      {
+        title: 'Dinge erledigen',
+        text: 'Empfänger zuordnen, Budget oder Sparziel anlegen, an Kündigungen erinnern. Girovo tut das erst nach deinem „Ja, bitte“. Überweisung und Kündigungsschreiben bereitet Girovo vor, senden tust du selbst.',
+        examples: ['Leg für Essen ein Budget von 300 € an', 'Erinner mich vor der Verlängerung von Netflix', 'Überweise Lea 20 € für Pizza'],
+      },
+      {
+        title: 'Erklären',
+        text: 'Öffne einen Umsatz und tipp auf „Was ist das für eine Zahlung?“',
+        examples: [] as string[],
+      },
+    ],
+    how: 'Jeden Betrag rechnet Girovo selbst aus deinen Umsätzen aus.',
+    /** Before the way to Einstellungen → Girovo AI, a link. */
+    style: 'Ton, Länge und Anrede:',
+    styleLink: 'Einstellungen → Girovo AI',
+    more: 'Mehr zeigen',
+    less: 'Weniger zeigen',
+  },
   list: {
     rank: {
       dining: (when: string | null, n: number, first: string, often: boolean) => (n === 1
@@ -743,6 +802,7 @@ export const en: typeof de = {
     },
     deleteConversation: 'Delete conversation',
     deleteAll: 'Delete all conversations',
+    helpChip: 'What can you do?',
     offTopic: 'Girovo can\u2019t help with that. Ask about your transactions, like \u201cWhat went to Rewe in October?\u201d',
     next: {
       monthBefore: (month) => `And in ${month}?`,
@@ -903,6 +963,57 @@ export const en: typeof de = {
     mandate: 'Mandate reference',
     creditorId: 'Creditor ID',
     open: 'Open transaction',
+  },
+  help: {
+    intro: 'Here’s what you can ask Girovo AI. Tap a question to ask it.',
+    shown: 3,
+    groups: [
+      {
+        title: 'Spending and income',
+        text: 'Totals, per month or year, comparisons, largest and latest payment, how often.',
+        examples: ['Groceries last month', 'Eating out per month', 'How often did I get fuel this year?'],
+      },
+      {
+        title: 'Lists',
+        text: 'Where you went, who you pay, what takes the most money.',
+        examples: ['Where did I eat out in October?', 'What do I spend the most on?', 'Show all payments to Amazon'],
+      },
+      {
+        title: 'Balance',
+        text: 'Now, on an earlier day, at the end of the month and whether you can afford something.',
+        examples: ['How much money do I have?', 'Will it last until the end of the month?', 'Can I afford €800?'],
+      },
+      {
+        title: 'Contracts & subscriptions',
+        text: 'What runs, what you can cancel by when, what got more expensive.',
+        examples: ['Which subscriptions do I have?', 'What can I cancel soon?', 'Which subscriptions got more expensive?'],
+      },
+      {
+        title: 'Budgets and savings goals',
+        text: 'What’s left in a budget, where it falls short, how far your goals are.',
+        examples: ['Where am I over budget?', 'How much is left in the groceries budget?', 'How are my savings goals?'],
+      },
+      {
+        title: 'Money from others',
+        text: 'Who still owes you from Split and when your salary comes.',
+        examples: ['Who still owes me money?', 'When does my salary come?'],
+      },
+      {
+        title: 'Getting things done',
+        text: 'File a payee, set a budget or savings goal, get reminded to cancel. Girovo does it only after your “Yes, please”. Girovo prepares transfers and cancellation letters, you send them yourself.',
+        examples: ['Set a budget of €300 for eating out', 'Remind me before Netflix renews', 'Send Lea €20 for pizza'],
+      },
+      {
+        title: 'Explaining',
+        text: 'Open a transaction and tap “What is this payment?”',
+        examples: [],
+      },
+    ],
+    how: 'Girovo works out every amount itself, from your transactions.',
+    style: 'Tone, length and name:',
+    styleLink: 'Settings → Girovo AI',
+    more: 'Show more',
+    less: 'Show less',
   },
   list: {
     rank: {

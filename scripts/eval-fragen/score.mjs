@@ -4,7 +4,7 @@
 // An expect lists only what matters for its question:
 //   kind, dir, category, search, period, against, rankBy, rankMetric  (a question about bookings)
 //   per: "month" | "year"                                              (an average; none in the reading is "month")
-//   intent (+ setting, value, name, day, category, until)               (contracts, read, set, refresh, and the
+//   intent (+ setting, value, name, day, category, until)               (contracts, read, set, refresh, help, and the
 //                                                                         app's figures: balance, monthEnd, contractCost,
 //                                                                         priceRises, salary, owed, goal, and
 //                                                                         balanceAt, whose day is a yyyy-mm-dd;

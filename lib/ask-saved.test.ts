@@ -209,6 +209,7 @@ test('every intent the app reads can be kept: a new kind needs its sanitiser', (
   const samples: Record<string, unknown> = {
     contracts: { kind: 'contracts' },
     refresh: { kind: 'refresh' },
+    help: { kind: 'help' },
     read: { kind: 'read', setting: 'theme' },
     set: { kind: 'set', setting: 'language', value: 'en' },
     balance: { kind: 'balance' },
@@ -231,7 +232,7 @@ test('every intent the app reads can be kept: a new kind needs its sanitiser', (
     prepareTransfer: { kind: 'prepareTransfer', name: 'Lea', cents: 2000, purpose: 'Pizza' },
     cancelLetter: { kind: 'cancelLetter', name: 'fitnessstudio', end: '2026-12-31' },
   };
-  for (const kind of [...FACT_KINDS, ...ACTION_KINDS, 'contracts', 'refresh', 'read', 'set']) {
+  for (const kind of [...FACT_KINDS, ...ACTION_KINDS, 'contracts', 'refresh', 'help', 'read', 'set']) {
     assert.ok(samples[kind], `no sample for the intent ${kind}`);
     assert.deepEqual(sanitizeIntent(samples[kind], builtin), samples[kind], kind);
   }

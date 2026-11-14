@@ -152,7 +152,7 @@ export function sanitizeIntent(raw: unknown, isCategory: IsCategory): AskIntent 
   if (!isRecord(raw)) return null;
   const L = ASK_SAVED_LIMITS;
   switch (raw.kind) {
-    case 'contracts': case 'refresh': case 'balance': case 'monthEnd': case 'priceRises': case 'salary': case 'budgetsOver':
+    case 'contracts': case 'refresh': case 'help': case 'balance': case 'monthEnd': case 'priceRises': case 'salary': case 'budgetsOver':
       return { kind: raw.kind };
     case 'read':
       return ['theme', 'privacy', 'language', 'idle', 'all'].includes(raw.setting as string)

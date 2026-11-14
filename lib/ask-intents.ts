@@ -8,6 +8,8 @@
 // - balance, balanceAt, monthEnd, contractCost, priceRises, salary, owed, goal: the app's own figures (lib/ask-facts.ts)
 // - fileUnder, createGoal, budget, remindContract, prepareTransfer: things done for you, asked first (lib/ask-actions.ts)
 // - cancelLetter: a contract's Kündigungsschreiben to take away, never sent (lib/ask-actions.ts, lib/cancel-letter.ts)
+// - help        "Was kannst du?", "Hilfe", "Wie funktionierst du?": what Girovo AI can do, with questions to tap
+//               (components/insights/ask/HelpAnswer.tsx). Only the whole message: "Was kann ich mir leisten?" stays afford.
 //
 // Rules only: the words are few and plain, and a change is never made on a
 // model's guess. Every change waits for the user's "Ja" in the thread.
@@ -29,6 +31,7 @@ export type AskIntent =
   | { kind: 'set'; setting: 'privacy'; value: boolean }
   | { kind: 'set'; setting: 'language'; value: 'de' | 'en' }
   | { kind: 'refresh' }
+  | { kind: 'help' }
   | FactIntent
   | ActionIntent;
 
@@ -60,6 +63,29 @@ const ACCOUNTS = / (?:konten|konto|salden|saldo|kontost(?:ä|ae)nde?|kontostand|
 const BOOKINGS = / (?:ums(?:ä|ae)tze|buchungen|transactions) /;
 const REFRESH_VERB = /^ (?:bitte |kannst du |please )?(?:aktualisier\w*|lade?|ruf\w*|refresh\w*|reload\w*) | (?:neu laden|aktualisieren|abrufen|refresh|reload)(?: bitte| please)? $/;
 const IDLE = / (?:abmelden|abmeldung|automatisch abgemeldet|logout|log out|timeout|abgemeldet) /;
+/** Words that may stand inside a help question without making it another one: "Was kann ich dich hier alles fragen?" */
+const HELP_FILL = '(?:alles|so|denn|eigentlich|überhaupt|ueberhaupt|hier|da|noch|genau|sonst|dich|dir|mir|mit dir|bei dir|von dir|damit|ein paar|you|here|else|exactly|actually|really|all|me|some)';
+/** Words that may follow one: "Was kannst du alles für mich?" */
+const HELP_TAIL = '(?:alles|so|denn|eigentlich|überhaupt|ueberhaupt|hier|noch|genau|sonst|für mich|fuer mich|bitte|girovo|girovo ai|all|here|exactly|else|for me|please|actually|really|anyway|then|you)';
+/** Words that may open one: "Hallo Girovo, was kannst du?" */
+const HELP_LEAD = '(?:hallo|hi|hey|hello|ok|okay|und|and|also|so|bitte|please|girovo|girovo ai|ai)';
+const HELP_CORE = [
+  `was (?:kannst|könntest|koenntest) du(?: (?:${HELP_FILL}|für mich|fuer mich))*(?: (?:tun|machen|zeigen|beantworten))?`,
+  `was (?:kann|darf|soll|könnte|koennte) (?:ich|man)(?: ${HELP_FILL})* (?:fragen|tun|machen|eingeben|sagen|schreiben)`,
+  `(?:wobei|womit|wie|wofür|wofuer) (?:kannst|könntest|koenntest) du(?: ${HELP_FILL})* helfen`,
+  `kannst du mir(?: ${HELP_FILL})* helfen`,
+  `hilf mir|(?:ich )?brauche hilfe|hilfe|help|help me|i need help|(?:how )?can you help(?: me)?|what can you help(?: me)? with`,
+  `wie (?:funktionierst du|funktioniert (?:das|das hier|das alles|es|du|girovo|girovo ai)|benutze ich (?:dich|das|girovo|girovo ai)|nutze ich (?:dich|das|girovo|girovo ai))`,
+  `(?:was|wer) bist du|was machst du|was ist girovo ai|was kann girovo(?: ai)?|was sind deine (?:funktionen|fähigkeiten|faehigkeiten)|was verstehst du`,
+  `(?:zeig|zeige)(?: mir)? (?:was du kannst|beispiele|ein paar beispiele|beispielfragen)|(?:gib|nenn|nenne) mir(?: ein paar)? beispiele|beispiele|beispielfragen`,
+  `welche fragen (?:kann ich(?: dir)? stellen|kann ich stellen|verstehst du|kannst du beantworten)`,
+  `what (?:can|could) you(?: ${HELP_FILL})* (?:do|answer)`,
+  `what (?:can|could|should) (?:i|we)(?: ${HELP_FILL})* (?:ask|do|say|type)`,
+  `how (?:do you work|does (?:this|it|girovo|girovo ai) work|do i use (?:you|this|girovo|girovo ai))`,
+  `(?:what|who) are you|what do you do|what is girovo ai|what are your (?:features|skills)|show me what you can do|(?:give me )?(?:some )?examples|what questions can i ask(?: you)?|what do you understand`,
+].join('|');
+/** The whole message asks what Girovo AI can do; anything after it ("Was kann ich mir leisten?") makes it another question. */
+const HELP = new RegExp(`^(?: ${HELP_LEAD})* (?:${HELP_CORE})(?: ${HELP_TAIL})* $`);
 // i18n-data-end
 
 /**
@@ -69,6 +95,8 @@ const IDLE = / (?:abmelden|abmeldung|automatisch abgemeldet|logout|log out|timeo
  */
 export function intentOf(question: string, contracts: readonly string[] = [], today?: string, own: readonly OwnCategory[] = []): AskIntent | null {
   const q = fold(question);
+  // "Was kannst du?": only the whole message, so it never takes a real question's place.
+  if (HELP.test(q)) return { kind: 'help' };
   // Something to do, before anything is read as a question: a category rule, a Sparziel, a budget, a reminder, a transfer.
   const action = actionOf(question, own, today);
   if (action) return action;
