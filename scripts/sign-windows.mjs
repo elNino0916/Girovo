@@ -106,18 +106,28 @@ function sha256(file) {
   return createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 }
 
+/**
+ * Windows PowerShell 5.1, with the module path it builds itself. Started from
+ * PowerShell 7 (GitHub's `pwsh` steps, a pwsh terminal) it would inherit 7's
+ * PSModulePath, load 7's Microsoft.PowerShell.Security and lose both the
+ * Cert: drive and Get-AuthenticodeSignature.
+ */
 function powershell(script) {
-  const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', `[Console]::OutputEncoding = [Text.Encoding]::UTF8; ${script}`], { encoding: 'utf8' });
+  const env = { ...process.env };
+  for (const key of Object.keys(env)) if (key.toLowerCase() === 'psmodulepath') delete env[key];
+  const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', `[Console]::OutputEncoding = [Text.Encoding]::UTF8; ${script}`], { encoding: 'utf8', env });
   return { status: r.status, out: (r.stdout || '').trim(), err: (r.stderr || '').trim() };
 }
 
 /** Is the certificate in CurrentUser\My, with its private key and still valid? 'ok' | 'missing' | 'nokey' | 'expired'. */
 export function keyState(thumbprint = THUMBPRINT) {
   const r = powershell(
-    `$c = Get-Item -LiteralPath 'Cert:\\CurrentUser\\My\\${thumbprint}' -ErrorAction SilentlyContinue; ` +
-      `if (-not $c) { 'missing' } elseif (-not $c.HasPrivateKey) { 'nokey' } elseif ($c.NotAfter -lt (Get-Date)) { 'expired' } else { 'ok' }`,
+    // Only "not there" counts as missing; a store that cannot be read says why.
+    `try { $c = Get-Item -LiteralPath 'Cert:\\CurrentUser\\My\\${thumbprint}' -ErrorAction Stop; ` +
+      `if (-not $c.HasPrivateKey) { 'nokey' } elseif ($c.NotAfter -lt (Get-Date)) { 'expired' } else { 'ok' } } ` +
+      `catch [System.Management.Automation.ItemNotFoundException] { 'missing' } catch { 'error: ' + $_.Exception.Message }`,
   );
-  return r.out || 'missing';
+  return r.out || `error: no answer from PowerShell${r.err ? ` (${r.err})` : ''}`;
 }
 
 const KEY_PROBLEM = {
@@ -131,7 +141,7 @@ export function readiness() {
   if (process.platform !== 'win32') return 'Signing needs Windows (SignTool).';
   if (!findSigntool()) return 'SignTool was not found. Install the Windows SDK, or set SIGNTOOL to signtool.exe.';
   const state = keyState();
-  return state === 'ok' ? null : KEY_PROBLEM[state] || `Unexpected certificate state: ${state}`;
+  return state === 'ok' ? null : KEY_PROBLEM[state] || `The certificate store could not be read: ${state.replace(/^error: /, '')}`;
 }
 
 /** The timestamp line of `signtool verify /v`, or null when the file has none. */
@@ -187,9 +197,10 @@ export function verify(file, { requireTimestamp = !ALLOW_NO_TIMESTAMP } = {}) {
   entry.status = sig.status || null;
   entry.timestamp = timestampOf(stOut);
   entry.timestampAuthority = /CN=([^,]+)/.exec(sig.tsa || '')?.[1] ?? null;
-  if (sig.status && sig.status !== 'Valid') problems.push(`Get-AuthenticodeSignature: ${sig.status} (${sig.message})`);
-  if (sig.status && (sig.thumbprint || '').toUpperCase() !== THUMBPRINT) problems.push(`signed by ${sig.thumbprint || 'nobody'}, not ${THUMBPRINT}`);
-  if (sig.status && entry.publisher !== PUBLISHER) problems.push(`publisher is ${entry.publisher || 'missing'}, not ${PUBLISHER}`);
+  // Every check holds without exception: an empty answer is a failed check, never a pass.
+  if (sig.status !== 'Valid') problems.push(`Get-AuthenticodeSignature: ${sig.status || 'no status'}${sig.message ? ` (${sig.message})` : ''}`);
+  if ((sig.thumbprint || '').toUpperCase() !== THUMBPRINT) problems.push(`signed by ${sig.thumbprint || 'nobody'}, not ${THUMBPRINT}`);
+  if (entry.publisher !== PUBLISHER) problems.push(`publisher is ${entry.publisher || 'missing'}, not ${PUBLISHER}`);
   if (requireTimestamp && !entry.timestamp) problems.push('not timestamped');
   entry.result = problems.length ? 'failed' : 'ok';
   if (problems.length) entry.error = problems.join('; ');

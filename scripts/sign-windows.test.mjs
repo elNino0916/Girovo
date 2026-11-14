@@ -71,7 +71,22 @@ test('an unsigned program fails verification', { skip: !signtool && 'needs Windo
   }
 });
 
-test('a program signed by someone else fails verification', { skip: !signtool && 'needs Windows and SignTool' }, () => {
+test('started from PowerShell 7, the signature is still read', { skip: !signtool && 'needs Windows and SignTool' }, () => {
+  // GitHub's pwsh steps hand PowerShell 7's module path down; Windows
+  // PowerShell must not take it (it lost Get-AuthenticodeSignature and Cert:).
+  const saved = process.env.PSModulePath;
+  process.env.PSModulePath = 'C:\\Program Files\\PowerShell\\7\\Modules;C:\\Program Files\\PowerShell\\Modules';
+  try {
+    const entry = verify(signtool);
+    assert.ok(entry.thumbprint, 'Microsoft’s signature on SignTool was read');
+    assert.equal(entry.status, 'Valid');
+  } finally {
+    if (saved === undefined) delete process.env.PSModulePath;
+    else process.env.PSModulePath = saved;
+  }
+});
+
+test('a program signed by someone else fails verification',{ skip: !signtool && 'needs Windows and SignTool' }, () => {
   // SignTool itself carries Microsoft's signature: valid, but not MT-Media's.
   const entry = verify(signtool);
   assert.equal(entry.result, 'failed');
