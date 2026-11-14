@@ -10,12 +10,17 @@
 // - `api:call { id, connection, client, method, params }` to the main window for every request;
 // - the page answers with `api_reply { id, result | error }`; unanswered after
 //   150 s the client hears `timeout`, and with no page to ask, `locked`;
-// - `api:closed { connection }` once a connection ends.
+// - `api:closed { connection }` once a connection ends;
+// - `api_notify { connection, method, params }` sends that connection a
+//   JSON-RPC notification (events.subscribe), false once it is gone;
+// - `api_focus_window` brings Girovo's window to the front for the consent
+//   dialog or an approval, and says whether it got there (focus.rs).
 //
 // Off by default and off at every start: the page switches it on with
 // `api_set_enabled` once it has loaded and its setting says so. A page that
 // loads again has to say so again; until then calls answer `locked`.
 
+mod focus;
 mod icon;
 mod identify;
 mod rpc;
@@ -129,6 +134,26 @@ pub fn api_reply(state: tauri::State<'_, Api>, id: String, result: Option<Value>
     Some(s) => s.reply(&id, Reply::from_parts(result, error)),
     None => false,
   }
+}
+
+/// A notification to one connection, as `{"jsonrpc":"2.0","method":…,"params":…}`.
+/// false when it did not go out: the connection is gone, or was just dropped
+/// for leaving its queue full, or the message is none the wire may carry
+/// (over the 1 MiB cap, or params that are no object or array; the log says which).
+#[tauri::command(async)]
+pub fn api_notify(state: tauri::State<'_, Api>, connection: String, method: String, params: Option<Value>) -> bool {
+  let server = state.server.lock().unwrap();
+  match server.as_ref() {
+    Some(s) => s.notify(&connection, &method, params.unwrap_or(Value::Null)).is_ok(),
+    None => false,
+  }
+}
+
+/// Girovo's window out of the tray or the taskbar and in front; whether it
+/// got there. Not in front, its taskbar button flashes until the user comes.
+#[tauri::command(async)]
+pub fn api_focus_window(app: AppHandle) -> bool {
+  focus::bring_forward(&app)
 }
 
 /// The executable's icon as a PNG data URL, null where there is none (and off Windows).

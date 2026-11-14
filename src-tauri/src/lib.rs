@@ -319,6 +319,8 @@ pub fn run() {
       api::api_status,
       api::api_reply,
       api::api_client_icon,
+      api::api_notify,
+      api::api_focus_window,
     ])
     .build(tauri::generate_context!())
     .expect("error while running Girovo");

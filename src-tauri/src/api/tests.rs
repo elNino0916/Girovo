@@ -8,7 +8,7 @@ use tokio::sync::mpsc;
 
 use super::identify::{self, Kind};
 use super::rpc::{self, LineError, Message, PageError, Reply};
-use super::server::{Call, Limits, Router, Server};
+use super::server::{Call, Limits, NotSent, Router, Server};
 
 // --- the wire ---
 
@@ -495,4 +495,153 @@ fn a_second_server_cannot_take_the_same_pipe() {
 fn the_pipe_is_named_after_this_user() {
   let address = super::transport::default_address().unwrap();
   assert!(address.starts_with(r"\\.\pipe\girovo-api-S-1-5-"), "{address}");
+}
+
+// --- notifications from the page ---
+
+/// A connection that has said hello, and its id as the page knows it.
+async fn connected(h: &mut Harness, id: u32) -> (BufReader<ClientStream>, String) {
+  let mut client = connect(h.server.address()).await;
+  send(&mut client, hello(id)).await;
+  let call = next(&mut h.calls).await;
+  h.server.reply(&call.id, Reply::Result(json!({ "granted": [] })));
+  assert_eq!(answer(&mut client).await.unwrap()["id"], id);
+  (client, call.connection)
+}
+
+#[tokio::test]
+async fn a_notification_reaches_its_connection_only() {
+  let mut h = harness(Limits::default());
+  let (mut a, a_id) = connected(&mut h, 1).await;
+  let (mut b, _) = connected(&mut h, 2).await;
+
+  let params = json!({ "kind": "booking", "text": "zwei\nZeilen" });
+  assert_eq!(h.server.notify(&a_id, "girovo.event", params.clone()), Ok(()));
+  assert_eq!(answer(&mut a).await.unwrap(), json!({ "jsonrpc": "2.0", "method": "girovo.event", "params": params }));
+  // Without params, none on the wire: JSON-RPC has no null params.
+  assert_eq!(h.server.notify(&a_id, "girovo.ping", Value::Null), Ok(()));
+  assert_eq!(answer(&mut a).await.unwrap(), json!({ "jsonrpc": "2.0", "method": "girovo.ping" }));
+
+  // B heard nothing: the next line it reads is the answer to its own call.
+  send(&mut b, hello(3)).await;
+  let call = next(&mut h.calls).await;
+  h.server.reply(&call.id, Reply::Result(json!("b")));
+  assert_eq!(answer(&mut b).await.unwrap(), json!({ "jsonrpc": "2.0", "id": 3, "result": "b" }));
+}
+
+#[tokio::test]
+async fn a_notification_the_wire_cannot_carry_is_not_sent() {
+  let mut h = harness(Limits { max_message: 1024, ..Limits::default() });
+  let (mut a, a_id) = connected(&mut h, 1).await;
+  assert_eq!(h.server.notify(&a_id, "girovo.event", json!({ "pad": "x".repeat(2000) })), Err(NotSent::Refused));
+  assert_eq!(h.server.notify(&a_id, "girovo.event", json!("a string")), Err(NotSent::Refused));
+  assert_eq!(h.server.notify(&a_id, "", json!({})), Err(NotSent::Refused));
+  assert_eq!(h.server.notify(&a_id, &"m".repeat(200), json!({})), Err(NotSent::Refused));
+  // The connection is still there and hears the next one that fits.
+  assert_eq!(h.server.notify(&a_id, "girovo.event", json!([1, 2])), Ok(()));
+  assert_eq!(answer(&mut a).await.unwrap()["params"], json!([1, 2]));
+}
+
+#[tokio::test]
+async fn a_notification_to_a_closed_connection_fails_cleanly() {
+  let mut h = harness(Limits::default());
+  let (a, a_id) = connected(&mut h, 1).await;
+  assert_eq!(h.server.notify("no-such-connection", "girovo.event", json!({})), Err(NotSent::Gone));
+  drop(a);
+  assert_eq!(next(&mut h.closed).await, a_id);
+  assert_eq!(h.server.notify(&a_id, "girovo.event", json!({})), Err(NotSent::Gone));
+}
+
+#[tokio::test]
+async fn a_client_that_does_not_read_is_dropped_alone() {
+  let mut h = harness(Limits { max_queued: 8, max_queued_bytes: 256 * 1024, ..Limits::default() });
+  let (mut slow, slow_id) = connected(&mut h, 1).await;
+  let (mut b, b_id) = connected(&mut h, 2).await;
+
+  // The slow one reads nothing: the pipe's buffer fills, then its queue.
+  let big = json!({ "pad": "x".repeat(32 * 1024) });
+  let mut outcome = Ok(());
+  for _ in 0..2000 {
+    outcome = h.server.notify(&slow_id, "girovo.event", big.clone());
+    if outcome.is_err() {
+      break;
+    }
+  }
+  assert_eq!(outcome, Err(NotSent::Overflow));
+  // Dropped: the page hears it, nothing more goes there, and the client sees the end.
+  assert_eq!(next(&mut h.closed).await, slow_id);
+  assert_eq!(h.server.notify(&slow_id, "girovo.event", json!({})), Err(NotSent::Gone));
+  let mut rest = Vec::new();
+  tokio::time::timeout(Duration::from_secs(10), tokio::io::AsyncReadExt::read_to_end(&mut slow, &mut rest))
+    .await
+    .expect("the slow client sees the end")
+    .ok();
+
+  // The other connection is untouched, both ways.
+  assert_eq!(h.server.notify(&b_id, "girovo.event", json!({ "n": 1 })), Ok(()));
+  assert_eq!(answer(&mut b).await.unwrap()["params"]["n"], 1);
+  send(&mut b, hello(3)).await;
+  let call = next(&mut h.calls).await;
+  assert_eq!(call.connection, b_id);
+  h.server.reply(&call.id, Reply::Result(json!(true)));
+  assert_eq!(answer(&mut b).await.unwrap()["id"], 3);
+  let deadline = Instant::now() + Duration::from_secs(5);
+  while h.server.connections() != 1 && Instant::now() < deadline {
+    tokio::time::sleep(Duration::from_millis(20)).await;
+  }
+  assert_eq!(h.server.connections(), 1);
+}
+
+#[tokio::test]
+async fn a_client_dropped_while_its_own_answers_wait_still_ends() {
+  // Its bad lines' errors fill the pipe and the queue, so the shell's reader
+  // waits for room; the drop must end the connection all the same.
+  let mut h = harness(Limits { max_queued: 8, burst: 1e9, per_second: 1e9, ..Limits::default() });
+  let (mut slow, slow_id) = connected(&mut h, 1).await;
+  slow.get_mut().write_all(&b"{oops\n".repeat(4000)).await.unwrap();
+  let mut outcome = Ok(());
+  let deadline = Instant::now() + Duration::from_secs(10);
+  while outcome.is_ok() && Instant::now() < deadline {
+    outcome = h.server.notify(&slow_id, "girovo.event", json!({}));
+    tokio::time::sleep(Duration::from_millis(5)).await;
+  }
+  assert_eq!(outcome, Err(NotSent::Overflow));
+  assert_eq!(next(&mut h.closed).await, slow_id);
+  let deadline = Instant::now() + Duration::from_secs(5);
+  while h.server.connections() != 0 && Instant::now() < deadline {
+    tokio::time::sleep(Duration::from_millis(20)).await;
+  }
+  assert_eq!(h.server.connections(), 0);
+}
+
+#[test]
+fn a_notification_line_is_json_rpc() {
+  let line = rpc::notification_line("girovo.event", json!({ "a": 1 }));
+  assert_eq!(*line.last().unwrap(), b'\n');
+  assert_eq!(line.iter().filter(|&&c| c == b'\n').count(), 1);
+  let v: Value = serde_json::from_slice(&line).unwrap();
+  assert_eq!(v, json!({ "jsonrpc": "2.0", "method": "girovo.event", "params": { "a": 1 } }));
+  assert!(v.get("id").is_none());
+}
+
+// --- the window to the front ---
+
+#[test]
+fn after_set_foreground_the_next_step() {
+  use super::focus::{Next, next_step};
+  assert_eq!(next_step(true, 0, 1), Next::Done);
+  assert_eq!(next_step(true, 7, 1), Next::Done);
+  // Another app's thread holds the foreground: join its input once.
+  assert_eq!(next_step(false, 7, 1), Next::JoinInput);
+  // No foreground window (the lock screen, a desktop switch) or our own thread: nothing to join.
+  assert_eq!(next_step(false, 0, 1), Next::GiveUp);
+  assert_eq!(next_step(false, 1, 1), Next::GiveUp);
+}
+
+/// Only handles that are no window: nothing is shown or opened on this PC.
+#[cfg(windows)]
+#[test]
+fn a_handle_that_is_no_window_is_never_in_front() {
+  assert!(!super::focus::win::to_front(0));
+  assert!(!super::focus::win::to_front(0x7ff0_0000_0001_u64 as isize));
 }

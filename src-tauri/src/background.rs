@@ -256,7 +256,7 @@ pub fn bring_forward(app: &AppHandle) {
   show_window(app);
 }
 
-fn show_window(app: &AppHandle) {
+pub(crate) fn show_window(app: &AppHandle) {
   if let Some(w) = app.get_webview_window("main") {
     let _ = w.unminimize();
     let _ = w.show();

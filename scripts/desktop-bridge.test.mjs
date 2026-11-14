@@ -63,3 +63,26 @@ test('the Girovo API: a reply goes to api_reply as a result or an error, never b
   assert.equal(typeof api.onCall(() => {}), 'function');
   assert.equal(typeof api.onClosed(() => {}), 'function');
 });
+
+test('the Girovo API: notify goes to api_notify with its three arguments, focus to api_focus_window', async () => {
+  const { window, calls } = load();
+  const api = window.electronGirovoApi;
+  await api.notify('conn-1', 'girovo.event', { kind: 'booking' });
+  await api.notify('conn-1', 'girovo.ping');
+  await api.notify(7, 'girovo.event', [1]);
+  assert.deepEqual(JSON.parse(JSON.stringify(calls.filter(([cmd]) => cmd === 'api_notify').map(([, args]) => args))), [
+    { connection: 'conn-1', method: 'girovo.event', params: { kind: 'booking' } },
+    { connection: 'conn-1', method: 'girovo.ping', params: null },
+    { connection: '7', method: 'girovo.event', params: [1] },
+  ]);
+  await api.focus();
+  assert.deepEqual(calls.at(-1)[0], 'api_focus_window');
+});
+
+test('the Girovo API: notify and focus answer false when the shell throws', async () => {
+  const { window } = load();
+  // A shell from before these commands: Tauri rejects the unknown command.
+  window.__TAURI_INTERNALS__.invoke = () => Promise.reject(new Error('no such command'));
+  assert.equal(await window.electronGirovoApi.notify('c', 'girovo.event', {}), false);
+  assert.equal(await window.electronGirovoApi.focus(), false);
+});

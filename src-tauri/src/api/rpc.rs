@@ -146,7 +146,7 @@ pub fn parse(line: &[u8]) -> Message {
     return Message::Invalid { id: answer_to, error: WireError::shape(INVALID_REQUEST, "Invalid Request") };
   }
   let method = match fields.get("method") {
-    Some(Value::String(m)) if !m.is_empty() && m.len() <= MAX_METHOD => m.clone(),
+    Some(Value::String(m)) if method_fits(m) => m.clone(),
     None if fields.contains_key("result") || fields.contains_key("error") => return Message::Response,
     _ => return Message::Invalid { id: answer_to, error: WireError::shape(INVALID_REQUEST, "Invalid Request") },
   };
@@ -208,6 +208,25 @@ pub fn reply_line(id: &Value, reply: Reply) -> Vec<u8> {
     Reply::Result(result) => result_line(id, result),
     Reply::Error(e) => error_line(id, &WireError::from_reason(&e.code, &e.message, e.data)),
   }
+}
+
+/// Whether a method's name is one a line may carry: not empty and short.
+pub fn method_fits(method: &str) -> bool {
+  !method.is_empty() && method.len() <= MAX_METHOD
+}
+
+/// A notification from Girovo to a client (events.subscribe): no id, since
+/// nobody answers it. JSON-RPC wants params structured or left out, so a
+/// null leaves them out and the caller refuses anything else that is not an
+/// object or an array.
+pub fn notification_line(method: &str, params: Value) -> Vec<u8> {
+  let mut out = Map::new();
+  out.insert("jsonrpc".into(), "2.0".into());
+  out.insert("method".into(), method.into());
+  if !params.is_null() {
+    out.insert("params".into(), params);
+  }
+  line_of(Value::Object(out))
 }
 
 /// serde_json writes a newline inside a string as `\n`, so a message is always one line.

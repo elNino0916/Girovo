@@ -191,7 +191,10 @@
   // reply(id, { result }) or reply(id, { error: { code, message, data } }).
   // setEnabled answers { running, address }, status adds connections, icon
   // gives the caller's icon as a PNG data URL or null. onCall and onClosed
-  // return their own unsubscribe.
+  // return their own unsubscribe. notify sends one connection a JSON-RPC
+  // notification (events.subscribe) and answers false once that connection
+  // is gone; focus brings Girovo's window to the front for the dialog or an
+  // approval and answers whether it got there (else its taskbar button flashes).
   define('electronGirovoApi', {
     setEnabled: function (on) { return invoke('api_set_enabled', { on: on === true }); },
     status: function () { return invoke('api_status'); },
@@ -217,6 +220,12 @@
       }
       return invoke('api_reply', args);
     },
+    // A notification without params goes with null, which the shell leaves off the wire.
+    notify: function (connection, method, params) {
+      return invoke('api_notify', { connection: String(connection), method: String(method), params: params === undefined ? null : params })
+        .catch(function () { return false; });
+    },
+    focus: function () { return invoke('api_focus_window').catch(function () { return false; }); },
   });
 
   // Saving a file the app made (the CSV export, a backup) through a native
