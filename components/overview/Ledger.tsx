@@ -31,6 +31,7 @@ import { PeriodControl } from '../transactions/PeriodControl';
 import { TxFilterBar } from '../transactions/TxFilterBar';
 import { TxList } from '../transactions/TxList';
 import { sinceShort } from './AccountsOverview';
+import { AiNoteLine } from './AiNoteLine';
 import { daySpan } from './MonthFigures';
 import { Button, FilterChip, IconButton, Overlay, Sheet, Spinner } from '../ui';
 import { PendingPanel } from '../transactions/PendingPanel';
@@ -240,6 +241,9 @@ export function Ledger() {
           </dl>
         )}
       </div>
+
+      {/* Girovo AI's most pressing note, one line between the sum and the bookings (nothing while there is none). */}
+      <AiNoteLine className="mx-7 mt-5" />
 
       <div className="px-7 pt-5 pb-1">
         <TxFilterBar

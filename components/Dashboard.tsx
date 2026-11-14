@@ -26,6 +26,7 @@ import { isDepot } from '@/lib/balances';
 import { useFints } from './FintsProvider';
 import { AccountHero } from './AccountPanel';
 import { AccountsOverview } from './overview/AccountsOverview';
+import { AiNoteLine } from './overview/AiNoteLine';
 import { MonthFigures } from './overview/MonthFigures';
 import { Transactions } from './Transactions';
 import { Portfolio } from './Portfolio';
@@ -347,6 +348,8 @@ function Overview() {
       <Slot name="hero"><AccountHero /></Slot>
       {/* A Depot has no Umsätze to add up. */}
       {!depot && <Slot className="max-sm:hidden"><MonthFigures /></Slot>}
+      {/* Girovo AI's most pressing note, one line: the desktop's frame only (nothing while there is none). */}
+      {!depot && <Slot><AiNoteLine /></Slot>}
       <Slot><MerchantLogoConsent /></Slot>
       <Slot><UsageConsentTile /></Slot>
       {/* A Depot has no Umsätze over FinTS: its holdings take their place. */}

@@ -278,6 +278,8 @@ export type VaultData = {
   aiNamesOn?: true;
   /** Girovo AI's cleaned counterparty names (lib/ai-names-store.ts), kept while switched off. This device's own, never synced. */
   aiNames?: AiNamesCache;
+  /** Girovo AI's notes closed on the desktop Übersicht's line, by key (lib/ask-notes-line.ts). This device's own, never synced. */
+  aiNotesClosed?: string[];
   /** ISO */
   updatedAt: string;
 };

@@ -2,7 +2,8 @@
 
 // Girovo AI's notes without asking (Girovo Next): at most three short things
 // that stand out (lib/ask-notes.ts), under the month recap and as the first
-// tile of a fresh conversation. Each opens its bookings or its place in the
+// tile of a fresh conversation; the desktop's Übersicht says the first of them
+// in one line (overview/AiNoteLine.tsx). Each opens its bookings or its place in the
 // app, and each can be closed; a closed note stays away for the session
 // (kept with the hidden recaps, forgotten at logout like them). Every amount
 // goes through <Money>, so Beträge ausblenden hides it. Nothing at all is
@@ -34,7 +35,7 @@ const hiddenKey = (key: string) => `note:${key}`;
 export const thisMonth = (): string => dayKey(new Date()).slice(0, 7);
 
 /** The notes for `month` over the loaded bookings, without the ones closed this session. */
-function useNotes(data: ScopeData | null, categoryOf: CategoryOf | undefined, month: string, closed: number): AskNote[] {
+export function useNotes(data: ScopeData | null, categoryOf: CategoryOf | undefined, month: string, closed: number): AskNote[] {
   const model = useRecurringModel();
   const { notices } = useContractNotices();
   const budgets = useFints().vault?.budgets;
@@ -75,8 +76,10 @@ function Amount({ cents, currency }: { cents: number; currency: string }) {
   return <span className="tnum font-medium whitespace-nowrap"><Money value={cents / 100} currency={currency} tone="plain" /></span>;
 }
 
-/** One note's sentence. */
-function NoteText({ note, currency, own }: { note: AskNote; currency: string; own: readonly { id: string; name: string }[] }) {
+/** One note's sentence; `short`: one short sentence, as the desktop Übersicht's line says it (overview/AiNoteLine.tsx). */
+export function NoteText({ note, currency, own, short = false }: {
+  note: AskNote; currency: string; own: readonly { id: string; name: string }[]; short?: boolean;
+}) {
   const t = useT();
   const words = t.ask.notes;
   const money = (cents: number, cur = currency) => <Amount cents={cents} currency={cur} />;
@@ -87,17 +90,23 @@ function NoteText({ note, currency, own }: { note: AskNote; currency: string; ow
     const name = note.payee ? displayName(note.payee.name) || t.insights.noName : nameOf(note.category!);
     parts = note.times
       ? [words.times(when, name, note.times, !!note.payee)]
-      : words.more(when, name, !!note.payee, money(note.cents), money(note.usualCents));
+      : short
+        ? [words.line.more(when, name, !!note.payee)]
+        : words.more(when, name, !!note.payee, money(note.cents), money(note.usualCents));
   } else if (note.kind === 'budget') {
     const nameOf = (id: CategoryId) => own.find((c) => c.id === id)?.name ?? categoryLabel(id);
     const past = note.month < thisMonth();
-    parts = note.over
-      ? words.budgetOver(past ? words.inMonth(fmtMonth(note.month).split(' ')[0]) : words.thisMonth, nameOf(note.category), money(note.rest), past)
-      : words.budgetNear(nameOf(note.category), money(note.rest));
+    parts = short
+      ? (note.over ? words.line.budgetOver(nameOf(note.category), money(note.rest)) : words.line.budgetNear(nameOf(note.category), money(note.rest)))
+      : note.over
+        ? words.budgetOver(past ? words.inMonth(fmtMonth(note.month).split(' ')[0]) : words.thisMonth, nameOf(note.category), money(note.rest), past)
+        : words.budgetNear(nameOf(note.category), money(note.rest));
   } else if (note.kind === 'newContract') {
     const s = note.series;
     const per = s.everyDays === 28 ? words.per.fourWeekly : words.per[s.cadence];
-    parts = words.newContract(seriesTitle(s) || t.insights.noName, money(note.cents, s.currency), per, s.variable);
+    parts = (short ? words.line.newContract : words.newContract)(seriesTitle(s) || t.insights.noName, money(note.cents, s.currency), per, s.variable);
+  } else if (short) {
+    parts = words.line.double(money(note.cents), displayName(note.name) || t.insights.noName);
   } else {
     const [a, b] = twoDays(note.days[0], note.days[1]);
     parts = words.double(money(note.cents), displayName(note.name) || t.insights.noName, b ? words.twoDays(a, b) : words.oneDay(a));

@@ -564,6 +564,23 @@ export const de = {
     budgetNear: (category: string, rest: ReactNode): ReactNode[] =>
       ['Dein Budget für ', category, ' ist fast aufgebraucht. Bis zum Monatsende bleiben noch ', rest, '.'],
     showBudget: 'Budget ansehen',
+    /**
+     * The desktop Übersicht's one line (components/overview/AiNoteLine.tsx): the
+     * most pressing note in one short sentence, how many more, and its cross.
+     */
+    line: {
+      more: (when: string, name: string, at: boolean) => `${when} deutlich mehr ${at ? 'bei' : 'für'} ${name} als sonst.`,
+      newContract: (name: string, amount: ReactNode, per: string, approx: boolean): ReactNode[] =>
+        ['Neues Abo: ', name, ', ', approx ? 'etwa ' : '', amount, ' ', per, '.'],
+      double: (amount: ReactNode, name: string): ReactNode[] => ['Du hast zweimal ', amount, ' an ', name, ' gezahlt.'],
+      budgetOver: (category: string, over: ReactNode): ReactNode[] => ['Beim Budget für ', category, ' bist du ', over, ' drüber.'],
+      budgetNear: (category: string, rest: ReactNode): ReactNode[] =>
+        ['Dein Budget für ', category, ' ist fast aufgebraucht, noch ', rest, '.'],
+      /** The count beside the sentence, and what it says to a screen reader. */
+      count: (n: number) => `+${n}`,
+      countLabel: (n: number) => (n === 1 ? 'Noch ein Hinweis' : `Noch ${n} Hinweise`),
+      hide: 'Hinweise ausblenden',
+    },
   },
   /**
    * Girovo Next: what Girovo AI does for you after "Ja, bitte" (lib/ask-actions.ts,
@@ -1062,6 +1079,16 @@ export const en: typeof de = {
     budgetOver: (when, category, over, past) => [when, past ? ', you went ' : ', you’re ', over, ' over your ', category, ' budget.'],
     budgetNear: (category, rest) => ['Your ', category, ' budget is almost used up. ', rest, ' is left until the end of the month.'],
     showBudget: 'See budget',
+    line: {
+      more: (when, name, at) => `${when}, much more ${at ? 'at' : 'on'} ${name} than usual.`,
+      newContract: (name, amount, per, approx) => ['New subscription: ', name, ', ', approx ? 'about ' : '', amount, ' ', per, '.'],
+      double: (amount, name) => ['You paid ', amount, ' to ', name, ' twice.'],
+      budgetOver: (category, over) => ['You’re ', over, ' over your ', category, ' budget.'],
+      budgetNear: (category, rest) => ['Your ', category, ' budget is almost used up, ', rest, ' left.'],
+      count: (n) => `+${n}`,
+      countLabel: (n) => (n === 1 ? 'One more note' : `${n} more notes`),
+      hide: 'Hide notes',
+    },
   },
   tasks: {
     fileNoName: 'Which payee do you mean? Try: file Shell under transport.',

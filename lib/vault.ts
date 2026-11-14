@@ -41,6 +41,7 @@ import { isGrouping, sanitizeAccountOrder } from './account-overview.ts';
 import { isAskLength, isAskTone } from './ask-style-fields.ts';
 import { isRecord } from './guards.ts';
 import { mergeAiNames, sanitizeAiNames } from './ai-names-store.ts';
+import { sanitizeClosedNotes } from './ask-notes-line.ts';
 import { sanitizeContractNames, sanitizeNoticed, sanitizeReminders } from './contract-watch.ts';
 import { sanitizeManual, sanitizeManualDays } from './manual-contracts.ts';
 import { sanitizeKeptBalances, sanitizeNetWorth } from './kept-balances.ts';
@@ -307,6 +308,8 @@ export function sanitizeVault(input: unknown, now = Date.now()): VaultData | nul
     // Girovo AI's cleaned names on the desktop (lib/ai-names-store.ts): the switch, and the names within their cap.
     ...(input.aiNamesOn === true ? { aiNamesOn: true as const } : {}),
     ...(sanitizeAiNames(input.aiNames) ? { aiNames: sanitizeAiNames(input.aiNames)! } : {}),
+    // Girovo AI's notes closed on the desktop Übersicht's line (lib/ask-notes-line.ts): keys, the newest within the cap.
+    ...(sanitizeClosedNotes(input.aiNotesClosed) ? { aiNotesClosed: sanitizeClosedNotes(input.aiNotesClosed)! } : {}),
     updatedAt: iso(input.updatedAt) ?? EMPTY_VAULT.updatedAt,
   };
 }
