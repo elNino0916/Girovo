@@ -11,6 +11,7 @@
 // - goal          "Wie weit bin ich beim Urlaubsziel?": Sparziele and their progress
 // - budgetLeft, budgetsOver   the Monatsbudgets this month (lib/ask-budgets.ts)
 // - cancelBy, renewal     the days to cancel contracts by (lib/ask-contracts.ts)
+// - afford        "Kann ich mir 800 € leisten?": one amount against the month-end forecast (lib/ask-afford.ts)
 //
 // factOf reads the question by rules (lib/ask-intents.ts intentOf asks it
 // before the bookings); the pickers below choose the figures from what the
@@ -20,6 +21,7 @@
 // Pure: no path aliases, `.ts` on sibling imports.
 
 import { groupKindOf } from './account-overview.ts';
+import { affordIntentOf, type AffordIntent } from './ask-afford.ts';
 import { budgetIntentOf, type BudgetIntent } from './ask-budgets.ts';
 import { contractIntentOf, type ContractIntent } from './ask-contracts.ts';
 import type { SerializedAccount } from './fints-types';
@@ -41,10 +43,11 @@ export type FactIntent =
   /** name: the goal, folded ("urlaub" for "Urlaubsziel"); null for every goal. */
   | { kind: 'goal'; name: string | null }
   | BudgetIntent
-  | ContractIntent;
+  | ContractIntent
+  | AffordIntent;
 
 export const FACT_KINDS = [
-  'balance', 'balanceAt', 'monthEnd', 'contractCost', 'priceRises', 'salary', 'owed', 'goal', 'budgetLeft', 'budgetsOver', 'cancelBy', 'renewal',
+  'balance', 'balanceAt', 'monthEnd', 'contractCost', 'priceRises', 'salary', 'owed', 'goal', 'budgetLeft', 'budgetsOver', 'cancelBy', 'renewal', 'afford',
 ] as const;
 
 /** Whether an intent is one of these (and FactAnswers says it). */
@@ -252,6 +255,9 @@ export function factOf(question: string, contracts: readonly string[] = [], toda
   // "Was kann ich bis Ende des Monats noch kündigen?", "Wann verlängert sich mein Handyvertrag?"
   const contract = contractIntentOf(question, today, contracts);
   if (contract) return contract;
+  // "Kann ich mir 800 € leisten?", "Reicht mein Geld für einen Urlaub für 600 €?": before "reicht … noch" reads as the month's end.
+  const afford = affordIntentOf(question, today);
+  if (afford) return afford;
 
   // "Wann kommt das Gehalt?", never "Wann kam das letzte Gehalt?" or "Gehalt im Oktober".
   if (GET_PAID.test(q) || SALARY.test(q) && SALARY_NEXT.test(q) && WHEN.test(q) && !SALARY_PAST.test(q)) return { kind: 'salary' };

@@ -9,7 +9,8 @@
 //                                                                         priceRises, salary, owed, goal, and
 //                                                                         balanceAt, whose day is a yyyy-mm-dd;
 //                                                                         budgetLeft (category, name), budgetsOver,
-//                                                                         cancelBy (until), renewal (name);
+//                                                                         cancelBy (until), renewal (name),
+//                                                                         afford (cents, month);
 //                                                                         the actions fileUnder, createGoal, budget,
 //                                                                         remindContract, prepareTransfer, with
 //                                                                         name, category, cents, by, remove)
@@ -75,8 +76,9 @@ function scoreOne(result, expect, today, question) {
     }
     // A past balance's day (balanceAt).
     if ('day' in expect && !alts(expect.day).includes(got.day)) misses.push(`day: want ${show(expect.day)}, got ${show(got.day ?? null)}`);
-    // An action's figures (lib/ask-actions.ts) and a fact's: category, the last day a cancelBy names, amount in cents, month or day, a budget removed.
-    for (const field of ['category', 'until', 'cents', 'by', 'remove']) {
+    // An action's figures (lib/ask-actions.ts) and a fact's: category, the last day a cancelBy names, amount in cents, month or day, a budget removed,
+    // the month an amount is asked for (afford: null for this month).
+    for (const field of ['category', 'until', 'cents', 'by', 'remove', 'month']) {
       if (field in expect && !alts(expect[field]).includes(got[field] ?? null)) misses.push(`${field}: want ${show(expect[field])}, got ${show(got[field] ?? null)}`);
     }
     return misses;
