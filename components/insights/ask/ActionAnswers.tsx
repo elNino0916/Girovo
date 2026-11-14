@@ -21,7 +21,7 @@
 
 import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { budgetAfter, contractChoices, contractsFor, filePlan, transferPayee, type ActionIntent } from '@/lib/ask-actions';
+import { budgetAfter, contractChoices, contractsFor, dayAhead, filePlan, transferPayee, type ActionIntent } from '@/lib/ask-actions';
 import { nameCase } from '@/lib/ask-facts';
 import { isSavingsAccount } from '@/lib/balances';
 import { BUDGET_MAX_CENTS, isBudgetCategory } from '@/lib/budgets';
@@ -358,7 +358,7 @@ function LetterAnswer({ intent }: { intent: Extract<ActionIntent, { kind: 'cance
     <>
       <Said lines={[words.letterReady(seriesTitle(chosen))]} />
       <OpenButton label={words.letterOpen} onClick={() => setOpen(true)} />
-      {open && <CancelLetterDialog s={chosen} end={intent.end} onClose={() => setOpen(false)} />}
+      {open && <CancelLetterDialog s={chosen} end={dayAhead(intent.end, dayKey(new Date()))} onClose={() => setOpen(false)} />}
     </>
   );
 }

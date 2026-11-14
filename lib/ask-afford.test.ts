@@ -124,3 +124,19 @@ test('the forecast reaches only this month', () => {
   assert.equal(forecastReaches('2026-11', '2026-11-30'), true);
   assert.equal(forecastReaches('2026-12', '2026-11-30'), false);
 });
+
+test('an amount with a dot is no day: "1.527 €" stays 1.527 €', () => {
+  assert.deepEqual(affordIntentOf('Kann ich mir 1.527 € leisten?', TODAY), { kind: 'afford', cents: 152700, month: null });
+  assert.deepEqual(affordIntentOf('Can I afford €1,527?', TODAY), { kind: 'afford', cents: 152700, month: null });
+  assert.deepEqual(affordIntentOf('Kann ich mir 12.127 € leisten?', TODAY), { kind: 'afford', cents: 1212700, month: null });
+  assert.deepEqual(affordIntentOf('Kann ich mir 1.200 € am 15.12. leisten?', TODAY), { kind: 'afford', cents: 120000, month: '2026-12' });
+});
+
+test('only money is the amount: a model number, inches or people are none', () => {
+  for (const q of ['Kann ich mir ein iPhone 16 leisten?', 'Kann ich mir einen Fernseher mit 55 Zoll leisten?', 'Kann ich mir einen Urlaub mit 3 Leuten leisten?', 'Can I afford an iPhone 16?']) {
+    assert.deepEqual(affordIntentOf(q, TODAY), { kind: 'afford', cents: null, month: null }, q);
+  }
+  assert.equal(affordIntentOf('Kann ich mir 3 Tsd leisten?', TODAY)?.cents, 300000);
+  assert.equal(affordIntentOf('Kann ich mir 2 tausend leisten?', TODAY)?.cents, 200000);
+  assert.equal(affordIntentOf('Kann ich diesen Monat noch 200 ausgeben?', TODAY)?.cents, 20000);
+});

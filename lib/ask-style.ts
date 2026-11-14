@@ -65,16 +65,25 @@ export function nameFits(name: string, about: string): boolean {
   return !fold(name).split(/[ '’-]+/).filter(Boolean).some((w) => new RegExp(`(?<![\\p{L}\\p{N}])${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'u').test(text));
 }
 
+// i18n-data-start: sentence openers that lose their capital after "Nino, "
+/** The answers' usual first words that are no noun or name; any other ("Oktober 2026", "October", "Netflix") keeps its capital. */
+const SMALL_AFTER_NAME = new Set([
+  'Im', 'In', 'Am', 'Du', 'Für', 'Bei', 'Von', 'Als', 'Seit', 'Heute', 'Es', 'Das', 'Ausgegeben', 'Dein', 'Deine', 'Diesen', 'Letzten', 'Insgesamt', 'Bisher',
+  'You', 'Your', 'At', 'From', 'Since', 'Today', 'It', 'On', 'This', 'Last', 'So',
+]);
+// i18n-data-end
+
 /**
  * A sentence's parts with the name in front ("Nino, im Oktober hast du …"):
- * the first part's first letter made small, as it now follows a comma. Parts
- * that do not open with plain words are left as they are.
+ * a usual first word made small, as it now follows a comma; a month or a name
+ * keeps its capital. Parts that do not open with plain words are left as they are.
  */
 export function addressed<T>(parts: readonly (string | T)[], name: string | null): (string | T)[] {
   if (!name || typeof parts[0] !== 'string' || !parts[0]) return [...parts];
   const first = parts[0];
-  // "Du"/"Dein" after a comma stays as it is said; any other first word loses its capital.
-  return [`${name}, ${first.charAt(0).toLocaleLowerCase('de')}${first.slice(1)}`, ...parts.slice(1)];
+  const word = /^\p{L}+/u.exec(first)?.[0] ?? '';
+  const lead = SMALL_AFTER_NAME.has(word) ? `${first.charAt(0).toLocaleLowerCase('de')}${first.slice(1)}` : first;
+  return [`${name}, ${lead}`, ...parts.slice(1)];
 }
 
 /** What a long answer says besides its figure: last month's figure, and the largest booking among those counted. */

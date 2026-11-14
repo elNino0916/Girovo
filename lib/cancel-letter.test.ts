@@ -105,3 +105,10 @@ test('the PDF file name', () => {
   assert.equal(letterFileName('Süße Grüße GmbH & Co.', 'de'), 'Kuendigung_Susse_Grusse_GmbH_Co.pdf');
   assert.equal(letterFileName('', 'en'), 'Cancellation.pdf');
 });
+
+test('a Kündbar-bis day that has passed is left out of the letter', () => {
+  const passed = cancelLetter({ ...BASE, noticeBy: '2026-11-13' }, 'de');
+  assert.ok(!passed.text.includes('13. November 2026'));
+  assert.ok(passed.text.includes('Bitte bestätigen Sie mir die Kündigung und das Datum, zu dem der Vertrag endet, schriftlich.'));
+  assert.ok(cancelLetter({ ...BASE, noticeBy: '2026-11-14' }, 'de').text.includes('am 14. November 2026 bei Ihnen eingegangen'));
+});

@@ -97,3 +97,12 @@ test('the guard holds the length and the name', () => {
   assert.equal(usable('Im Oktober hast du bei Rewe 312,40 € ausgegeben!', input()), false, 'no exclamation mark');
   assert.equal(usable('Im Oktober hast du bei Rewe 312,40 € ausgegeben 🛒', input()), false, 'no emoji');
 });
+
+test('after the name, a month keeps its capital; a usual opener loses it', () => {
+  assert.deepEqual(addressed(['Oktober 2026: ', 1, ' ausgegeben.'], 'Nino'), ['Nino, Oktober 2026: ', 1, ' ausgegeben.']);
+  assert.deepEqual(addressed(['October 2026: ', 1], 'Nino'), ['Nino, October 2026: ', 1]);
+  assert.deepEqual(addressed(['Netflix kostet ', 1], 'Nino'), ['Nino, Netflix kostet ', 1]);
+  assert.deepEqual(addressed(['In October you spent ', 1], 'Nino'), ['Nino, in October you spent ', 1]);
+  assert.deepEqual(addressed(['You spent ', 1], 'Nino'), ['Nino, you spent ', 1]);
+  assert.deepEqual(addressed(['Für Essen hast du ', 1], 'Nino'), ['Nino, für Essen hast du ', 1]);
+});

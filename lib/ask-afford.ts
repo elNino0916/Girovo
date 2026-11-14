@@ -62,6 +62,8 @@ const GOES = / geht (?:\S+ ){0,8}aus $/;
 /** "Kann ich noch 200 € ausgeben", "Can I spend €200". */
 const SPEND_CAN = / (?:kann|könnte|koennte|darf) ich (?:\S+ ){0,6}(?:ausgeben|kaufen|bezahlen|zahlen) | (?:can|could|may) i (?:still )?(?:\S+ ){0,4}(?:spend|buy|pay for) /;
 /** "Hab ich genug Geld für …", "enough money for …". */
+/** Spending a plain number: "Kann ich noch 200 ausgeben?", "can i spend 200". */
+const SPEND_BARE = / (?:ausgeben|spend) /;
 const ENOUGH = / (?:genug|genügend|genuegend|enough) (?:\S+ ){0,2}(?:für|fuer|fürs|fuers|for|to) /;
 /** "Ist ein Fernseher für 800 € drin?" */
 const ROOM = / (?:drin|drinnen|room for) /;
@@ -98,7 +100,10 @@ function monthFrom(today: string, n: number): string {
  * the past or too far ahead.
  */
 function dayAsked(q: string, today: string): { day: string | null; rest: string } {
-  const { by, rest } = futureDayOf(q, today);
+  // "1.527 €", "€ 1.527", "12.127 €" are amounts, no days.
+  const { by, rest } = futureDayOf(q, today, (m) => /\.\d{3}(?!\d)/.test(m[0])
+    || /^ (?:€|euro|euros|eur)(?= )/.test(q.slice((m.index ?? 0) + m[0].length))
+    || /€$/.test(q.slice(0, m.index)));
   const ty = Number(today.slice(0, 4));
   return by && by >= today && Number(by.slice(0, 4)) <= ty + 1 ? { day: by, rest } : { day: null, rest: q };
 }
@@ -127,8 +132,9 @@ export function affordIntentOf(question: string, today: string): AffordIntent | 
   if (BUDGET.test(q)) return null;
   // A day named ("am 15.12.") is read for its month, then left out, so it is no amount.
   const { rest } = dayAsked(q, today);
-  const cents = amountOf(rest);
   const afford = AFFORD.test(q);
+  // Only money is the amount: "ein iPhone 16", "55 Zoll", "mit 3 Leuten" are none; "noch 200 ausgeben" is.
+  const cents = amountOf(rest, afford || !SPEND_BARE.test(q));
   const asks = REACH_FOR.test(q) || GOES.test(q) && / sich /.test(q) || SPEND_CAN.test(q) || ENOUGH.test(q) || ROOM.test(q);
   if (!afford && !asks) return null;
   // "Reichen 400 € noch für den Monat?" asks whether the month can be lived on, not about paying for something.
