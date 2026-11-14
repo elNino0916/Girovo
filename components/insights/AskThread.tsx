@@ -43,6 +43,7 @@ import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
 import { Money } from '../Money';
 import { ArrowRightIcon, BackIcon, CloseIcon, AiMarkIcon, HistoryIcon, PlusIcon, TrashIcon } from '../icons';
+import { AiWordmark } from '../shell/BrandMark';
 import { usePhone } from '../shell/usePhone';
 import { Button, IconButton, Menu, MenuItem, MenuSeparator, Overlay, cx } from '../ui';
 import { searchText, txText } from '../transactions/model';
@@ -800,7 +801,7 @@ function Thread({ face, onClose }: { face: 'screen' | 'panel'; onClose: () => vo
         )}
         {face === 'panel' && <AiMarkIcon size={20} className="mr-2" aria-hidden />}
         <h2 id={titleId} className={cx('min-w-0 flex-1 truncate text-ink', face === 'screen' ? 'ml-1 text-[22px] leading-7' : 'text-[16px] leading-6 font-medium')}>
-          {words.title}
+          <AiWordmark />
         </h2>
         <Menu
           label={words.conversations}

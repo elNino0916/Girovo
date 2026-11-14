@@ -989,7 +989,7 @@
   stroke-dashoffset: 0;
 }
 .ai-ready-dia {
-  opacity: 0.55;
+  opacity: 1;
   transform-box: fill-box;
   transform-origin: center;
 }
@@ -1126,8 +1126,8 @@
 }
 @keyframes ai-ready-twinkle {
   0% { opacity: 0; transform: scale(0.2); }
-  60% { opacity: 0.7; transform: scale(1.25); }
-  100% { opacity: 0.55; transform: scale(1); }
+  60% { opacity: 1; transform: scale(1.25); }
+  100% { opacity: 1; transform: scale(1); }
 }
 @keyframes ai-ready-rise {
   from { opacity: 0; transform: translateY(10px); filter: blur(4px); }

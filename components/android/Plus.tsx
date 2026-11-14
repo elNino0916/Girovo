@@ -19,7 +19,7 @@ import { useFints } from '../FintsProvider';
 import { BuildingIcon, ChartIcon, FlagIcon, AiMarkIcon, SplitIcon } from '../icons';
 import { useAskable } from '../insights/Ask';
 import { ActionItem } from '../settings/rows';
-import { BrandPlate } from '../shell/BrandMark';
+import { AiWordmark, BrandPlate } from '../shell/BrandMark';
 import { Button, CopyButton, Dialog, Field, Input, Switch } from '../ui';
 
 /** The Einstellungen row: what Plus is, or that it is active. Only where Plus applies. */
@@ -38,7 +38,7 @@ export function PlusRow() {
 }
 
 /** One perk: a glyph on the tonal disc (the dialog's own ground is the inset, so not that), title and line. */
-function Perk({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
+function Perk({ icon, title, text }: { icon: ReactNode; title: ReactNode; text: string }) {
   return (
     <li className="flex items-start gap-3">
       <span aria-hidden className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-full bg-accent-soft text-tonal-ink">{icon}</span>
@@ -223,7 +223,7 @@ export function PlusScreen() {
               <Perk icon={<SplitIcon size={18} />} title={w.perks.split.title} text={w.perks.split.text} />
               <Perk icon={<FlagIcon size={18} />} title={w.perks.goals.title} text={w.perks.goals.text} />
               {/* Only offered where Gemini Nano v4 can answer: nobody pays for what their phone can't do. */}
-              {askable && <Perk icon={<AiMarkIcon size={18} />} title={w.perks.ask.title} text={w.perks.ask.text} />}
+              {askable && <Perk icon={<AiMarkIcon size={18} />} title={<AiWordmark />} text={w.perks.ask.text} />}
               {/* The icon itself, at the disc's size: the perk shows what you get. */}
               <Perk icon={<BrandPlate tone="plus" size={36} />} title={w.perks.icon.title} text={w.perks.icon.text} />
             </ul>

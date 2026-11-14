@@ -58,7 +58,7 @@ import {
   BellIcon, BuildingIcon, ChartIcon, CheckCircleIcon, ClockIcon, CodeIcon, DownloadIcon, FileIcon, AiMarkIcon, ApiMarkIcon, GlobeIcon, ImageIcon, InfoIcon, KeyboardIcon,
   LockIcon, MailIcon, MonitorIcon, MoonIcon, PhoneIcon, RefreshIcon, ShieldIcon, SunIcon, WalletIcon,
 } from '../icons';
-import { ApiWordmark, BrandName, BrandPlate } from '../shell/BrandMark';
+import { AiWordmark, ApiWordmark, BrandName, BrandPlate } from '../shell/BrandMark';
 import { PAGE_TITLE_ID } from '../shell/ids';
 import { useDesktopFrame } from '../shell/frame';
 import { Button, Dot, Kbd, Segmented, Spinner, cx } from '../ui';
@@ -112,7 +112,7 @@ export type PageEntry = {
   summary: string;
   /** Something on it needs a look: the saved data cannot be read. */
   alert: boolean;
-  /** Its name as a wordmark where it has one (Girovo API), shown wherever the name is a title. */
+  /** Its name as a wordmark where it has one (Girovo AI, Girovo API), shown wherever the name is a title. */
   brand?: ReactNode;
   Icon: IconComponent;
 };
@@ -182,7 +182,7 @@ export function useSettingsPages(): PageEntry[] {
       short: words.pagesShort[id],
       summary: summary[id],
       alert: id === 'devices' && vaultStatus === 'error',
-      brand: id === 'api' ? <ApiWordmark /> : undefined,
+      brand: id === 'api' ? <ApiWordmark /> : id === 'ask' ? <AiWordmark /> : undefined,
       Icon: ICONS[id],
     }));
   }, [t, locale, bank, backgroundChecks, windowsHello, sync, vaultStatus, theme, askPage, askOff, update, playUpdate, words]);

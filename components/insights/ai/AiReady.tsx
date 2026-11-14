@@ -18,6 +18,8 @@
 
 import { useEffect, useId, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
+import { AI_MARK_ARMS, AI_MARK_BAR_WIDTH, AI_MARK_DIAGONALS, AI_MARK_DIAGONAL_WIDTH } from '../../icons';
+import { AiWordmark } from '../../shell/BrandMark';
 import { welcomeQuestions, type WelcomeBooking } from '@/lib/ai-welcome';
 import { bookingDay } from '@/lib/analytics';
 import { dayKey, tidyName } from '@/lib/format';
@@ -30,9 +32,9 @@ import { newConversation, openAsk } from '../ask-thread-store';
 import { useAskScope } from '../AskThread';
 import { useRecurringModel } from '../recurring-model';
 
-/** The mark's four arms, each drawn from the centre out, and its two diagonals. */
-const ARMS = ['M12 8.8V2.6', 'M15.2 12h6.2', 'M12 15.2v6.2', 'M8.8 12H2.6'];
-const DIAGONALS = ['M17.4 4.6l-1.9 1.9', 'M6.6 17.4l1.9-1.9'];
+/** The mark's four arms, each drawn from the centre out, and its two diagonals (components/icons.tsx). */
+const ARMS = AI_MARK_ARMS;
+const DIAGONALS = AI_MARK_DIAGONALS.split(/(?=M)/);
 
 /** When a part starts to move, in seconds after the moment opens (app/material.css reads --ai-ready-delay). */
 const at = (s: number) => ({ '--ai-ready-delay': `${s}s` }) as CSSProperties;
@@ -116,7 +118,7 @@ function Moment({ onDone }: { onDone: () => void }) {
             <div className="ai-ready-halo">
               <Mark drawn />
             </div>
-            <h2 id={titleId} className="ai-ready-title ai-ready-rise" style={at(0.95)}>{words.title}</h2>
+            <h2 id={titleId} className="ai-ready-title ai-ready-rise" style={at(0.95)}>{words.title(<AiWordmark key="name" />)}</h2>
             <p id={leadId} className="ai-ready-lead ai-ready-rise" style={at(1.05)}>{words.lead}</p>
           </div>
           <ul className="ai-ready-list" aria-label={words.examples}>
@@ -148,9 +150,9 @@ function Mark({ drawn = false }: { drawn?: boolean }) {
   return (
     <svg className="ai-ready-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" aria-hidden="true">
       {ARMS.map((d, i) => (
-        <path key={d} d={d} pathLength={1} strokeWidth={2.7} className="ai-ready-arm" style={drawn ? at(0.25 + i * 0.1) : undefined} />
+        <path key={d} d={d} pathLength={1} strokeWidth={AI_MARK_BAR_WIDTH} className="ai-ready-arm" style={drawn ? at(0.25 + i * 0.1) : undefined} />
       ))}
-      {drawn && DIAGONALS.map((d) => <path key={d} d={d} strokeWidth={2.2} className="ai-ready-dia" style={at(0.85)} />)}
+      {drawn && DIAGONALS.map((d) => <path key={d} d={d} strokeWidth={AI_MARK_DIAGONAL_WIDTH} className="ai-ready-dia" style={at(0.85)} />)}
     </svg>
   );
 }

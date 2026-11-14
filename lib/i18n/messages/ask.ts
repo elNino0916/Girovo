@@ -178,7 +178,8 @@ export const de = {
    * the user's own bookings (lib/ai-welcome.ts).
    */
   welcome: {
-    title: 'Girovo AI ist bereit',
+    /** The name is Girovo AI's wordmark (components/shell/BrandMark.tsx). */
+    title: (name: ReactNode): ReactNode[] => [name, ' ist bereit'],
     lead: 'Frag etwas zu deinen Umsätzen. Jeden Betrag rechnet Girovo selbst aus.',
     examples: 'Zum Beispiel',
     fine: 'Girovo AI kann Fehler machen.',
@@ -702,7 +703,7 @@ export const en: typeof de = {
     },
   },
   welcome: {
-    title: 'Girovo AI is ready',
+    title: (name) => [name, ' is ready'],
     lead: 'Ask something about your transactions. Girovo works out every amount itself.',
     examples: 'For example',
     fine: 'Girovo AI can make mistakes.',

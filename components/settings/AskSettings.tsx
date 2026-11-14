@@ -20,6 +20,7 @@ import { asksWith } from '@/lib/nano-ask';
 import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
 import { CheckCircleIcon, DownloadIcon, AiMarkIcon } from '../icons';
+import { AiWordmark } from '../shell/BrandMark';
 import { AiCategorizeRow } from '../insights/ai/AiCategorize';
 import { AiNamesRow } from '../insights/ai/AiNamesSetting';
 import { useModelReady } from '../insights/ask-gate';
@@ -95,7 +96,7 @@ export function AskPage() {
           checked={on}
           onChange={setOn}
           disabled={!ready}
-          title={words.title}
+          title={<AiWordmark />}
           summary={ready ? words.hint : words.needsModel(IS_ANDROID)}
         />
         {/* The desktop only: the phone shows Gemini Nano's brands as before. */}

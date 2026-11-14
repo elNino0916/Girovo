@@ -34,6 +34,7 @@ import { askAllowed } from '@/lib/plus';
 import { useFints } from '../FintsProvider';
 import { Money } from '../Money';
 import { ArrowRightIcon, AiMarkIcon, SearchIcon } from '../icons';
+import { AiWordmark } from '../shell/BrandMark';
 import { Button, Chip, DotList, IconButton, Input, Spinner, Tag, TileHeader } from '../ui';
 import { PlusTeaser } from '../android/PlusTeaser';
 import { searchText, txText } from '../transactions/model';
@@ -132,7 +133,7 @@ function AskLocked() {
         title={(
           <span className="inline-flex items-center gap-2">
             <AskMark />
-            {t.ask.title}
+            <AiWordmark />
           </span>
         )}
       />
@@ -161,7 +162,7 @@ function AskUnsupported({ status }: { status: GirovoNanoStatus }) {
         title={(
           <span className="inline-flex items-center gap-2">
             <AiMarkIcon size={22} />
-            {t.ask.title}
+            <AiWordmark />
           </span>
         )}
         actions={<Tag className="mt-1 mr-1">{words.tag}</Tag>}

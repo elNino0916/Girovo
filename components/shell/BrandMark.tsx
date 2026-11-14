@@ -140,6 +140,31 @@ export function BrandMark({
   );
 }
 
+/** "Girovo" in Girovo AI's wordmark grows bolder letter by letter, from light to medium. */
+const AI_RAMP = [330, 380, 430, 480, 530, 580] as const;
+
+/**
+ * Girovo AI's wordmark ("Steigend", owner's pick 2026-11-14,
+ * .impeccable/mocks/decision/ai-brand/wordmarks2.html G): "Girovo" grows
+ * bolder letter by letter in the variable face, and "AI" stands boldest in
+ * Girovo AI's violet (--ai-mark). It stands where Girovo AI's name is a title
+ * (its page and row, the conversation's head, "Girovo AI ist bereit"), never
+ * in a sentence. A screen reader hears one name, not single letters.
+ */
+export function AiWordmark({ className }: { className?: string }) {
+  return (
+    <span className={cx('whitespace-nowrap', className)}>
+      <span aria-hidden>
+        {'Girovo'.split('').map((c, i) => (
+          <span key={i} style={{ fontWeight: AI_RAMP[i] }}>{c}</span>
+        ))}{' '}
+        <span className="text-[var(--ai-mark)]" style={{ fontWeight: 760 }}>AI</span>
+      </span>
+      <span className="sr-only">Girovo AI</span>
+    </span>
+  );
+}
+
 /**
  * Girovo API's wordmark ("Eingabe", owner's pick 2026-11-14,
  * .impeccable/mocks/decision/ai-brand/wordmarks.html D): "Girovo" in the

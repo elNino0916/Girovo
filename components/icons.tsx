@@ -597,13 +597,21 @@ export function CodeIcon(p: IconProps) {
 
 /**
  * Girovo's AI mark ("Strich-Funke", owner's pick 2026-11-11,
- * .impeccable/mocks/decision/next-ai/mark/): a twinkle drawn with the G€
- * plate's rounded strokes, four bars and two short diagonals at half
- * strength, in one colour (--ai-mark, app/material.css: Girovo Next's violet,
+ * .impeccable/mocks/decision/next-ai/mark/; balanced on 2026-11-14,
+ * .impeccable/mocks/decision/ai-brand/logos2.html 3): a twinkle drawn with
+ * the G€ plate's rounded strokes, four bars, the upright ones a little longer
+ * than the level ones, and two short diagonals at full strength, in one colour (--ai-mark, app/material.css: Girovo Next's violet,
  * a brand colour, so no wallpaper reaches it). It marks what Girovo's AI
  * wrote or does: Fragen, the month recap, the asking bars, Einstellungen.
  * Drawn, not a font glyph: a picture, like the plate.
  */
+/** The AI mark's strokes, for whatever draws it (AiMarkIcon, "Girovo AI ist bereit"). */
+export const AI_MARK_ARMS = ['M12 8.4V1.8', 'M15.2 12h5.4', 'M12 15.6v6.6', 'M8.8 12H3.4'] as const;
+export const AI_MARK_BARS = 'M12 1.8v6.6M12 15.6v6.6M3.4 12h5.4M15.2 12h5.4';
+export const AI_MARK_BAR_WIDTH = 2.9;
+export const AI_MARK_DIAGONALS = 'M16.6 5.4l-1.5 1.5M7.4 18.6l1.5-1.5';
+export const AI_MARK_DIAGONAL_WIDTH = 2.4;
+
 export function AiMarkIcon({ size = 18, className, ...rest }: IconProps) {
   return (
     <svg
@@ -617,8 +625,8 @@ export function AiMarkIcon({ size = 18, className, ...rest }: IconProps) {
       className={join('shrink-0 text-[var(--ai-mark)]', className)}
       {...rest}
     >
-      <path d="M12 2.6v6.2M12 15.2v6.2M2.6 12h6.2M15.2 12h6.2" strokeWidth={2.7} />
-      <path d="M17.4 4.6l-1.9 1.9M6.6 17.4l1.9-1.9" strokeWidth={2.2} opacity={0.55} />
+      <path d={AI_MARK_BARS} strokeWidth={AI_MARK_BAR_WIDTH} />
+      <path d={AI_MARK_DIAGONALS} strokeWidth={AI_MARK_DIAGONAL_WIDTH} />
     </svg>
   );
 }
