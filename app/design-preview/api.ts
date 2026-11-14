@@ -14,6 +14,8 @@
 //                    settings, is refused the PIN and "Letzte Salden behalten" off,
 //                    then reads new data from the bank (bank.refresh);
 //                    open Einstellungen → Girovo API (?page=api) to see the Verlauf
+// Every scenario's settings page shows "Mit KI-Assistenten verbinden" with
+// Girovo MCP's path and Claude Desktop's configuration (phase 3).
 //
 // The dialog's answers go through the real router (lib/api/router.ts); the
 // fake sends an app's calls one after the other, each once the last was
@@ -188,6 +190,8 @@ export function installFakeApi(scenario: ApiScenario | null) {
       return true;
     },
     focus: async () => true,
+    // Phase 3: Einstellungen → Girovo API shows where Girovo MCP lies.
+    mcpPath: async () => FAKE_MCP.exe,
   };
   window.electronGirovoApi = bridge;
 }

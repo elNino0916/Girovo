@@ -26,6 +26,7 @@ mod hello;
 mod http;
 pub mod install_window;
 mod leftover;
+mod mcp_path;
 mod migrate;
 mod model;
 mod paths;
@@ -325,6 +326,7 @@ pub fn run() {
       api::api_client_icon,
       api::api_notify,
       api::api_focus_window,
+      mcp_path::api_mcp_path,
     ])
     .build(tauri::generate_context!())
     .expect("error while running Girovo");

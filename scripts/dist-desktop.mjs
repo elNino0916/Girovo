@@ -16,8 +16,8 @@
 //
 // Windows, signed with the MT-Media certificate (docs/mt-media-code-signing.md,
 // scripts/sign-windows.mjs):
-//   --sign          Tauri signs Girovo.exe, girovo-update.exe, girovo-cert.exe
-//                   and the uninstaller before NSIS packs them, then the
+//   --sign          Tauri signs Girovo.exe, girovo-update.exe, girovo-cert.exe,
+//                   girovo-mcp.exe and the uninstaller before NSIS packs them, then the
 //                   installer; every one is checked afterwards and an unsigned
 //                   one fails the build. Also GIROVO_SIGN=1. The committed
 //                   config never signs: the command reaches Tauri through a
@@ -216,6 +216,7 @@ if (SIGN) {
   const files = [
     path.join(ROOT, 'src-tauri', 'binaries', `girovo-update-${triple}.exe`),
     path.join(ROOT, 'src-tauri', 'binaries', `girovo-cert-${triple}.exe`),
+    path.join(ROOT, 'src-tauri', 'binaries', `girovo-mcp-${triple}.exe`),
     setup,
   ];
   const seven = ['7z', path.join(process.env.ProgramFiles || 'C:\\Program Files', '7-Zip', '7z.exe')]
@@ -232,7 +233,7 @@ if (SIGN) {
     const inside = fs.readdirSync(unpacked, { recursive: true })
       .map((f) => path.join(unpacked, f))
       .filter((f) => /\.exe$/i.test(f) && fs.statSync(f).isFile());
-    for (const name of ['girovo.exe', 'girovo-update.exe', 'girovo-cert.exe']) {
+    for (const name of ['girovo.exe', 'girovo-update.exe', 'girovo-cert.exe', 'girovo-mcp.exe']) {
       if (!inside.some((f) => path.basename(f).toLowerCase() === name)) {
         console.error(`✗ the installer holds no ${name}`);
         failed++;

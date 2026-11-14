@@ -168,7 +168,7 @@ Errors: `locked`, `denied`, `not_permitted` (with the permission it needs),
   `api_waiting`) says who waits. Builds before 2026-11-14 kept the switch in
   the vault (`apiOn`); at the first login it moves to the shell and leaves
   the vault.
-- **MCP helper** `girovo-mcp` (later phase): stdio MCP server for assistants,
+- **MCP helper** `girovo-mcp` (phase 3, below): stdio MCP server for assistants,
   JSON-RPC client of the pipe; tools are made from the methods the app is
   allowed.
 
@@ -230,6 +230,69 @@ bookings[] }` for an account already loaded; `balances.changed`
 (accounts.read) `{ account, balance, available }`; `transfer.updated`
 (transfers.request). An account first loaded after the API went on is a
 starting point, not news. A permission taken back stops its events at once.
+
+## Phase 3 as built (2026-11-15)
+
+`girovo-mcp` (src-tauri/mcp-helper/, its own crate like cert-helper/: no
+Tauri, no async runtime, serde_json and on Windows the windows crate for the
+user's SID). src-tauri/build.rs builds it on Windows and Linux into
+`binaries/`; the bundle puts it beside Girovo.exe (tauri.windows.conf.json)
+or in /usr/bin beside girovo (tauri.linux.conf.json); sign-windows.mjs and
+dist-desktop.mjs sign and check it with the other helpers. The nightly
+workflow needs no change: the windows job already hands `src-tauri/binaries/`
+to the signing job.
+
+- **MCP:** stdio, one JSON-RPC message per line. `initialize` (protocol
+  2025-06-18; 2025-03-26 and 2024-11-05 are answered in their own version),
+  `notifications/initialized`, `ping`, `tools/list`, `tools/call`;
+  `notifications/tools/list_changed` when what Girovo allows changes. Results:
+  a short German line, the method's JSON as text, and `structuredContent`
+  from 2025-06-18 on. The line only counts and quotes what the method answered.
+- **Girovo side:** the same pipe or socket as scripts/girovo-api-client.mjs
+  (GIROVO_API_ADDRESS overrides it). The first tool call connects and says
+  `girovo.hello { app: "Girovo MCP" }` for accounts.read, transactions.read,
+  insights.read and the permission that tool needs, so one dialog covers
+  the start. A later tool whose permission is missing gets `not_permitted`;
+  the helper says hello for just that permission (the dialog opens in
+  Girovo) and tries once more. Refused, switched off or denied: a tool error
+  "Der Nutzer hat das in Girovo nicht erlaubt." Girovo closed or the API off:
+  "Girovo ist nicht geöffnet oder Girovo API ist aus.", and the next call
+  connects again (a connection Girovo dropped meanwhile is redone at once
+  when the write fails, so nothing was sent twice).
+- **Recognised** by the page (lib/api/grants.ts `isMcpHelper`) as an
+  MT-Media signature on a file named girovo-mcp(.exe) with a parent; any other
+  MT-Media program with a parent stays itself. On Linux every program is an
+  unknown publisher, so there the grant is the helper's own (path and
+  SHA-256), shown by its path, not the assistant's.
+
+| Tool | Method | Permission |
+|---|---|---|
+| `list_accounts` | accounts.list | accounts.read |
+| `search_transactions` | transactions.list | transactions.read |
+| `month_summary` | insights.month | insights.read |
+| `list_contracts` | contracts.list | insights.read |
+| `list_budgets` | budgets.list | insights.read |
+| `list_savings_goals` | goals.list | insights.read |
+| `set_booking_category` | categories.set | categories.write |
+| `add_category_rule` | rules.add | categories.write |
+| `create_category` | categories.create | categories.write |
+| `set_note` | notes.set | notes.write |
+| `set_budget` | budgets.set | budgets.write |
+| `set_savings_goal` | goals.set | budgets.write |
+| `set_reminder` | reminders.set | budgets.write |
+| `rename_contract` | contracts.rename | budgets.write |
+| `get_settings` | settings.get | settings.read |
+| `set_setting` | settings.set | settings.write |
+| `refresh_from_bank` | bank.refresh | bank.refresh |
+| `request_transfer` | transfers.request | transfers.request |
+| `transfer_status` | transfers.status | transfers.request |
+
+**Einstellungen → Girovo API → Mit KI-Assistenten verbinden** (desktop app):
+the helper's path from `api_mcp_path` (bridge `mcpPath()`; an AppImage gets a
+copy in the data folder, since its mount moves every start), Claude
+Desktop's `claude_desktop_config.json` snippet
+`{"mcpServers":{"girovo":{"command":"<path>"}}}` with a copy button, and the
+note that a cloud assistant sends what it reads to its provider.
 
 ## Phases
 

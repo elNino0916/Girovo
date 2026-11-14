@@ -45,10 +45,10 @@ export const LOG = process.env.GIROVO_SIGN_LOG || path.join(ROOT, 'dist', 'signi
 
 /**
  * The release files a folder may hold that get signed: the installer, an MSI
- * should one ever be built, the app and its two helpers. Anything else in a
+ * should one ever be built, the app and its three helpers. Anything else in a
  * folder is left alone.
  */
-export const ARTIFACT = /^(Girovo-[\w.+-]+-Setup\.exe|Girovo[\w.+-]*\.msi|Girovo\.exe|girovo-(update|cert)\.exe)$/i;
+export const ARTIFACT = /^(Girovo-[\w.+-]+-Setup\.exe|Girovo[\w.+-]*\.msi|Girovo\.exe|girovo-(update|cert|mcp)\.exe)$/i;
 
 /** Is this one of Girovo's release files, by its name? */
 export function isArtifact(file) {

@@ -6,9 +6,10 @@
 //     its executable's path, so an update by the same publisher keeps it;
 //   - an unknown publisher: the path and the file's SHA-256, so any change to
 //     the file asks again;
-//   - through Girovo's own MCP helper (signed by MT-Media, with a parent): the
-//     parent's identity, by the same two rules. A parent beside any other
-//     client is ignored: only the helper may speak for another program.
+//   - through Girovo's own MCP helper (girovo-mcp, signed by MT-Media, with a
+//     parent): the parent's identity, by the same two rules. A parent beside
+//     any other client is ignored, Girovo's other MT-Media programs included:
+//     only the helper may speak for another program.
 //
 // Pure and node-test-safe.
 
@@ -29,9 +30,13 @@ export const API_LIMITS = {
   method: 60,
 } as const;
 
+/** Girovo's MCP helper (src-tauri/mcp-helper) by its signature and its file, as the bundle names it: girovo-mcp(.exe). */
+export const isMcpHelper = (p: ApiProcess): boolean =>
+  p.publisher.kind === 'mtmedia' && /^girovo-mcp(\.exe)?$/i.test(fileName(p.exe));
+
 /** The process a grant is about: the parent behind Girovo's MCP helper, else the client itself. */
 export function grantSubject(client: ApiClient): { who: ApiProcess; viaMcp: boolean } {
-  if (client.parent && client.publisher.kind === 'mtmedia') return { who: client.parent, viaMcp: true };
+  if (client.parent && isMcpHelper(client)) return { who: client.parent, viaMcp: true };
   return { who: client, viaMcp: false };
 }
 

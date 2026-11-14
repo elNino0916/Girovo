@@ -14,18 +14,24 @@ fn main() {
   // externalBin), into binaries/ under the name Tauri expects.
   // girovo-cert.exe (cert-helper/, docs/mt-media-code-signing.md) likewise:
   // the MT-Media certificate in and out of the machine's trust stores.
-  if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
+  // girovo-mcp (mcp-helper/, docs/girovo-api.md phase 3), on Windows and
+  // Linux: the MCP server an AI assistant starts, a client of the Girovo API.
+  let os = std::env::var("CARGO_CFG_TARGET_OS");
+  if os.as_deref() == Ok("windows") {
     build_helper("update-helper", "girovo-update");
     build_helper("cert-helper", "girovo-cert");
+  }
+  if os.as_deref() == Ok("windows") || os.as_deref() == Ok("linux") {
+    build_helper("mcp-helper", "girovo-mcp");
   }
   // Girovo's own manifest: Tauri's plus the supported Windows versions (windows-app-manifest.xml).
   let windows = tauri_build::WindowsAttributes::new().app_manifest(include_str!("windows-app-manifest.xml"));
   tauri_build::try_build(tauri_build::Attributes::new().windows_attributes(windows)).expect("failed to run tauri-build");
 }
 
-/// Builds one of the small helper crates (update-helper/, cert-helper/) in
-/// release (its own target folder, so this build's lock is not in the way)
-/// and copies it to binaries/<exe>-<target>.exe, the name Tauri expects.
+/// Builds one of the small helper crates (update-helper/, cert-helper/,
+/// mcp-helper/) in release (its own target folder, so this build's lock is not
+/// in the way) and copies it to binaries/<exe>-<target>(.exe), the name Tauri expects.
 fn build_helper(dir: &str, exe: &str) {
   for watched in ["src", "Cargo.toml", "app.manifest", "build.rs"] {
     println!("cargo:rerun-if-changed={dir}/{watched}");
@@ -49,13 +55,14 @@ fn build_helper(dir: &str, exe: &str) {
     .status()
     .unwrap_or_else(|e| panic!("cargo for {dir}: {e}"));
   assert!(status.success(), "{dir} did not build");
-  let built = helper.join("target").join(&target).join("release").join(format!("{exe}.exe"));
+  let suffix = if target.contains("windows") { ".exe" } else { "" };
+  let built = helper.join("target").join(&target).join("release").join(format!("{exe}{suffix}"));
   let out = root.join("binaries");
   std::fs::create_dir_all(&out).unwrap();
-  let to = out.join(format!("{exe}-{target}.exe"));
+  let to = out.join(format!("{exe}-{target}{suffix}"));
   // Only when it changed: an unchanged copy keeps tauri-build from rebuilding the app.
   let same = std::fs::read(&built).ok() == std::fs::read(&to).ok();
   if !same {
-    std::fs::copy(&built, &to).unwrap_or_else(|e| panic!("copy {exe}.exe: {e}"));
+    std::fs::copy(&built, &to).unwrap_or_else(|e| panic!("copy {exe}{suffix}: {e}"));
   }
 }

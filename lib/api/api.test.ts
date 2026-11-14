@@ -2,7 +2,7 @@ import '../__fixtures__/tz.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  API_LIMITS, appendLog, capLog, clientKey, findGrant, grantKey, identityOf, normalPath, sanitizeApiGrants, sanitizeApiLog,
+  API_LIMITS, appendLog, capLog, clientKey, findGrant, grantKey, grantSubject, identityOf, normalPath, sanitizeApiGrants, sanitizeApiLog,
   withGrant, withPermission, withoutGrant,
 } from './grants.ts';
 import { fakeData } from './fixtures.ts';
@@ -74,6 +74,15 @@ test('through Girovo MCP the grant is the parent\'s; a parent beside any other c
   const forged: ApiClient = { ...unknownApp, parent: claude };
   assert.equal(findGrant(grants, forged), null);
   assert.equal(clientKey(forged), grantKey(identityOf(unknownApp)));
+  // Nor can Girovo's other MT-Media programs: only girovo-mcp speaks for its parent.
+  for (const exe of ['C:\\Program Files\\Girovo\\Girovo.exe', 'C:\\Program Files\\Girovo\\girovo-cert.exe', 'C:\\Temp\\girovo-mcp.exe.bak']) {
+    const other: ApiClient = { ...helper, exe };
+    assert.equal(findGrant(grants, other), null, exe);
+    assert.equal(grantSubject(other).viaMcp, false, exe);
+  }
+  // The helper as the Linux packages name it, and in another case as Windows allows.
+  assert.equal(grantSubject({ ...helper, exe: '/usr/bin/girovo-mcp' }).viaMcp, true);
+  assert.equal(grantSubject({ ...helper, exe: 'C:\\Program Files\\Girovo\\Girovo-MCP.EXE' }).viaMcp, true);
 });
 
 test('paths: Windows without regard to case and slashes, Linux exactly', () => {

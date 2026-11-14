@@ -10,7 +10,7 @@ import { collect, findSigntool, inBuildPlace, isArtifact, isPortableExecutable, 
 const SCRIPT = path.join(path.dirname(fileURLToPath(import.meta.url)), 'sign-windows.mjs');
 
 test('only Girovo’s own release files count as artifacts', () => {
-  for (const name of ['Girovo-7.0.0-Setup.exe', 'Girovo-7.0.0-next.202611141200.gabc1234-Setup.exe', 'Girovo.exe', 'girovo-update.exe', 'girovo-cert.exe', 'Girovo-7.0.0.msi']) {
+  for (const name of ['Girovo-7.0.0-Setup.exe', 'Girovo-7.0.0-next.202611141200.gabc1234-Setup.exe', 'Girovo.exe', 'girovo-update.exe', 'girovo-cert.exe', 'girovo-mcp.exe', 'Girovo-7.0.0.msi']) {
     assert.ok(isArtifact(name), name);
   }
   for (const name of ['notepad.exe', 'Setup.exe', 'Girovo-7.0.0-Setup.exe.blockmap', 'girovo-update.key', 'MT-Media-CodeSigning.pfx', 'evil-Girovo.exe', 'girovo-other.exe']) {

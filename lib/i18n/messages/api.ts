@@ -170,6 +170,20 @@ export const de = {
     } satisfies Record<ApiErrorCode, string>,
   },
 
+  /** Einstellungen → Girovo API: setting up an AI assistant with Girovo MCP (src-tauri/mcp-helper). */
+  mcp: {
+    title: 'Mit KI-Assistenten verbinden',
+    hint: 'Assistenten wie Claude arbeiten über Girovo MCP mit Girovo. Was sie dürfen, entscheidest du.',
+    needsApi: 'Dafür muss Girovo API an sein.',
+    helper: 'Girovo MCP',
+    missing: 'In dieser Version ist Girovo MCP nicht dabei.',
+    config: 'Für Claude Desktop',
+    configHint: 'In claude_desktop_config.json einfügen und Claude neu starten.',
+    copy: 'Kopieren',
+    copied: 'Kopiert',
+    cloud: 'Was ein Assistent liest, geht an seinen Anbieter, außer er läuft auf deinem Rechner.',
+  },
+
   /** The transfer sheet opened for an app's request (components/TransferSheet.tsx). */
   request: {
     from: (app: string, publisher: string | null) => `Angefragt von ${app} (${publisher ?? 'Herausgeber unbekannt'})`,
@@ -313,6 +327,19 @@ export const en: typeof de = {
       internal: 'Error in Girovo',
       timeout: 'You did not answer',
     },
+  },
+
+  mcp: {
+    title: 'Connect AI assistants',
+    hint: 'Assistants like Claude work with Girovo through Girovo MCP. You decide what they may do.',
+    needsApi: 'Girovo API has to be on for this.',
+    helper: 'Girovo MCP',
+    missing: 'Girovo MCP is not part of this version.',
+    config: 'For Claude Desktop',
+    configHint: 'Paste into claude_desktop_config.json and restart Claude.',
+    copy: 'Copy',
+    copied: 'Copied',
+    cloud: 'What an assistant reads goes to its provider, unless it runs on your computer.',
   },
 
   request: {

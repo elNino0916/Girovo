@@ -1,0 +1,51 @@
+[package]
+name = "girovo-mcp"
+version = "1.0.0"
+edition = "2024"
+description = "Girovo MCP: lets an AI assistant work with Girovo through the Girovo API (docs/girovo-api.md, phase 3)"
+publish = false
+
+# Its own crate, like cert-helper/ and update-helper/: no Tauri, no window, no
+# async runtime. The assistant starts it and speaks MCP over stdin and stdout;
+# it is a client of Girovo's pipe or socket. src-tauri/build.rs builds it and
+# hands it to the bundle (tauri.windows.conf.json and tauri.linux.conf.json
+# externalBin), so it lies beside Girovo.exe, or in /usr/bin beside girovo.
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "girovo-mcp"
+path = "src/main.rs"
+# The tests are the library's.
+test = false
+
+[dependencies]
+serde_json = "1.0"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Security_Authorization",
+  "Win32_System_Threading",
+] }
+
+# The tests' fake Girovo listens on a named pipe of its own.
+[target.'cfg(windows)'.dev-dependencies]
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Security_Authorization",
+  "Win32_Storage_FileSystem",
+  "Win32_System_IO",
+  "Win32_System_Pipes",
+  "Win32_System_Threading",
+] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

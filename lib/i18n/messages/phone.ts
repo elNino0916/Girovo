@@ -22,10 +22,12 @@ const SWAPS: Record<Locale, readonly Swap[]> = {
     [/diesen Rechner/g, 'dieses Telefon'],
     [/dieses Rechners/g, 'dieses Telefons'],
     [/diesem Rechner/g, 'diesem Telefon'],
+    [/deinem Rechner/g, 'deinem Telefon'],
     [/\bklickst\b/g, 'tippst'],
   ],
   en: [
     [/this computer/g, 'this phone'],
+    [/your computer/g, 'your phone'],
     [/\bclick\b/g, 'tap'],
   ],
 };

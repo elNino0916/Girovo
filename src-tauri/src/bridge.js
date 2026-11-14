@@ -197,6 +197,8 @@
   // notification (events.subscribe) and answers false once that connection
   // is gone; focus brings Girovo's window to the front for the dialog or an
   // approval and answers whether it got there (else its taskbar button flashes).
+  // mcpPath gives the full path of Girovo MCP (girovo-mcp) for an assistant's
+  // configuration, or null where there is none.
   // setEnabled is the user's switch, which the shell remembers across starts
   // (status's `on`); ready says whether the page can answer (logged in, the
   // vault open). Calls that come while it can't wait in the shell, which
@@ -252,6 +254,7 @@
         .catch(function () { return false; });
     },
     focus: function () { return invoke('api_focus_window').catch(function () { return false; }); },
+    mcpPath: function () { return invoke('api_mcp_path').catch(function () { return null; }); },
   });
 
   // Saving a file the app made (the CSV export, a backup) through a native

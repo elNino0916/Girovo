@@ -59,6 +59,12 @@ export type GirovoApiBridge = {
    * from before phase 2.
    */
   focus?: () => Promise<boolean>;
+  /**
+   * Phase 3: the full path of Girovo MCP (girovo-mcp beside the app, or its
+   * copy in the data folder for an AppImage), for an assistant's
+   * configuration; null where there is none. Absent in shells from before phase 3.
+   */
+  mcpPath?: () => Promise<string | null>;
 };
 
 /** What src-tauri/src/publisher_cert.rs reads from the machine's trust stores. */
