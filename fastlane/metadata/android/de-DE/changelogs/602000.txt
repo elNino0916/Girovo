@@ -1,0 +1,1 @@
+Über Girovo ist neu gestaltet. Ein Tipp auf das Kreuz eines Hinweises trifft nicht mehr das Fenster dahinter, und Hinweise lassen sich wegwischen. Kürzere, klarere Texte.

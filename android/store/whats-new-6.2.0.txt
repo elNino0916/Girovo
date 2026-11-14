@@ -1,0 +1,10 @@
+<en-US>
+• Redesigned About Girovo page
+• Tapping the cross on a message no longer hits the sheet behind it, and messages can be swiped away
+• Shorter, clearer texts
+</en-US>
+<de-DE>
+• Über Girovo ist neu gestaltet
+• Ein Tipp auf das Kreuz eines Hinweises trifft nicht mehr das Fenster dahinter, und Hinweise lassen sich wegwischen
+• Kürzere, klarere Texte
+</de-DE>
