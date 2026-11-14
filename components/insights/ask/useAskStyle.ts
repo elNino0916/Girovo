@@ -2,7 +2,7 @@
 
 // Girovo AI's answer style as the page uses it (lib/ask-style.ts): the saved
 // choices from the vault, and the first name the bank gave for the account
-// holder as the suggestion when none is typed (components/shell/session.ts).
+// holder (components/shell/session.ts).
 
 import { useMemo } from 'react';
 import { askStyle, type AskStyle } from '@/lib/ask-style';
@@ -18,9 +18,9 @@ export function useSuggestedName(): string {
 export function useAskStyle(): AskStyle {
   const { vault } = useFints();
   const suggested = useSuggestedName();
-  const { askTone, askLength, askName, askNameOff } = vault ?? {};
+  const { askTone, askLength, askNameOff } = vault ?? {};
   return useMemo(
-    () => askStyle({ askTone, askLength, askName, askNameOff }, suggested),
-    [askTone, askLength, askName, askNameOff, suggested],
+    () => askStyle({ askTone, askLength, askNameOff }, suggested),
+    [askTone, askLength, askNameOff, suggested],
   );
 }

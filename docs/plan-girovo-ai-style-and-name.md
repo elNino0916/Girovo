@@ -28,8 +28,8 @@ Three new choices on the Girovo AI page, in the "Antworten" group, with a live e
 ## Where the first name comes from
 
 - **Suggestion from the bank**: `firstName(sessionHolder(accounts))` in `components/shell/session.ts` already exists. It drops titles (Herr, Dr.), handles "BORNEMANN, NINO" and returns nothing for company accounts ("Mustermann GmbH").
-- **The user's own name**: a text field prefilled with that suggestion. What's typed there wins, for example a nickname. Leave it empty to use the bank's suggestion again.
-- **Nothing found** (company account, empty holder): the switch stays off and the field is empty. It can still be turned on with a typed name.
+- **No field to type a name** (owner, 2026-11-15, after the first build had one): the bank's first name or none.
+- **Nothing found** (company account, empty holder): the switch says "Deine Bank nennt keinen Vornamen" and no name is used.
 - **Privacy**: the name is kept in the vault and synced like the other Girovo AI settings. It is only ever given to the model on the device (Gemma on the desktop, Nano on the phone), which fits the new line "Deine Fragen und Umsätze verlassen nie dein Gerät." Later, Girovo API (MCP) must never hand the name out.
 
 ## When the name shows

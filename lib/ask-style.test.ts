@@ -19,9 +19,8 @@ test('a typed name is kept as a name, anything else is none', () => {
 test('the style fills in the defaults and resolves the name', () => {
   assert.deepEqual(askStyle(null, ''), { tone: 'friendly', length: 'short', name: null });
   assert.deepEqual(askStyle({}, 'Nino'), { tone: 'friendly', length: 'short', name: 'Nino' });
-  assert.equal(askStyle({ askName: 'Nin' }, 'Nino').name, 'Nin', 'the typed name wins');
-  assert.equal(askStyle({ askName: 'Nino1' }, 'Nino').name, 'Nino', 'an unusable typed name falls back to the bank');
-  assert.equal(askStyle({ askNameOff: true, askName: 'Nin' }, 'Nino').name, null, 'switched off: no name at all');
+  assert.equal(askStyle({}, 'Nino1').name, null, 'nothing that reads as a name');
+  assert.equal(askStyle({ askNameOff: true }, 'Nino').name, null, 'switched off: no name at all');
   assert.equal(askStyle({ askTone: 'plain', askLength: 'long' }, '').tone, 'plain');
   assert.equal(askStyle({ askTone: 'loud' as never }, '').tone, 'friendly');
 });

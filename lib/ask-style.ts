@@ -5,9 +5,9 @@
 //            the same facts said as short lines ("Im Oktober: 312,40 € an Rewe.")
 //   Länge    short (the default): one sentence, the figure first; long: the
 //            count of bookings, last month's figure and the largest booking too
-//   Anrede   the first name Girovo AI may call you by: the one you typed, else
-//            the account holder's from the bank (components/shell/session.ts
-//            firstName), unless switched off. Said sparingly: at the start of a
+//   Anrede   the first name Girovo AI may call you by: the account holder's
+//            from the bank (components/shell/session.ts firstName), unless
+//            switched off (owner 2026-11-15: no field to type one). Said sparingly: at the start of a
 //            conversation's first answer, in the empty conversation and in
 //            "Girovo AI ist bereit", never twice, never where the name is also
 //            in what the answer is about (a payee "Lea Schmidt" for a user Lea).
@@ -41,7 +41,6 @@ export const DEFAULT_LENGTH: AskLength = 'short';
 export type AskStyleFields = {
   askTone?: AskTone;
   askLength?: AskLength;
-  askName?: string;
   askNameOff?: true;
 };
 
@@ -49,7 +48,7 @@ export type AskStyleFields = {
 export function askStyle(v: AskStyleFields | null | undefined, suggested: string): AskStyle {
   const tone = isAskTone(v?.askTone) ? v.askTone : DEFAULT_TONE;
   const length = isAskLength(v?.askLength) ? v.askLength : DEFAULT_LENGTH;
-  const name = v?.askNameOff ? null : cleanAskName(v?.askName) ?? cleanAskName(suggested) ?? null;
+  const name = v?.askNameOff ? null : cleanAskName(suggested) ?? null;
   return { tone, length, name };
 }
 

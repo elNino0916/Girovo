@@ -272,9 +272,7 @@ export type VaultData = {
   askTone?: AskTone;
   /** Girovo AI's length; left out while it is the default, short. Synced. */
   askLength?: AskLength;
-  /** The first name Girovo AI calls the user by, typed in Einstellungen; else the bank's holder name is used. Synced. */
-  askName?: string;
-  /** Girovo AI calls the user by no name. Synced. */
+  /** Girovo AI does not call the user by the first name the bank gives. Synced. */
   askNameOff?: true;
   /** Girovo Next on the desktop: "Namen mit Girovo AI aufräumen" switched on. This device's own, never synced. */
   aiNamesOn?: true;

@@ -276,11 +276,8 @@ export const de = {
       long: 'Ausführlich',
       useName: 'Mit Vornamen ansprechen',
       calls: (name: string) => `Girovo AI nennt dich ${name}`,
-      noName: 'Trag deinen Vornamen unten ein',
-      nameLabel: 'Dein Vorname',
-      /** Under the field: what an empty field means. */
-      fromBank: (name: string) => `Leer lassen für ${name}, wie deine Bank dich nennt`,
-      fromNobody: 'Girovo kennt deinen Vornamen noch nicht',
+      /** The bank gives no first name (a company account, none loaded yet). */
+      noName: 'Deine Bank nennt keinen Vornamen',
       example: 'So klingt es',
       /** The example when no bookings are loaded: made up, said as the chosen style would say it. */
       sample: {
@@ -607,10 +604,7 @@ export const en: typeof de = {
       long: 'Detailed',
       useName: 'Call me by my first name',
       calls: (name) => `Girovo AI calls you ${name}`,
-      noName: 'Enter your first name below',
-      nameLabel: 'Your first name',
-      fromBank: (name) => `Leave empty for ${name}, as your bank calls you`,
-      fromNobody: 'Girovo doesn\u2019t know your first name yet',
+      noName: 'Your bank gives no first name',
       example: 'How it sounds',
       sample: {
         question: 'How much went to Rewe in October?',
