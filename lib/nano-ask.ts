@@ -909,6 +909,32 @@ function againstSpan(period: AskPeriod, against: AskPeriod, today: string): AskP
 }
 
 /**
+ * A question asked on `day`, shown again on a later `today` (a conversation
+ * kept in the vault, lib/ask-saved.ts): every period that moves with the date
+ * named by its days as they were then, so "letzten Monat" stays the month it
+ * meant and "diesen Monat" the days it had. The same query when nothing in it
+ * moves, or `day` is today.
+ */
+export function pinQuery(q: AskQuery, day: string, today: string): AskQuery {
+  if (day >= today) return q;
+  const pin = (p: AskPeriod): AskPeriod => {
+    const d = periodDays(p, day);
+    if (!d) return p;
+    if (p.kind === 'lastMonth') return { kind: 'month', month: d.from.slice(0, 7) };
+    if (p.kind === 'lastYear') return { kind: 'year', year: Number(d.from.slice(0, 4)) };
+    if (p.kind === 'today' || p.kind === 'thisMonth' || p.kind === 'thisYear' || p.kind === 'since' || p.kind === 'days' || p.kind === 'months') {
+      return { kind: 'range', from: d.from, to: d.to };
+    }
+    return p;
+  };
+  // The earlier side of a comparison, cut to the running side's length as it was on that day.
+  const against = q.against ? pin(q.kind === 'compare' ? againstSpan(q.period, q.against, day) : q.against) : undefined;
+  const period = pin(q.period);
+  if (period === q.period && against === q.against) return q;
+  return { ...q, period, ...(against ? { against } : {}) };
+}
+
+/**
  * Works the answer out over `txs` (the loaded bookings of the accounts in
  * view, `loaded` the days they cover). Umbuchungen between the user's own
  * accounts count only when the question names a category or a search.

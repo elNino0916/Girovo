@@ -2,8 +2,11 @@
 //
 // One module-level store, so any place can open the thread with a question
 // (the search, Analyse's month recap, a booking's details) without the
-// provider knowing about it. The conversations live for the session only:
-// they are about bookings, and nothing about them is written anywhere.
+// provider knowing about it. Finished conversations are kept in the vault
+// (VaultData.askConversations, lib/ask-saved.ts), sealed with the PIN:
+// components/insights/ask/useKeptConversations.ts brings them back after the
+// login and writes each change. Only the questions and their readings are
+// kept, never a booking or its figures.
 //
 // A turn is the user's question and Girovo's answer to it. The store only
 // holds what was asked and how it was read (an AskQuery); the figures are
@@ -17,8 +20,11 @@ import { useSyncExternalStore } from 'react';
 import { sameQuery } from '@/lib/ask-chips';
 import { isExplainQuestion } from '@/lib/ask-explain';
 import type { AskIntent } from '@/lib/ask-intents';
+import { sanitizeAskConversations, type SavedConversation, type SavedTurn } from '@/lib/ask-saved';
+import { txKey, type CategoryId } from '@/lib/categories';
 import type { SerializedTransaction } from '@/lib/fints-types';
-import type { AskQuery } from '@/lib/nano-ask';
+import { dayKey } from '@/lib/format';
+import { pinQuery, type AskQuery } from '@/lib/nano-ask';
 
 export type TurnState = 'reading' | 'answered' | 'failed' | 'notUnderstood' | 'offTopic';
 
@@ -51,12 +57,24 @@ export type Turn = {
    * everywhere else.
    */
   booking?: SerializedTransaction;
+  /**
+   * That booking by its key alone (lib/categories.ts txKey): a conversation
+   * brought back from the vault, which never holds the booking. Looked up
+   * among the bookings loaded now.
+   */
+  bookingKey?: string;
   /** "Was ist das für eine Zahlung?": that booking explained by the rules (lib/ask-explain.ts), no model asked. */
   explain?: true;
+  /** The yyyy-mm-dd it was asked on, kept with it: shown again later, its periods stay the days they meant. */
+  day?: string;
 };
 
 export type Conversation = {
   id: number;
+  /** Its name in the vault, the same after every login (the session's `id` is not). */
+  key: string;
+  /** ISO, when it was started. */
+  at: string;
   /** The first question, as the sidebar and Verläufe name it. */
   title: string;
   turns: Turn[];
@@ -99,14 +117,19 @@ function withConversation(fn: (c: Conversation) => Conversation): void {
   set({ ...state, conversations: state.conversations.map((c) => (c.id === cur.id ? fn(c) : c)) });
 }
 
+/** A conversation's name in the vault: unique enough for one person's few dozen. */
+function newKey(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 function startConversation(title: string, turns: Turn[]): void {
-  const c: Conversation = { id: nextId++, title, turns };
+  const c: Conversation = { id: nextId++, key: newKey(), at: new Date().toISOString(), title, turns };
   // Newest first, as Verläufe and the sidebar list them.
   set({ open: true, current: c.id, conversations: [c, ...state.conversations] });
 }
 
-function turnOf(question: string, booking?: SerializedTransaction): Turn {
-  const about = booking ? { booking } : {};
+function turnOf(question: string, booking?: SerializedTransaction, bookingKey?: string): Turn {
+  const about = { day: dayKey(new Date()), ...(booking ? { booking } : bookingKey ? { bookingKey } : {}) };
   // Explained by the rules at once, with or without a booking (without one it asks to open one first).
   if (isExplainQuestion(question)) return { id: nextId++, question, state: 'answered', explain: true, ...about };
   return { id: nextId++, question, state: 'reading', ...about };
@@ -138,7 +161,7 @@ export function openAsk({ question, fresh = false, booking, title }: {
 export function openAskWithRecap(month: string, title: string): void {
   // Read as a question about that month's spending, so a follow-up ("Und Lebensmittel?") keeps the month.
   const query: AskQuery = { kind: 'sum', dir: 'out', category: null, search: null, period: { kind: 'month', month } };
-  startConversation(title, [{ id: nextId++, question: '', state: 'answered', query, seed: { kind: 'recap', month } }]);
+  startConversation(title, [{ id: nextId++, question: '', state: 'answered', query, seed: { kind: 'recap', month }, day: dayKey(new Date()) }]);
 }
 
 /** A follow-up in the open conversation; it keeps the booking the conversation is about. */
@@ -149,10 +172,11 @@ export function askInThread(question: string, booking?: SerializedTransaction): 
     startConversation(q, [turnOf(q, booking)]);
     return;
   }
-  withConversation((c) => ({
-    ...c,
-    turns: [...c.turns, turnOf(q, booking ?? [...c.turns].reverse().find((t) => t.booking)?.booking)],
-  }));
+  withConversation((c) => {
+    // The booking the conversation is about: held, or by its key in one brought back from the vault.
+    const about = booking ? null : [...c.turns].reverse().find((t) => t.booking || t.bookingKey);
+    return { ...c, turns: [...c.turns, turnOf(q, booking ?? about?.booking, about?.bookingKey)] };
+  });
 }
 
 /** The host's reading of a turn's question. */
@@ -226,8 +250,95 @@ export function deleteAllConversations(): void {
 /** Month recaps hidden this session ("Rückblick ausblenden"): kept nowhere, forgotten with the session. */
 export const hiddenRecaps = new Set<string>();
 
-/** Everything forgotten: at logout, and when asking is switched off. */
+/**
+ * Everything forgotten in memory: at logout, and when asking is switched off.
+ * What the vault keeps stays there and comes back with the next login (or
+ * when asking is switched on again).
+ */
 export function clearAsk(): void {
   hiddenRecaps.clear();
+  restored = false;
   set({ open: false, current: null, conversations: [] });
+}
+
+// ---------------------------------------------------------------------------
+// Kept in the vault (lib/ask-saved.ts)
+
+/** Whether this session's conversations were brought back from the vault yet: until then, nothing is written there. */
+let restored = false;
+
+export const isRestored = (): boolean => restored;
+
+/** Accepts every category: the vault checks them against its own when it loads (lib/vault.ts, provider/model.ts). */
+const anyCategory = (v: unknown): v is CategoryId => typeof v === 'string';
+
+/** One turn as the vault keeps it; null while it is still being read. */
+function savedTurn(t: Turn, fallbackDay: string): SavedTurn | null {
+  if (t.state === 'reading') return null;
+  const bookingKey = t.booking ? txKey(t.booking) : t.bookingKey;
+  return {
+    question: t.question,
+    state: t.state,
+    day: t.day ?? fallbackDay,
+    ...(t.query ? { query: t.query } : {}),
+    ...(t.intent ? { intent: t.intent } : {}),
+    ...(t.seed ? { recap: t.seed.month } : {}),
+    ...(t.written !== undefined && t.writtenFor ? { written: t.written, writtenFor: t.writtenFor } : {}),
+    ...(t.outcome ? { outcome: t.outcome } : {}),
+    ...(t.edited ? { edited: true as const } : {}),
+    ...(t.explain ? { explain: true as const } : {}),
+    ...(bookingKey ? { bookingKey } : {}),
+  };
+}
+
+/**
+ * The conversations as the vault keeps them: finished turns only, a change
+ * still waiting for its yes left out, the newest within the caps.
+ */
+export function savedConversations(s: State = state): SavedConversation[] {
+  const today = dayKey(new Date());
+  const raw = s.conversations.map((c) => ({
+    id: c.key,
+    title: c.title,
+    at: c.at,
+    turns: c.turns.map((t) => savedTurn(t, today)).filter(Boolean),
+  }));
+  return sanitizeAskConversations(raw, anyCategory);
+}
+
+/**
+ * Brings the vault's conversations back, after those already here (the vault's
+ * are older): each one not here yet, with new numbers for this session. A
+ * question asked on an earlier day keeps the days it meant (lib/nano-ask.ts
+ * pinQuery); Gemma's sentences go where that changed its reading, since they
+ * may say "letzten Monat". Marks the session as restored, so changes are
+ * written from now on.
+ */
+export function restoreConversations(saved: readonly SavedConversation[], today: string): void {
+  restored = true;
+  const here = new Set(state.conversations.map((c) => c.key));
+  const back: Conversation[] = [];
+  for (const sc of saved) {
+    if (here.has(sc.id)) continue;
+    const turns = sc.turns.map((st): Turn => {
+      const query = st.query ? pinQuery(st.query, st.day, today) : undefined;
+      const keepWritten = st.writtenFor !== undefined && query === st.query;
+      return {
+        id: nextId++,
+        question: st.question,
+        state: st.state,
+        day: st.day,
+        ...(query ? { query } : {}),
+        ...(st.intent ? { intent: st.intent } : {}),
+        ...(st.recap ? { seed: { kind: 'recap' as const, month: st.recap } } : {}),
+        ...(keepWritten ? { written: st.written, writtenFor: st.writtenFor } : {}),
+        ...(st.outcome ? { outcome: st.outcome } : {}),
+        ...(st.edited ? { edited: true as const } : {}),
+        ...(st.explain ? { explain: true as const } : {}),
+        ...(st.bookingKey ? { bookingKey: st.bookingKey } : {}),
+      };
+    });
+    back.push({ id: nextId++, key: sc.id, at: sc.at, title: sc.title, turns });
+  }
+  if (back.length) set({ ...state, conversations: [...state.conversations, ...back] });
 }

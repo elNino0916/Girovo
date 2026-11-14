@@ -140,6 +140,8 @@ export function vaultFromEntries(entries: ReadonlyMap<string, unknown>, base: Va
   // Girovo Next: asking switched off, and its sheet seen, are this device's too.
   if (base.askOff) out.askOff = true;
   if (base.askIntroSeen) out.askIntroSeen = true;
+  // Girovo AI's conversations stay on the device they were held on.
+  if (base.askConversations?.length) out.askConversations = base.askConversations;
   // Girovo AI's cleaned names (lib/ai-names-store.ts): this desktop's, never entries. The phone keeps Nano's.
   if (base.aiNamesOn) out.aiNamesOn = true;
   if (base.aiNames) out.aiNames = base.aiNames;

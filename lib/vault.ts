@@ -38,6 +38,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { isGrouping, sanitizeAccountOrder } from './account-overview.ts';
+import { mergeAskConversations, sanitizeAskConversations } from './ask-saved.ts';
 import { isAskLength, isAskTone } from './ask-style-fields.ts';
 import { isRecord } from './guards.ts';
 import { mergeAiNames, sanitizeAiNames } from './ai-names-store.ts';
@@ -253,6 +254,8 @@ export function sanitizeVault(input: unknown, now = Date.now()): VaultData | nul
   const keepBalances = input.keepBalances !== false;
   const keptBalances = keepBalances ? sanitizeKeptBalances(input.keptBalances, VAULT_LIMITS.accountKey) : {};
   const netWorth = keepBalances ? sanitizeNetWorth(input.netWorth) : [];
+  // Girovo AI's conversations (lib/ask-saved.ts): known readings only, strings clipped, the newest within the caps.
+  const askConversations = sanitizeAskConversations(input.askConversations, known);
   return {
     version: 1,
     templates: templates(input.templates),
@@ -305,6 +308,7 @@ export function sanitizeVault(input: unknown, now = Date.now()): VaultData | nul
     ...(isAskTone(input.askTone) && input.askTone !== 'friendly' ? { askTone: input.askTone } : {}),
     ...(isAskLength(input.askLength) && input.askLength !== 'short' ? { askLength: input.askLength } : {}),
     ...(input.askNameOff === true ? { askNameOff: true as const } : {}),
+    ...(askConversations.length ? { askConversations } : {}),
     // Girovo AI's cleaned names on the desktop (lib/ai-names-store.ts): the switch, and the names within their cap.
     ...(input.aiNamesOn === true ? { aiNamesOn: true as const } : {}),
     ...(sanitizeAiNames(input.aiNames) ? { aiNames: sanitizeAiNames(input.aiNames)! } : {}),
@@ -636,6 +640,10 @@ export function mergeVaults(current: VaultData, fromBackup: VaultData): VaultDat
     ...(current.askTone || !backup.askTone ? {} : { askTone: backup.askTone }),
     ...(current.askLength || !backup.askLength ? {} : { askLength: backup.askLength }),
     ...(current.askNameOff || !backup.askNameOff ? {} : { askNameOff: true as const }),
+    // Girovo AI's conversations: this computer's, and the backup's it does not have (the caps keep the newest).
+    ...(current.askConversations || backup.askConversations
+      ? { askConversations: mergeAskConversations(current.askConversations, backup.askConversations) }
+      : {}),
     // The newest read of each account, and every day either of them knows — unless this computer said no.
     ...(current.keepBalances === false ? {} : {
       keptBalances: newestKept(backup.keptBalances, current.keptBalances),

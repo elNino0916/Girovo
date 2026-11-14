@@ -444,7 +444,7 @@ function SideRow({ page, glyph, title, summary, on, alert, onClick }: {
   );
 }
 
-/** Girovo Next: this session's conversations (components/insights/AskThread.tsx), newest first; a press shows one in the panel. */
+/** Girovo Next: Girovo AI's conversations (components/insights/AskThread.tsx), kept in the vault, newest first; a press shows one in the panel. */
 function Conversations() {
   const t = useT();
   const s = useAskThread();

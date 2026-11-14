@@ -8,6 +8,7 @@ import {
   type DateRange, EMPTY_VAULT, type InboxMessage, type StatementInfo, type TransferTemplate, type VaultData,
 } from '@/lib/app-types';
 import { isGrouping, sanitizeAccountOrder } from '@/lib/account-overview';
+import { sanitizeAskConversations } from '@/lib/ask-saved';
 import { isAskLength, isAskTone } from '@/lib/ask-style-fields';
 import { isAvatarChoice, isAvatarImage, OWN_PICTURE } from '@/lib/avatars';
 import { sanitizeBudgets } from '@/lib/budgets';
@@ -700,6 +701,8 @@ export function normalizeVault(raw: VaultData | null | undefined): VaultData {
   const keepBalances = raw.keepBalances !== false;
   const keptBalances = keepBalances ? sanitizeKeptBalances(raw.keptBalances) : {};
   const netWorth = keepBalances ? sanitizeNetWorth(raw.netWorth) : [];
+  // Kept too, or a login would forget Girovo AI's conversations and the next save delete them.
+  const askConversations = sanitizeAskConversations(raw.askConversations, known);
   return {
     version: 1,
     templates: Array.isArray(raw.templates)
@@ -751,6 +754,7 @@ export function normalizeVault(raw: VaultData | null | undefined): VaultData {
     ...(isAskTone(raw.askTone) && raw.askTone !== 'friendly' ? { askTone: raw.askTone } : {}),
     ...(isAskLength(raw.askLength) && raw.askLength !== 'short' ? { askLength: raw.askLength } : {}),
     ...(raw.askNameOff === true ? { askNameOff: true as const } : {}),
+    ...(askConversations.length ? { askConversations } : {}),
     // Kept too, or a login would switch Girovo AI's names off and forget them.
     ...(raw.aiNamesOn === true ? { aiNamesOn: true as const } : {}),
     ...(sanitizeAiNames(raw.aiNames) ? { aiNames: sanitizeAiNames(raw.aiNames)! } : {}),
