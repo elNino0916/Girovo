@@ -7,18 +7,23 @@
 // bank session.
 //
 // The bridge (bridge.js electronGirovoApi):
-// - `api:call { id, connection, client, method, params }` to the main window for every request;
+// - `api_set_enabled { on }` is the user's switch (Einstellungen → Girovo API
+//   zulassen): the shell keeps it in prefs.json (API_PREF) and listens from
+//   every start while it is on, logged in or not; off, there is no pipe;
+// - `api_page_ready { ready }`: the page can answer (logged in, the vault
+//   open), or no longer (the logout); a page that starts loading is not ready;
+// - `api:call { id, connection, client, method, params }` to the main window
+//   for every request while the page is ready; one that comes while it is not
+//   is held (server.rs): Girovo comes forward (focus.rs) so the login shows,
+//   `api:waiting { clients }` says who waits (`api_waiting` asks), and the
+//   held calls go to the page once it is ready, else `locked` after 120 s;
 // - the page answers with `api_reply { id, result | error }`; unanswered after
-//   150 s the client hears `timeout`, and with no page to ask, `locked`;
+//   150 s the client hears `timeout`;
 // - `api:closed { connection }` once a connection ends;
 // - `api_notify { connection, method, params }` sends that connection a
 //   JSON-RPC notification (events.subscribe), false once it is gone;
 // - `api_focus_window` brings Girovo's window to the front for the consent
 //   dialog or an approval, and says whether it got there (focus.rs).
-//
-// Off by default and off at every start: the page switches it on with
-// `api_set_enabled` once it has loaded and its setting says so. A page that
-// loads again has to say so again; until then calls answer `locked`.
 
 mod focus;
 mod icon;
@@ -39,23 +44,30 @@ use serde::Serialize;
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager};
 
+use crate::prefs::Prefs;
+use identify::Client;
 use rpc::{PageError, Reply};
 use server::{Call, Limits, Router, Server};
 
 pub const CALL_EVENT: &str = "api:call";
 pub const CLOSED_EVENT: &str = "api:closed";
+pub const WAITING_EVENT: &str = "api:waiting";
+/// "Girovo API zulassen", as the shell remembers it across starts: "1" or absent.
+pub const API_PREF: &str = "fints.api.on";
 
 #[derive(Default)]
 pub struct Api {
   server: Mutex<Option<Server>>,
-  /// The page has switched the API on since it last loaded, so it listens for calls.
-  registered: Arc<AtomicBool>,
+  /// The page can answer: logged in, the vault open (`api_page_ready`). Kept
+  /// here as well, for a server started after the page said so.
+  ready: AtomicBool,
 }
 
 /// The main window's page as the Router.
 struct Page {
   app: AppHandle,
-  registered: Arc<AtomicBool>,
+  /// A bring_forward is under way: calls held one after the other bring the window once.
+  forwarding: Arc<AtomicBool>,
 }
 
 #[derive(Serialize, Clone)]
@@ -63,9 +75,14 @@ struct Closed<'a> {
   connection: &'a str,
 }
 
+#[derive(Serialize, Clone)]
+struct Waiting<'a> {
+  clients: &'a [Client],
+}
+
 impl Router for Page {
   fn call(&self, call: &Call) -> bool {
-    if !self.registered.load(Ordering::SeqCst) || self.app.get_webview_window("main").is_none() {
+    if self.app.get_webview_window("main").is_none() {
       return false;
     }
     self.app.emit_to("main", CALL_EVENT, call).is_ok()
@@ -73,6 +90,19 @@ impl Router for Page {
 
   fn closed(&self, connection: &str) {
     let _ = self.app.emit_to("main", CLOSED_EVENT, Closed { connection });
+  }
+
+  fn waiting(&self, clients: &[Client], arrived: bool) {
+    let _ = self.app.emit_to("main", WAITING_EVENT, Waiting { clients });
+    // Out of the tray and in front, so the login shows: on a thread of its
+    // own, since it waits for the window's thread (and this must not wait).
+    if arrived && !self.forwarding.swap(true, Ordering::SeqCst) {
+      let (app, forwarding) = (self.app.clone(), self.forwarding.clone());
+      std::thread::spawn(move || {
+        focus::bring_forward(&app);
+        forwarding.store(false, Ordering::SeqCst);
+      });
+    }
   }
 }
 
@@ -84,6 +114,8 @@ pub struct Enabled {
 
 #[derive(Serialize)]
 pub struct Status {
+  /// The user's switch, as the shell remembers it.
+  on: bool,
   running: bool,
   address: String,
   connections: usize,
@@ -97,33 +129,65 @@ fn address(server: &Option<Server>) -> String {
   }
 }
 
-/// Switches the API on or off. On, it answers once the pipe or socket is
-/// there; `running` false says it could not be made (another program holds the name).
-#[tauri::command(async)]
-pub fn api_set_enabled(app: AppHandle, state: tauri::State<'_, Api>, on: bool) -> Enabled {
-  let mut server = state.server.lock().unwrap();
-  if !on {
-    state.registered.store(false, Ordering::SeqCst);
-    if let Some(s) = server.take() {
-      s.stop();
-    }
-    return Enabled { running: false, address: address(&server) };
+fn switched_on(app: &AppHandle) -> bool {
+  app.state::<Prefs>().get(API_PREF).as_deref() == Some("1")
+}
+
+/// Starts listening if it does not yet; the log says why when it can't.
+fn listen(app: &AppHandle, api: &Api, server: &mut Option<Server>) {
+  if server.is_some() {
+    return;
   }
-  state.registered.store(true, Ordering::SeqCst);
-  if server.is_none() {
-    let router = Arc::new(Page { app: app.clone(), registered: state.registered.clone() });
-    match transport::default_address().and_then(|addr| Server::start(&addr, router, Limits::default(), identify::client)) {
-      Ok(s) => *server = Some(s),
-      Err(e) => eprintln!("[api] could not listen: {e}"),
+  let router = Arc::new(Page { app: app.clone(), forwarding: Arc::new(AtomicBool::new(false)) });
+  match transport::default_address().and_then(|addr| Server::start(&addr, router, Limits::default(), identify::client)) {
+    Ok(s) => {
+      s.set_ready(api.ready.load(Ordering::SeqCst));
+      *server = Some(s);
     }
+    Err(e) => eprintln!("[api] could not listen: {e}"),
+  }
+}
+
+/// The user's switch: remembered across starts, and listening from now on
+/// or not. `running` false while on says the pipe could not be made (another
+/// program holds the name).
+#[tauri::command(async)]
+pub fn api_set_enabled(app: AppHandle, state: tauri::State<'_, Api>, prefs: tauri::State<'_, Prefs>, on: bool) -> Enabled {
+  prefs.set(API_PREF, on.then_some("1"));
+  let mut server = state.server.lock().unwrap();
+  if on {
+    listen(&app, &state, &mut server);
+  } else if let Some(s) = server.take() {
+    s.stop();
   }
   Enabled { running: server.is_some(), address: address(&server) }
 }
 
+/// Whether the page can answer calls: true once logged in with the vault
+/// open, false at the logout. Calls held meanwhile go to it now.
 #[tauri::command(async)]
-pub fn api_status(state: tauri::State<'_, Api>) -> Status {
+pub fn api_page_ready(state: tauri::State<'_, Api>, ready: bool) {
+  state.ready.store(ready, Ordering::SeqCst);
+  if let Some(s) = state.server.lock().unwrap().as_ref() {
+    s.set_ready(ready);
+  }
+}
+
+/// Who waits for the page now (the login's notice asks when it appears).
+#[tauri::command(async)]
+pub fn api_waiting(state: tauri::State<'_, Api>) -> Vec<Client> {
+  state.server.lock().unwrap().as_ref().map(|s| s.waiting()).unwrap_or_default()
+}
+
+#[tauri::command(async)]
+pub fn api_status(app: AppHandle, state: tauri::State<'_, Api>) -> Status {
   let server = state.server.lock().unwrap();
-  Status { running: server.is_some(), address: address(&server), connections: server.as_ref().map_or(0, |s| s.connections()) }
+  Status {
+    on: switched_on(&app),
+    running: server.is_some(),
+    address: address(&server),
+    connections: server.as_ref().map_or(0, |s| s.connections()),
+  }
 }
 
 /// The page's answer to one call. false when nobody waits for it any more.
@@ -162,11 +226,26 @@ pub fn api_client_icon(exe: String) -> Option<String> {
   icon::data_url(&exe)
 }
 
-/// The main window's page starts loading: whatever listened for calls is gone
-/// with the old page, so calls answer `locked` until the new one switches the API on.
+/// The app starts: with the switch on, the pipe is there before any login,
+/// so a call that comes now brings Girovo forward and waits for the user.
+pub fn start_if_on(app: &AppHandle) {
+  if !switched_on(app) {
+    return;
+  }
+  if let Some(api) = app.try_state::<Api>() {
+    let mut server = api.server.lock().unwrap();
+    listen(app, &api, &mut server);
+  }
+}
+
+/// The main window's page starts loading: whatever answered calls is gone
+/// with the old page, so calls are held until the new one is ready.
 pub fn page_loading(app: &AppHandle) {
   if let Some(api) = app.try_state::<Api>() {
-    api.registered.store(false, Ordering::SeqCst);
+    api.ready.store(false, Ordering::SeqCst);
+    if let Some(s) = api.server.lock().unwrap().as_ref() {
+      s.set_ready(false);
+    }
   }
 }
 

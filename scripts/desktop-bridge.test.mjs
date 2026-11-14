@@ -85,4 +85,44 @@ test('the Girovo API: notify and focus answer false when the shell throws', asyn
   window.__TAURI_INTERNALS__.invoke = () => Promise.reject(new Error('no such command'));
   assert.equal(await window.electronGirovoApi.notify('c', 'girovo.event', {}), false);
   assert.equal(await window.electronGirovoApi.focus(), false);
+  assert.equal(JSON.stringify(await window.electronGirovoApi.waiting()), '[]');
+  // ready never throws at the page.
+  await window.electronGirovoApi.ready(true);
+});
+
+test('the Girovo API: ready goes to api_page_ready after the call listeners are registered, in order', async () => {
+  const { window, calls } = load();
+  // The shell takes its time to register a listener.
+  let register;
+  const tauri = window.__TAURI_INTERNALS__;
+  const plain = tauri.invoke;
+  tauri.invoke = (cmd, args) => {
+    if (cmd === 'plugin:event|listen' && args.event === 'api:call') {
+      calls.push([cmd, args]);
+      return new Promise((resolve) => { register = resolve; });
+    }
+    return plain(cmd, args);
+  };
+  const api = window.electronGirovoApi;
+  api.onCall(() => {});
+  const first = api.ready(true);
+  const second = api.ready('yes');
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(calls.filter(([cmd]) => cmd === 'api_page_ready').length, 0, 'not before the listener is there');
+  register(1);
+  await first;
+  await second;
+  assert.deepEqual(calls.filter(([cmd]) => cmd === 'api_page_ready').map(([, args]) => args.ready), [true, false]);
+});
+
+test('the Girovo API: waiting asks api_waiting, onWaiting hears api:waiting', async () => {
+  const { window, calls } = load();
+  const api = window.electronGirovoApi;
+  window.__TAURI_INTERNALS__.invoke = (cmd, args) => {
+    calls.push([cmd, args]);
+    return Promise.resolve(cmd === 'api_waiting' ? [{ pid: 1, name: 'Haushaltsbuch' }] : 'not a list');
+  };
+  assert.deepEqual(JSON.parse(JSON.stringify(await api.waiting())), [{ pid: 1, name: 'Haushaltsbuch' }]);
+  assert.equal(typeof api.onWaiting(() => {}), 'function');
+  assert.equal(calls.at(-1)[1].event, 'api:waiting');
 });

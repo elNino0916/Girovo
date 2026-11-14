@@ -28,6 +28,7 @@ import { usePhone } from '../shell/usePhone';
 import { useUpdates } from '../updates/store';
 import { UpdateBarButton } from '../updates/UpdateNotices';
 import { useUsageConsent } from '../telemetry/usage';
+import { ApiWaitingNotice } from '../api/ApiWaitingNotice';
 
 export type AuthStep = 'bank' | 'credentials' | 'approval';
 
@@ -88,6 +89,8 @@ export function AuthCard({
             )}
           >
             {step && <StepIndicator current={step} />}
+            {/* Desktop app: an app's request waiting for this login (components/api/ApiWaitingNotice.tsx). */}
+            <ApiWaitingNotice className="mt-5 [@media(min-height:721px)]:mt-7" />
 
             <div className={cx('mt-5 [@media(min-height:721px)]:mt-7', !!aside && '@min-[59rem]/auth:grid @min-[59rem]/auth:grid-cols-[minmax(0,1fr)_316px] @min-[59rem]/auth:items-start @min-[59rem]/auth:gap-6')}>
               <div className="pb-2">{children}</div>

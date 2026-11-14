@@ -33,11 +33,18 @@ Owner's rules:
 - **Protocol:** JSON-RPC 2.0, one JSON message per line (as MCP's stdio). A
   connection opens with `girovo.hello`; nothing else is answered before it.
 - The API is **off** until the user switches it on in Einstellungen → Girovo
-  API. Off, the pipe does not exist.
+  API. Off, the pipe does not exist. The shell keeps the switch (prefs.json
+  `fints.api.on`), so while it is on the pipe is there from the app's start,
+  logged in or not, in the tray too.
 - It answers only while Girovo is **open and unlocked** (the vault is open).
-  Locked or logged out, a call answers `locked` (an app may wait and retry);
-  a waiting consent dialog appears once the user has logged in, or the request
-  times out after 2 minutes.
+  A call that comes while Girovo is logged out or still starting is **held**
+  by the shell (in order, at most 64 in all): Girovo's window comes out of the
+  tray and to the front (else its taskbar button flashes), the login says
+  which app asks ("<App> (<Herausgeber>) möchte auf Girovo zugreifen. Melde
+  dich an, um zu entscheiden."), and once the user has logged in the held
+  calls reach the page as if they had just come, a consent dialog first where
+  one is needed. Not logged in within 2 minutes, the call answers `locked`
+  (an app may retry). A held call whose app hangs up is dropped.
 
 ## Who is asking
 
@@ -73,8 +80,8 @@ that one: "Claude (Anthropic PBC) über Girovo MCP". The grant is the parent's.
 
 ## The dialog
 
-Like UAC, inside Girovo's window, which comes to the front (or asks for
-attention when hidden in the tray):
+Like UAC, inside Girovo's window, which comes out of the tray and to the
+front (else its taskbar button flashes):
 
 - the app's icon (from its executable) and name, "Herausgeber: <name>" with a
   verified mark, or "Herausgeber: unbekannt" on a warning tone, and the path;
@@ -153,7 +160,14 @@ Errors: `locked`, `denied`, `not_permitted` (with the permission it needs),
 - **Bridge:** the shell emits `api:call { id, client, method, params }` to the
   main window (as `background:run` does); the page answers with
   `invoke('api_reply', { id, result | error })`. The client identity comes
-  from the shell, never from the call.
+  from the shell, never from the call. Listening and readiness are apart:
+  `api_set_enabled { on }` is the user's switch (remembered by the shell),
+  `api_page_ready { ready }` says the page can answer (true once logged in
+  with the vault open, false at the logout and with every page load). While
+  it is false calls are held and `api:waiting { clients }` (and
+  `api_waiting`) says who waits. Builds before 2026-11-14 kept the switch in
+  the vault (`apiOn`); at the first login it moves to the shell and leaves
+  the vault.
 - **MCP helper** `girovo-mcp` (later phase): stdio MCP server for assistants,
   JSON-RPC client of the pipe; tools are made from the methods the app is
   allowed.

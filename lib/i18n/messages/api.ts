@@ -176,6 +176,13 @@ export const de = {
     hint: 'Prüf alles. Gesendet wird erst, wenn du selbst sendest.',
   },
 
+  /** The login while an app's request waits for it (components/api/ApiWaitingNotice.tsx). */
+  waiting: (app: string, publisher: string | null, more: number) => {
+    const who = `${app} (${publisher ?? 'Herausgeber unbekannt'})`;
+    const asks = more === 0 ? `${who} möchte` : more === 1 ? `${who} und eine weitere App möchten` : `${who} und ${more} weitere Apps möchten`;
+    return `${asks} auf Girovo zugreifen. Melde dich an, um zu entscheiden.`;
+  },
+
   /** Einstellungen' list. */
   summaryOff: 'Aus',
   summaryOn: (apps: number) => (apps ? `An · ${apps === 1 ? 'eine App' : `${apps} Apps`}` : 'An'),
@@ -311,6 +318,12 @@ export const en: typeof de = {
   request: {
     from: (app: string, publisher: string | null) => `Requested by ${app} (${publisher ?? 'unknown publisher'})`,
     hint: 'Check everything. Nothing is sent until you send it yourself.',
+  },
+
+  waiting: (app: string, publisher: string | null, more: number) => {
+    const who = `${app} (${publisher ?? 'unknown publisher'})`;
+    const asks = more === 0 ? `${who} wants` : more === 1 ? `${who} and one more app want` : `${who} and ${more} more apps want`;
+    return `${asks} to access Girovo. Log in to decide.`;
   },
 
   summaryOff: 'Off',

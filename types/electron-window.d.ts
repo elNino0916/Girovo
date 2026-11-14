@@ -1,6 +1,6 @@
 export {};
 
-import type { ApiCall, ApiClosed, ApiReplyPayload } from '../lib/api/types';
+import type { ApiCall, ApiClient, ApiClosed, ApiReplyPayload } from '../lib/api/types';
 
 /** What the Girovo API's shell side says of itself (src-tauri/src/api/, docs/girovo-api.md). */
 export type GirovoApiStatus = {
@@ -10,15 +10,29 @@ export type GirovoApiStatus = {
   address: string | null;
 };
 
+/** `api:waiting`: the apps whose calls wait for the login, in the order they asked (empty: none). */
+export type ApiWaiting = { clients: ApiClient[] };
+
 /** window.electronGirovoApi (src-tauri/src/bridge.js). */
 export type GirovoApiBridge = {
   /**
-   * Opens (true) or removes (false) the pipe or socket. The shell forgets it
-   * with every page load and app start: the page calls it again each time
-   * vault.apiOn is set (components/api/ApiHost.tsx), else calls answer `locked`.
+   * The user's switch "Girovo API zulassen": opens (true) or removes (false)
+   * the pipe or socket, and the shell remembers it, so from the next start on
+   * it listens before any login (status's `on`).
    */
   setEnabled: (on: boolean) => Promise<GirovoApiStatus>;
-  status: () => Promise<GirovoApiStatus & { connections: number }>;
+  /** `on`: the user's switch as the shell keeps it (absent in shells from before 2026-11-14). */
+  status: () => Promise<GirovoApiStatus & { connections: number; on?: boolean }>;
+  /**
+   * Whether the page can answer calls (logged in, the vault open). Until it
+   * says true the shell holds calls, brings Girovo forward and says who waits
+   * (onWaiting); then they come through onCall, else `locked` after 120 s.
+   */
+  ready?: (ready: boolean) => Promise<void>;
+  /** Who waits for the login now. */
+  waiting?: () => Promise<ApiClient[]>;
+  /** Hears each change of who waits (`api:waiting`); returns its unsubscribe. */
+  onWaiting?: (callback: (waiting: ApiWaiting) => void) => () => void;
   /** The executable's icon as a data URL, or null where it has none. */
   icon: (exe: string) => Promise<string | null>;
   /** Hears each call (`api:call`); returns its unsubscribe. */

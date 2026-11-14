@@ -4,8 +4,9 @@
 // on the desktop app with the shell's bridge. Elsewhere the page keeps
 // saying that it comes later (components/settings/Settings.tsx).
 //
-//   - the page's main switch "Girovo API zulassen" (vault.apiOn), as Girovo
-//     AI's page heads with its own, here on the primary container;
+//   - the page's main switch "Girovo API zulassen", as Girovo AI's page heads
+//     with its own, here on the primary container; the shell keeps it
+//     (./bridge.ts useApiOn), so the API listens before the login too;
 //   - Apps: each allowed app with its icon, name, publisher and last use, its
 //     permissions as switches, and "Zugriff entziehen";
 //   - Verlauf: the newest calls, what and when, and why one was not answered;
@@ -24,6 +25,7 @@ import { CodeIcon, EyeIcon, HistoryIcon, InfoIcon, LockIcon, PencilIcon, Transfe
 import { GroupHeading, MainSwitch, SettingItem, SettingsGroup, SwitchItem } from '../settings/rows';
 import { Button } from '../ui';
 import { AppIcon } from './ApiConsent';
+import { setApiOn, useApiOn } from './bridge';
 
 /** How many calls the Verlauf shows. */
 /** The Verlauf shows the newest few; "Alle anzeigen" opens the rest (owner 2026-11-15: at most 3). */
@@ -36,17 +38,11 @@ export function ApiSettingsPage() {
   const words = t.api.page;
   const { vault, updateVault } = useFints();
   const id = useId();
-  const on = !!vault?.apiOn;
+  const on = useApiOn() === true;
   const grants = vault?.apiGrants ?? [];
   const log = vault?.apiLog ?? [];
 
-  const setOn = (next: boolean) => updateVault((v) => {
-    if (next) return v.apiOn ? v : { ...v, apiOn: true };
-    if (!v.apiOn) return v;
-    const rest = { ...v };
-    delete rest.apiOn;
-    return rest;
-  });
+  const setOn = (next: boolean) => void setApiOn(next);
   const setGrants = (fn: (g: ApiGrant[]) => ApiGrant[]) => updateVault((v) => {
     const next = fn(v.apiGrants ?? []);
     const rest = { ...v };

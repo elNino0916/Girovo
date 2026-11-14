@@ -42,10 +42,12 @@
     },
   });
 
-  // Tauri's events: the handler gets the payload.
-  var listen = function (event, callback) {
+  // Tauri's events: the handler gets the payload. `registered`, when given,
+  // collects the promise that settles once the shell hears the listener.
+  var listen = function (event, callback, registered) {
     var handler = tauri.transformCallback(function (e) { callback(e && e.payload); });
     var id = invoke('plugin:event|listen', { event: event, target: { kind: 'Any' }, handler: handler });
+    if (registered) registered.push(id.catch(function () {}));
     return function () {
       id.then(function (eventId) { return invoke('plugin:event|unlisten', { event: event, eventId: eventId }); }).catch(function () {});
     };
@@ -195,15 +197,39 @@
   // notification (events.subscribe) and answers false once that connection
   // is gone; focus brings Girovo's window to the front for the dialog or an
   // approval and answers whether it got there (else its taskbar button flashes).
+  // setEnabled is the user's switch, which the shell remembers across starts
+  // (status's `on`); ready says whether the page can answer (logged in, the
+  // vault open). Calls that come while it can't wait in the shell, which
+  // says who waits through onWaiting's { clients } (waiting() asks) and hands
+  // them on once the page is ready: ready(true) goes out only after every
+  // onCall listener so far is registered, so none of them is missed, and the
+  // ready calls keep their order.
+  var callListeners = [];
+  var readyTurn = Promise.resolve();
   define('electronGirovoApi', {
     setEnabled: function (on) { return invoke('api_set_enabled', { on: on === true }); },
     status: function () { return invoke('api_status'); },
+    ready: function (ready) {
+      var listening = callListeners.splice(0);
+      readyTurn = readyTurn
+        .then(function () { return Promise.all(listening); })
+        .then(function () { return invoke('api_page_ready', { ready: ready === true }); })
+        .catch(function () {});
+      return readyTurn;
+    },
+    waiting: function () {
+      return invoke('api_waiting').then(function (c) { return Array.isArray(c) ? c : []; }).catch(function () { return []; });
+    },
+    onWaiting: function (callback) {
+      if (typeof callback !== 'function') return function () {};
+      return listen('api:waiting', callback);
+    },
     icon: function (exe) {
       return invoke('api_client_icon', { exe: typeof exe === 'string' ? exe : '' }).catch(function () { return null; });
     },
     onCall: function (callback) {
       if (typeof callback !== 'function') return function () {};
-      return listen('api:call', callback);
+      return listen('api:call', callback, callListeners);
     },
     onClosed: function (callback) {
       if (typeof callback !== 'function') return function () {};

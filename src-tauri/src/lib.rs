@@ -197,7 +197,7 @@ pub fn run() {
             if payload.event() == PageLoadEvent::Finished {
               let _ = loaded_tx.send(());
             }
-            // The Girovo API's listener goes with the page that set it up (api/mod.rs).
+            // The Girovo API holds calls until the new page is ready again (api/mod.rs).
             if payload.event() == PageLoadEvent::Started {
               api::page_loading(window.app_handle());
             }
@@ -232,6 +232,8 @@ pub fn run() {
         });
       }
       background::start(&handle);
+      // The Girovo API listens from the start while its switch is on, logged in or not (api/mod.rs).
+      api::start_if_on(&handle);
       // The LAN shelf as the last start left it.
       sync_lan::start_if_on(&app.state::<Arc<sync_lan::LanShelf>>(), &prefs);
 
@@ -316,6 +318,8 @@ pub fn run() {
       gemma::gemma_remove,
       gemma::gemma_prompt,
       api::api_set_enabled,
+      api::api_page_ready,
+      api::api_waiting,
       api::api_status,
       api::api_reply,
       api::api_client_icon,

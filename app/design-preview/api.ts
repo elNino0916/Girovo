@@ -94,19 +94,18 @@ const ICONS: Record<string, string> = {
   [FAKE_MCP.parent!.exe]: tile('C', '#c96442'),
 };
 
-/** What the vault holds in the scenario: the switch on, and for `apps` the grants and a Verlauf. */
+/** What the vault holds in the scenario: for `apps` the grants and a Verlauf. The switch is the fake shell's (status's `on`). */
 export function apiVault(scenario: ApiScenario, now = Date.now()): Partial<VaultData> {
   const ago = (min: number) => new Date(now - min * 60_000).toISOString();
   if (scenario === 'transfer' || scenario === 'writes') {
     return {
-      apiOn: true,
       apiGrants: [{
         exe: FAKE_VERIFIED.exe, publisher: { kind: 'verified', name: 'Beispiel GmbH' }, name: 'Haushaltsbuch',
         permissions: scenario === 'transfer' ? ['accounts.read', 'transfers.request'] : [...WRITE_PERMISSIONS], at: ago(60 * 24 * 9), used: ago(60),
       }],
     };
   }
-  if (scenario !== 'apps') return { apiOn: true };
+  if (scenario !== 'apps') return {};
   const grants: ApiGrant[] = [
     {
       exe: FAKE_VERIFIED.exe, publisher: { kind: 'verified', name: 'Beispiel GmbH' }, name: 'Haushaltsbuch',
@@ -131,7 +130,7 @@ export function apiVault(scenario: ApiScenario, now = Date.now()): Partial<Vault
     line(FAKE_VERIFIED, 'Haushaltsbuch', 'transactions.list', 4),
     line(FAKE_VERIFIED, 'Haushaltsbuch', 'insights.month', 4),
   ];
-  return { apiOn: true, apiGrants: grants, apiLog: log };
+  return { apiGrants: grants, apiLog: log };
 }
 
 export function installFakeApi(scenario: ApiScenario | null) {
@@ -162,7 +161,7 @@ export function installFakeApi(scenario: ApiScenario | null) {
       : scenario === 'consent-mcp' ? [hello(FAKE_MCP, 'mcp', 'p3')] : [];
   const bridge: GirovoApiBridge = {
     setEnabled: async (on) => ({ running: on, address: on ? '\\\\.\\pipe\\girovo-api-preview' : null }),
-    status: async () => ({ running: true, address: '\\\\.\\pipe\\girovo-api-preview', connections: queue.length }),
+    status: async () => ({ on: true, running: true, address: '\\\\.\\pipe\\girovo-api-preview', connections: queue.length }),
     icon: async (exe) => ICONS[exe] ?? null,
     onCall: (fn) => {
       calls.add(fn);

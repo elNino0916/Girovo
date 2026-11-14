@@ -66,7 +66,7 @@ import { Button, Dot, Kbd, Segmented, Spinner, cx } from '../ui';
 import { KeepRow, KeepOffDialog, ResetDocsDialog, ResetHistoryDialog, ResetVaultDialog, WipeVaultDialog } from './data-dialogs';
 import { ResetAppRow } from './ResetApp';
 import { AskPage, useAskPage } from './AskSettings';
-import { hasApiBridge } from '../api/bridge';
+import { hasApiBridge, useApiOn } from '../api/bridge';
 import { ApiSettingsPage } from '../api/ApiSettings';
 import { BackupRows } from './BackupDialogs';
 import { ImportRow } from './ImportDialog';
@@ -144,7 +144,8 @@ export function useSettingsPages(): PageEntry[] {
   const askOff = !!vault?.askOff;
   // Girovo API: on the desktop app with the shell's bridge, on or off and how many apps; elsewhere it comes later.
   const apiBridge = hasApiBridge();
-  const apiOn = !!vault?.apiOn;
+  // The switch is the shell's (components/api/bridge.ts), so it holds before the login too.
+  const apiOn = useApiOn() === true;
   const apiApps = vault?.apiGrants?.length ?? 0;
   const { state: update } = useUpdates();
   const playUpdate = !!usePlayUpdate()?.available;

@@ -6,8 +6,16 @@
 //
 // It runs on a thread of its own with a small runtime, started and stopped
 // with the API's switch: off, there is no thread, no pipe and no socket.
+//
+// Listening and the page being ready are two things: the pipe is there
+// whenever the switch is on, logged in or not, and the page says when it can
+// answer (set_ready, once logged in with the vault open). A call that comes
+// while it can't is held, in the order it came: the Router hears who waits
+// (so Girovo comes forward and the login says which app asks), the held calls
+// go to the page once it is ready, and one still held after `hold_timeout`
+// answers `locked`. A held call whose connection ends goes with it.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::io;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, mpsc as std_mpsc};
@@ -40,6 +48,11 @@ pub struct Limits {
   /// page sends it, so past either its connection is dropped.
   pub max_queued: usize,
   pub max_queued_bytes: usize,
+  /// How long a call may wait for the page to be ready (the user to log in),
+  /// then `locked`. Once it reaches the page, `call_timeout` counts afresh.
+  pub hold_timeout: Duration,
+  /// Calls held for the page at once, from all connections; past it `locked`.
+  pub max_held: usize,
 }
 
 impl Default for Limits {
@@ -47,6 +60,8 @@ impl Default for Limits {
     Limits {
       max_message: rpc::MAX_MESSAGE,
       max_connections: 16,
+      hold_timeout: Duration::from_secs(120),
+      max_held: 64,
       call_timeout: Duration::from_secs(150),
       per_second: 20.0,
       burst: 40.0,
@@ -69,10 +84,51 @@ pub struct Call {
 
 /// Who answers the calls. In the app, the main window's page (mod.rs).
 pub trait Router: Send + Sync + 'static {
-  /// Hands a call on; false when nobody is there to answer it, and the client hears `locked`.
+  /// Hands a call on (the page is ready); false when nobody is there to
+  /// answer it, and the client hears `locked`.
   fn call(&self, call: &Call) -> bool;
   /// A connection that had been identified has ended.
   fn closed(&self, connection: &str);
+  /// The calls held for the page changed: who waits now, in order, each
+  /// client once (empty: nobody). `arrived` when a call has just been held,
+  /// so Girovo comes forward. Called with the hold's lock held: it must
+  /// never block (nor call back into the server).
+  fn waiting(&self, clients: &[Client], arrived: bool);
+}
+
+/// One call held until the page is ready; `released` says whether the page got it.
+struct HeldCall {
+  call: Call,
+  released: oneshot::Sender<bool>,
+}
+
+#[derive(Default)]
+struct Hold {
+  ready: bool,
+  queue: VecDeque<HeldCall>,
+}
+
+impl Hold {
+  /// Who waits, in order, each client once (by process).
+  fn clients(&self) -> Vec<Client> {
+    let mut out: Vec<Client> = Vec::new();
+    for held in &self.queue {
+      if !out.iter().any(|c| c.pid == held.call.client.pid) {
+        out.push(held.call.client.clone());
+      }
+    }
+    out
+  }
+}
+
+/// What became of a call handed on.
+enum Handed {
+  /// The page has it.
+  Sent,
+  /// Nobody to answer: `locked` at once.
+  Locked,
+  /// Held until the page is ready.
+  Held(oneshot::Receiver<bool>),
 }
 
 /// Finds out who a process is (identify::client in the app).
@@ -124,6 +180,39 @@ struct Shared {
   pending: Mutex<HashMap<String, Pending>>,
   outboxes: Mutex<HashMap<String, Outbox>>,
   connections: AtomicUsize,
+  /// Whether the page can answer, and the calls held until it can. Router
+  /// calls on behalf of the hold are made under its lock, so the page gets
+  /// calls in the order they came and hears the newest list of who waits last.
+  hold: Mutex<Hold>,
+}
+
+impl Shared {
+  /// A call to the page, or held for it while it is not ready.
+  fn hand_on(&self, call: &Call) -> Handed {
+    let mut hold = self.hold.lock().unwrap();
+    if hold.ready {
+      return if self.router.call(call) { Handed::Sent } else { Handed::Locked };
+    }
+    if hold.queue.len() >= self.limits.max_held {
+      return Handed::Locked;
+    }
+    let (released, rx) = oneshot::channel();
+    hold.queue.push_back(HeldCall { call: call.clone(), released });
+    self.router.waiting(&hold.clients(), true);
+    Handed::Held(rx)
+  }
+
+  /// Takes the held calls `which` picks out of the queue; whether there were any.
+  fn unhold(&self, which: impl Fn(&Call) -> bool) -> bool {
+    let mut hold = self.hold.lock().unwrap();
+    let before = hold.queue.len();
+    hold.queue.retain(|h| !which(&h.call));
+    let gone = hold.queue.len() != before;
+    if gone {
+      self.router.waiting(&hold.clients(), false);
+    }
+    gone
+  }
 }
 
 pub struct Server {
@@ -143,6 +232,7 @@ impl Server {
       pending: Mutex::new(HashMap::new()),
       outboxes: Mutex::new(HashMap::new()),
       connections: AtomicUsize::new(0),
+      hold: Mutex::new(Hold::default()),
     });
     let (stop, stopped) = watch::channel(false);
     let (ready_tx, ready) = std_mpsc::channel::<io::Result<()>>();
@@ -182,6 +272,28 @@ impl Server {
 
   pub fn connections(&self) -> usize {
     self.shared.connections.load(Ordering::Relaxed)
+  }
+
+  /// Whether the page can answer calls now. Not ready (the start, logged
+  /// out, a page loading), calls are held; ready, the held ones go to the
+  /// page in the order they came, before any new one.
+  pub fn set_ready(&self, ready: bool) {
+    let mut hold = self.shared.hold.lock().unwrap();
+    hold.ready = ready;
+    if !ready || hold.queue.is_empty() {
+      return;
+    }
+    for held in std::mem::take(&mut hold.queue) {
+      let sent = self.shared.router.call(&held.call);
+      // Nobody waits for it any more: its connection is ending.
+      let _ = held.released.send(sent);
+    }
+    self.shared.router.waiting(&[], false);
+  }
+
+  /// Who waits for the page now, in order, each client once.
+  pub fn waiting(&self) -> Vec<Client> {
+    self.shared.hold.lock().unwrap().clients()
   }
 
   /// The page's answer to call `id`; false when nobody waits for it any more
@@ -242,6 +354,8 @@ impl Server {
       let _ = thread.join();
     }
     self.shared.pending.lock().unwrap().clear();
+    // Whatever waited for the page went with its connection; the login's notice goes too.
+    self.shared.unhold(|_| true);
   }
 }
 
@@ -279,6 +393,10 @@ async fn serve(shared: Arc<Shared>, address: String, mut stopped: watch::Receive
   }
 }
 
+fn locked_line(request_id: &Value) -> Vec<u8> {
+  rpc::error_line(request_id, &WireError::from_reason("locked", "Girovo is not ready", None))
+}
+
 /// Counts a connection while it lives.
 struct Counted(Arc<Shared>);
 
@@ -300,6 +418,8 @@ impl Drop for Announced {
     // First, so a notification after the page heard of the end finds nobody.
     self.shared.outboxes.lock().unwrap().remove(&self.id);
     self.shared.pending.lock().unwrap().retain(|_, p| p.connection != self.id);
+    // Its calls held for the page: nobody to tell once the user logs in.
+    self.shared.unhold(|call| call.connection == self.id);
     self.shared.router.closed(&self.id);
   }
 }
@@ -399,13 +519,36 @@ where
       let (answer, answered) = oneshot::channel();
       // Waiting before the page hears of it, so even an instant answer finds its call.
       shared.pending.lock().unwrap().insert(call.id.clone(), Pending { connection: id.clone(), answer });
-      if !shared.router.call(&call) {
-        shared.pending.lock().unwrap().remove(&call.id);
-        out.send(rpc::error_line(&request_id, &WireError::from_reason("locked", "Girovo is not ready", None))).await;
-        continue;
-      }
+      let held = match shared.hand_on(&call) {
+        Handed::Sent => None,
+        Handed::Held(released) => Some(released),
+        Handed::Locked => {
+          shared.pending.lock().unwrap().remove(&call.id);
+          out.send(locked_line(&request_id)).await;
+          continue;
+        }
+      };
       let (shared, out, call_id, limit) = (shared.clone(), out.clone(), call.id, shared.limits.call_timeout);
       calls.spawn(async move {
+        // Held: first the wait for the page, as long as the user may take to log in.
+        if let Some(mut released) = held {
+          let sent = match tokio::time::timeout(shared.limits.hold_timeout, &mut released).await {
+            Ok(sent) => sent,
+            Err(_) if shared.unhold(|c| c.id == call_id) => Ok(false),
+            // Released at this very moment: as that says.
+            Err(_) => released.await,
+          };
+          match sent {
+            Ok(true) => {}
+            Ok(false) => {
+              shared.pending.lock().unwrap().remove(&call_id);
+              out.send(locked_line(&request_id)).await;
+              return;
+            }
+            // Dropped unreleased: the server is stopping.
+            Err(_) => return,
+          }
+        }
         let line = match tokio::time::timeout(limit, answered).await {
           Ok(Ok(reply)) => rpc::reply_line(&request_id, reply),
           // Dropped unanswered: the server is stopping.

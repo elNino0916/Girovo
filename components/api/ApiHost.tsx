@@ -5,10 +5,15 @@
 // the desktop shell's bridge (window.electronGirovoApi) — the browser, Android
 // and the design preview without ?api=… never see it.
 //
-// While "Girovo API zulassen" is on (vault.apiOn) it opens the pipe or socket
-// (setEnabled(true)), hears every call the shell sends, has lib/api/router.ts
-// decide it and answers. Switched off, or with the logout (this unmounts with
-// the dashboard), it closes the pipe again and ends what was waiting.
+// The switch "Girovo API zulassen" is the shell's (./bridge.ts useApiOn): it
+// listens from the app's start while the switch is on, logged in or not, and
+// holds a call that comes while the page can't answer, bringing Girovo
+// forward so the login shows who waits (ApiWaitingNotice). While the switch
+// is on and the vault open, this tells the shell the page is ready
+// (setPageReady), hears every call, has lib/api/router.ts decide it and
+// answers. With the logout (this unmounts with the dashboard) the page is no
+// longer ready and what was waiting here ends; the pipe stays. Only the
+// switch turned off closes it.
 //
 // Phase 2: the write methods go through the provider's own setters (the same
 // ones the screens and Girovo AI use), settings through Einstellungen' own,
@@ -37,7 +42,8 @@ import { useFints } from '../FintsProvider';
 import { useAskScope } from '../insights/AskThread';
 import { useRecurringModel } from '../insights/recurring-model';
 import { ApiConsentDialog } from './ApiConsent';
-import { bringForward, hasApiBridge } from './bridge';
+import { pageReadyFor, publisherLabel, vaultSwitchMove } from '@/lib/api/host-state';
+import { bringForward, hasApiBridge, setApiOn, setPageReady, useApiOn } from './bridge';
 import { askConsent, dropConsents } from './consent-store';
 import { refreshing, useApiWrites } from './host-actions';
 import { dropTransfers, onTransferEnd, queueTransfer, takeTransfer, useQueuedTransfers } from './transfer-requests';
@@ -110,8 +116,7 @@ const host: RouterHost = {
   refresh: (key) => live.current?.writes.refresh(key) ?? Promise.resolve({ steps: [] }),
   openTransfer: (record, ask, client) => {
     const { who } = grantSubject(client);
-    const publisher = who.publisher.kind === 'mtmedia' ? 'MT-Media' : who.publisher.name?.trim() || null;
-    queueTransfer({ label: { id: record.id, app: who.name, publisher }, ask });
+    queueTransfer({ label: { id: record.id, app: who.name, publisher: publisherLabel(who) }, ask });
   },
   notify: (connection, method, params) => {
     const notify = typeof window === 'undefined' ? undefined : window.electronGirovoApi?.notify;
@@ -127,9 +132,26 @@ const host: RouterHost = {
 export const apiRouter = new ApiRouter(host);
 
 export function ApiHost() {
-  const { vault } = useFints();
-  // Without the shell's bridge nothing here: no hooks over the data either.
-  if (!hasApiBridge() || !vault?.apiOn) return null;
+  const { vault, vaultStatus, updateVault } = useFints();
+  const bridge = hasApiBridge();
+  const on = useApiOn();
+  const vaultOn = !!vault?.apiOn;
+  // The switch from builds that kept it in the vault only moves to the shell, once (lib/api/host-state.ts).
+  useEffect(() => {
+    if (!bridge || vaultStatus !== 'ready') return;
+    const move = vaultSwitchMove(vaultOn, on);
+    if (move.turnOn) void setApiOn(true);
+    if (move.dropFromVault) {
+      updateVault((v) => {
+        if (!v.apiOn) return v;
+        const rest = { ...v };
+        delete rest.apiOn;
+        return rest;
+      });
+    }
+  }, [bridge, vaultStatus, vaultOn, on, updateVault]);
+  // Without the shell's bridge, or switched off, nothing here: no hooks over the data either.
+  if (!bridge || !on) return null;
   return <ApiLive />;
 }
 
@@ -175,13 +197,12 @@ function ApiLive() {
     apiRouter.dataChanged(snapshotOf(d), d);
   }, [data, vaultStatus]);
 
-  // The pipe opens with this component and closes with it (switched off, logged out).
+  // The calls are heard while this is mounted (switched on, logged in); the pipe itself is the shell's.
   useEffect(() => {
     const bridge = window.electronGirovoApi;
     if (!bridge) return;
     live.current = latest.current;
     let on = true;
-    void bridge.setEnabled(true).catch(() => {});
     const offCall = bridge.onCall((call) => {
       void apiRouter.handle(call).then((payload) => (on ? bridge.reply(call.id, payload) : undefined)).catch(() => {});
     });
@@ -199,9 +220,18 @@ function ApiLive() {
       dropConsents();
       flush();
       live.current = null;
-      void bridge.setEnabled(false).catch(() => {});
     };
   }, []);
+
+  // Ready once the vault is open, no longer at the logout (this unmounts) or
+  // while it closes: until then the shell holds calls (after the listener
+  // above is registered, bridge.js ready).
+  const ready = pageReadyFor(vaultStatus);
+  useEffect(() => {
+    if (!ready) return;
+    setPageReady(true);
+    return () => setPageReady(false);
+  }, [ready]);
 
   return (
     <>

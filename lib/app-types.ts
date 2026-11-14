@@ -297,7 +297,12 @@ export type VaultData = {
   aiNames?: AiNamesCache;
   /** Girovo AI's notes closed on the desktop Übersicht's line, by key (lib/ask-notes-line.ts). This device's own, never synced. */
   aiNotesClosed?: string[];
-  /** Girovo Next on the desktop: "Girovo API zulassen" switched on (docs/girovo-api.md). This device's own, never synced. */
+  /**
+   * Girovo Next builds before 2026-11-14: "Girovo API zulassen" switched on.
+   * The shell keeps the switch now (components/api/bridge.ts); a vault that
+   * still says so turns the shell's on at the login, and the flag goes
+   * (lib/api/host-state.ts vaultSwitchMove). This device's own, never synced.
+   */
   apiOn?: true;
   /** The apps allowed to use the Girovo API, each with its permissions (lib/api/grants.ts). This device's own, never synced. */
   apiGrants?: ApiGrant[];

@@ -237,6 +237,8 @@ fn an_executables_icon_is_a_png_data_url() {
 struct StandIn {
   calls: mpsc::UnboundedSender<Call>,
   closed: mpsc::UnboundedSender<String>,
+  /// Each change of who waits for the page: the clients' process ids, and whether one just arrived.
+  waiting: mpsc::UnboundedSender<(Vec<u32>, bool)>,
   open: AtomicBool,
 }
 
@@ -247,6 +249,9 @@ impl Router for StandIn {
   fn closed(&self, connection: &str) {
     let _ = self.closed.send(connection.to_string());
   }
+  fn waiting(&self, clients: &[identify::Client], arrived: bool) {
+    let _ = self.waiting.send((clients.iter().map(|c| c.pid).collect(), arrived));
+  }
 }
 
 struct Harness {
@@ -254,14 +259,24 @@ struct Harness {
   router: Arc<StandIn>,
   calls: mpsc::UnboundedReceiver<Call>,
   closed: mpsc::UnboundedReceiver<String>,
+  waiting: mpsc::UnboundedReceiver<(Vec<u32>, bool)>,
   #[cfg(unix)]
   _dir: std::path::PathBuf,
 }
 
+/// A server whose page is ready, as after the login.
 fn harness(limits: Limits) -> Harness {
+  let h = harness_not_ready(limits);
+  h.server.set_ready(true);
+  h
+}
+
+/// A server whose page is not ready yet: the app's start, or logged out.
+fn harness_not_ready(limits: Limits) -> Harness {
   let (calls_tx, calls) = mpsc::unbounded_channel();
   let (closed_tx, closed) = mpsc::unbounded_channel();
-  let router = Arc::new(StandIn { calls: calls_tx, closed: closed_tx, open: AtomicBool::new(true) });
+  let (waiting_tx, waiting) = mpsc::unbounded_channel();
+  let router = Arc::new(StandIn { calls: calls_tx, closed: closed_tx, waiting: waiting_tx, open: AtomicBool::new(true) });
   #[cfg(windows)]
   let address = format!(r"\\.\pipe\girovo-api-test-{}", uuid::Uuid::new_v4());
   #[cfg(unix)]
@@ -278,6 +293,7 @@ fn harness(limits: Limits) -> Harness {
     router,
     calls,
     closed,
+    waiting,
     #[cfg(unix)]
     _dir: dir,
   }
@@ -418,6 +434,132 @@ async fn the_page_hears_when_a_connection_ends() {
   assert_eq!(h.server.connections(), 0);
 }
 
+// --- held until the page is ready (logged out, in the tray, the start) ---
+
+/// Nothing more arrives on `rx` for a moment.
+async fn quiet<T: std::fmt::Debug>(rx: &mut mpsc::UnboundedReceiver<T>) {
+  tokio::time::sleep(Duration::from_millis(150)).await;
+  assert!(rx.try_recv().is_err(), "nothing more");
+}
+
+#[tokio::test]
+async fn calls_wait_for_the_login_and_reach_the_page_in_order() {
+  let mut h = harness_not_ready(Limits::default());
+  let me = std::process::id();
+  let mut client = connect(h.server.address()).await;
+  send(&mut client, hello(1)).await;
+  // Girovo comes forward, and the login hears who asks.
+  assert_eq!(next(&mut h.waiting).await, (vec![me], true));
+  send(&mut client, json!({ "jsonrpc": "2.0", "id": 2, "method": "girovo.accounts.list" })).await;
+  // Each client once, however many of its calls wait.
+  assert_eq!(next(&mut h.waiting).await, (vec![me], true));
+  assert_eq!(h.server.waiting().iter().map(|c| c.pid).collect::<Vec<_>>(), vec![me]);
+  quiet(&mut h.calls).await;
+
+  h.server.set_ready(true);
+  let first = next(&mut h.calls).await;
+  let second = next(&mut h.calls).await;
+  assert_eq!((first.method.as_str(), second.method.as_str()), ("girovo.hello", "girovo.accounts.list"));
+  // The notice goes.
+  assert_eq!(next(&mut h.waiting).await, (vec![], false));
+  assert!(h.server.waiting().is_empty());
+  h.server.reply(&first.id, Reply::Result(json!("a")));
+  h.server.reply(&second.id, Reply::Result(json!("b")));
+  assert_eq!(answer(&mut client).await.unwrap()["result"], "a");
+  assert_eq!(answer(&mut client).await.unwrap()["result"], "b");
+
+  // Ready, calls go straight on; logged out again, they wait again.
+  send(&mut client, hello(3)).await;
+  assert_eq!(next(&mut h.calls).await.params["app"], "Test");
+  h.server.set_ready(false);
+  send(&mut client, hello(4)).await;
+  assert_eq!(next(&mut h.waiting).await, (vec![me], true));
+  quiet(&mut h.calls).await;
+}
+
+#[tokio::test]
+async fn a_call_nobody_logs_in_for_answers_locked() {
+  let mut h = harness_not_ready(Limits { hold_timeout: Duration::from_millis(300), ..Limits::default() });
+  let mut client = connect(h.server.address()).await;
+  send(&mut client, hello(7)).await;
+  assert_eq!(next(&mut h.waiting).await.1, true);
+  let err = answer(&mut client).await.unwrap();
+  assert_eq!(err["id"], 7);
+  assert_eq!(err["error"]["code"], -32001);
+  assert_eq!(err["error"]["data"]["reason"], "locked");
+  assert_eq!(next(&mut h.waiting).await, (vec![], false));
+  // A login after that has nothing to hand on.
+  h.server.set_ready(true);
+  quiet(&mut h.calls).await;
+  // The connection stays, and the next call goes through.
+  send(&mut client, hello(8)).await;
+  let call = next(&mut h.calls).await;
+  h.server.reply(&call.id, Reply::Result(json!(true)));
+  assert_eq!(answer(&mut client).await.unwrap()["id"], 8);
+}
+
+#[tokio::test]
+async fn a_held_call_goes_with_its_connection() {
+  let mut h = harness_not_ready(Limits::default());
+  let mut client = connect(h.server.address()).await;
+  send(&mut client, hello(1)).await;
+  assert_eq!(next(&mut h.waiting).await.1, true);
+  drop(client);
+  next(&mut h.closed).await;
+  assert_eq!(next(&mut h.waiting).await, (vec![], false));
+  assert!(h.server.waiting().is_empty());
+  h.server.set_ready(true);
+  quiet(&mut h.calls).await;
+}
+
+#[tokio::test]
+async fn held_calls_are_bounded() {
+  let mut h = harness_not_ready(Limits { max_held: 1, ..Limits::default() });
+  let mut client = connect(h.server.address()).await;
+  send(&mut client, hello(1)).await;
+  assert_eq!(next(&mut h.waiting).await.1, true);
+  send(&mut client, hello(2)).await;
+  let err = answer(&mut client).await.unwrap();
+  assert_eq!((err["id"].clone(), err["error"]["data"]["reason"].clone()), (json!(2), json!("locked")));
+  h.server.set_ready(true);
+  assert_eq!(next(&mut h.calls).await.method, "girovo.hello");
+  quiet(&mut h.calls).await;
+}
+
+#[tokio::test]
+async fn a_held_call_with_no_page_to_take_it_answers_locked() {
+  let mut h = harness_not_ready(Limits::default());
+  let mut client = connect(h.server.address()).await;
+  send(&mut client, hello(1)).await;
+  assert_eq!(next(&mut h.waiting).await.1, true);
+  // Ready, but the window is gone.
+  h.router.open.store(false, Ordering::SeqCst);
+  h.server.set_ready(true);
+  assert_eq!(answer(&mut client).await.unwrap()["error"]["data"]["reason"], "locked");
+}
+
+#[tokio::test]
+async fn stopping_takes_the_held_calls_and_the_notice_away() {
+  let mut h = harness_not_ready(Limits::default());
+  let mut client = connect(h.server.address()).await;
+  send(&mut client, hello(1)).await;
+  assert_eq!(next(&mut h.waiting).await.1, true);
+  let Harness { server, mut waiting, .. } = h;
+  server.stop();
+  // The notice goes (with the connection's end, or with the stop itself).
+  let deadline = Instant::now() + Duration::from_secs(5);
+  let mut last = None;
+  while Instant::now() < deadline {
+    match waiting.try_recv() {
+      Ok(w) => last = Some(w),
+      Err(_) if last.is_some() => break,
+      Err(_) => tokio::time::sleep(Duration::from_millis(20)).await,
+    }
+  }
+  assert_eq!(last, Some((vec![], false)));
+  assert_eq!(answer(&mut client).await, None);
+}
+
 #[tokio::test]
 async fn a_message_over_the_cap_ends_the_connection() {
   let mut h = harness(Limits { max_message: 1024, ..Limits::default() });
@@ -486,7 +628,8 @@ fn a_second_server_cannot_take_the_same_pipe() {
   let h = harness(Limits::default());
   let (calls, _) = mpsc::unbounded_channel();
   let (closed, _) = mpsc::unbounded_channel();
-  let other = Arc::new(StandIn { calls, closed, open: AtomicBool::new(true) });
+  let (waiting, _) = mpsc::unbounded_channel();
+  let other = Arc::new(StandIn { calls, closed, waiting, open: AtomicBool::new(true) });
   assert!(Server::start(h.server.address(), other, Limits::default(), identify::client).is_err());
 }
 
