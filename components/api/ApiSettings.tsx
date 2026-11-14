@@ -21,7 +21,7 @@ import { createElement, useContext, useEffect, useId, useRef, useState } from 'r
 import { intlLocale } from '@/lib/i18n';
 import { useT } from '@/lib/i18n/react';
 import { copyText } from '@/lib/clipboard';
-import { grantKey, withPermission, withoutGrant } from '@/lib/api/grants';
+import { appName, grantKey, withPermission, withoutGrant } from '@/lib/api/grants';
 import { claudeDesktopConfig } from '@/lib/api/mcp';
 import { isWriteMethod, type ApiGrant, type ApiLogEntry, type ApiPermission } from '@/lib/api/types';
 import { useFints } from '../FintsProvider';
@@ -130,7 +130,7 @@ function AppGroup({ grant, setGrants }: { grant: ApiGrant; setGrants: (fn: (g: A
       <div data-item className="flex min-h-[72px] w-full items-center gap-4 px-4 py-3">
         <AppIcon exe={grant.exe} name={grant.name} size={40} />
         <span className="min-w-0 flex-1">
-          <span className="block text-[16px] leading-6 font-medium break-words text-ink">{grant.name}</span>
+          <span className="block text-[16px] leading-6 font-medium break-words text-ink">{appName(grant.name)}</span>
           <span className="block text-[14px] leading-5 text-ink-2">{parts.join(' · ')}</span>
           {!grant.publisher && <span className="block font-mono text-[12px] leading-4 break-all text-ink-2">{grant.exe}</span>}
         </span>
@@ -244,7 +244,7 @@ function LogRows({ log }: { log: readonly ApiLogEntry[] }) {
             icon={e.method === 'transfers.request'
               ? <TransferIcon />
               : write ? <PencilIcon /> : <EyeIcon />}
-            title={e.name}
+            title={appName(e.name)}
             summary={parts.filter(Boolean).join(' · ')}
           />
         );

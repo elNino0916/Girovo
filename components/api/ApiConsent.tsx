@@ -20,7 +20,7 @@
 
 import { useEffect, useId, useState } from 'react';
 import { useT } from '@/lib/i18n/react';
-import { grantSubject } from '@/lib/api/grants';
+import { appName, grantSubject } from '@/lib/api/grants';
 import type { ApiPermission } from '@/lib/api/types';
 import { AlertTriangleIcon, MonitorIcon, ShieldIcon } from '../icons';
 import { Button, DialogActions, Overlay, Sheet, Switch } from '../ui';
@@ -41,7 +41,7 @@ export function useAppIcon(exe: string | undefined): string | null {
   return icon && icon.exe === exe ? icon.url : null;
 }
 
-/** The app's icon at `size`: its own picture, else the generic glyph on a disc. */
+/** The app's icon at `size`: its own picture, else its first letter on a tile (many tools, Codex too, carry no icon). */
 export function AppIcon({ exe, name, size = 48 }: { exe: string; name: string; size?: number }) {
   const t = useT();
   const url = useAppIcon(exe);
@@ -51,10 +51,10 @@ export function AppIcon({ exe, name, size = 48 }: { exe: string; name: string; s
   return (
     <span
       aria-hidden
-      className="grid shrink-0 place-items-center rounded-[12px] bg-inset text-ink-2"
-      style={{ width: size, height: size }}
+      className="grid shrink-0 place-items-center rounded-[12px] bg-[var(--md-secondary-container)] font-medium text-[var(--md-on-secondary-container)]"
+      style={{ width: size, height: size, fontSize: Math.round(size * 0.45) }}
     >
-      <MonitorIcon size={Math.round(size * 0.5)} />
+      {appName(name).match(/\p{L}|\p{N}/u)?.[0]?.toLocaleUpperCase('de') ?? <MonitorIcon size={Math.round(size * 0.5)} />}
     </span>
   );
 }
@@ -77,7 +77,9 @@ function ConsentSheet({ waiting }: { waiting: NonNullable<ReturnType<typeof useC
   const [on, setOn] = useState<ReadonlySet<ApiPermission>>(() => new Set(request.permissions));
   const more = request.existing.length > 0;
   // The app's own name for itself only where it is not the one Girovo found.
-  const claim = request.app && request.app.toLocaleLowerCase() !== who.name.toLocaleLowerCase() ? request.app : null;
+  // Through Girovo MCP the name it sends is the helper's own ("Girovo MCP"), not the assistant's: left out.
+  const shown = appName(who.name);
+  const claim = !viaMcp && request.app && request.app.toLocaleLowerCase() !== shown.toLocaleLowerCase() && request.app.toLocaleLowerCase() !== who.name.toLocaleLowerCase() ? request.app : null;
 
   const allow = () => waiting.answer({ allow: request.permissions.filter((p) => on.has(p)) });
   const refuse = () => waiting.answer({ refused: true });
@@ -110,9 +112,9 @@ function ConsentSheet({ waiting }: { waiting: NonNullable<ReturnType<typeof useC
         <h2 id={titleId} className="text-[22px] leading-7 font-medium text-headline">{more ? words.titleMore : words.title}</h2>
 
         <div data-api-app className="mt-5 flex items-start gap-4">
-          <AppIcon exe={who.exe} name={who.name} />
+          <AppIcon exe={who.exe} name={shown} />
           <div className="min-w-0 flex-1">
-            <p className="text-[18px] leading-6 font-medium break-words text-ink">{who.name}</p>
+            <p className="text-[18px] leading-6 font-medium break-words text-ink">{shown}</p>
             {unknown ? (
               <p className="mt-0.5 flex items-center gap-1.5 text-[14px] leading-5 text-ink-2">
                 <AlertTriangleIcon size={16} className="shrink-0 text-emphasis" />

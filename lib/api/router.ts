@@ -27,7 +27,7 @@
 // vault, the data, the dialog and the clock.
 
 import { EVENT_PERMISSION, dataEvents, eventMethod, eventTargets, isEventKind, type DataSnapshot, type Subscription } from './events.ts';
-import { clientKey, findGrant, grantSubject, orderedPermissions, touchedGrant, withGrant } from './grants.ts';
+import { appName, clientKey, findGrant, grantSubject, orderedPermissions, touchedGrant, withGrant } from './grants.ts';
 import {
   accountsList, budgetsList, contractsList, goalsList, insightsMonth, transactionsList,
   type ApiData, type MethodOutcome,
@@ -262,7 +262,7 @@ export class ApiRouter {
     this.host.log({
       at: this.host.now().toISOString(),
       app: key,
-      name: grant?.name ?? grantSubject(call.client).who.name,
+      name: appName(grant?.name ?? grantSubject(call.client).who.name),
       method: method || '?',
       ok,
       ...(ok ? {} : { code: (reply as { error: ApiError }).error.code }),

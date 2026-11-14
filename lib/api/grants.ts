@@ -94,7 +94,7 @@ export function withGrant(grants: readonly ApiGrant[], client: ApiClient, allowe
   const { who, viaMcp } = grantSubject(client);
   const key = grantKey(identityOf(who));
   const current = grants.find((g) => grantKey(g) === key);
-  const name = clip(who.name, API_LIMITS.name) || fileName(who.exe);
+  const name = clip(appName(who.name), API_LIMITS.name) || appName(fileName(who.exe));
   if (current) {
     const next: ApiGrant = { ...current, name, permissions: orderedPermissions([...current.permissions, ...allowed]) };
     if (viaMcp) next.viaMcp = true;
@@ -132,6 +132,22 @@ const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v =
 const clip = (v: unknown, max: number): string => (typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, max) : '');
 const iso = (v: unknown): string | null => (typeof v === 'string' && v.length <= 40 && Number.isFinite(Date.parse(v)) ? v : null);
 const fileName = (exe: string) => exe.split(/[\\/]/).pop() || exe;
+
+/**
+ * An app's name as people say it: where Girovo only had the file's name (no
+ * program name in the signature, no description in the file, as Codex's
+ * codex.exe), without the ending and with a capital: "codex.exe" → "Codex",
+ * "girovo-api-client" stays as it is but "my_tool.exe" → "My tool". A real
+ * program name is left exactly as it came.
+ */
+export function appName(name: string): string {
+  const n = name.trim();
+  const bare = n.replace(/\.(exe|com|bin|appimage)$/i, '');
+  if (bare === n && /\s/.test(n)) return n;
+  if (bare === n && !/^[a-z0-9]/.test(n)) return n;
+  const words = bare.replace(/_/g, ' ').trim();
+  return words ? words.charAt(0).toLocaleUpperCase('de') + words.slice(1) : n;
+}
 
 /** The grants as the vault may keep them: well formed, each identity once (the last wins), within the cap. */
 export function sanitizeApiGrants(input: unknown): ApiGrant[] {

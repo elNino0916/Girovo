@@ -407,3 +407,14 @@ test('router: two hellos of one app share one dialog', async () => {
   assert.equal(n, 1);
   void h;
 });
+
+test('an app named only by its file reads as people say it', async () => {
+  const { appName } = await import('./grants.ts');
+  assert.equal(appName('codex.exe'), 'Codex');
+  assert.equal(appName('my_tool.exe'), 'My tool');
+  assert.equal(appName('girovo-mcp'), 'Girovo-mcp');
+  assert.equal(appName('Haushaltsbuch'), 'Haushaltsbuch', 'a real program name stays');
+  assert.equal(appName('Node.js'), 'Node.js');
+  assert.equal(appName('Claude'), 'Claude');
+  assert.equal(appName('Visual Studio Code'), 'Visual Studio Code');
+});
