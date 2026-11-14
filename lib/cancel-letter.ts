@@ -37,7 +37,7 @@ export type LetterInput = {
   today: string;
   /** yyyy-mm-dd the contract ends, when the user knows it: "zum <Tag>, hilfsweise zum nächstmöglichen Zeitpunkt". */
   endDay?: string | null;
-  /** yyyy-mm-dd the cancellation must have arrived by (the reminder's "Kündbar bis"). */
+  /** yyyy-mm-dd the cancellation must have arrived by (the reminder's "Kündbar bis"); left out once before `today`. */
   noticeBy?: string | null;
   /** The bookings' Gläubiger-ID and Mandatsreferenz. */
   creditorId?: string | null;
@@ -90,7 +90,8 @@ export function cancelLetter(input: LetterInput, locale: Locale = activeLocale()
   const number = oneLine(input.customerNumber, 60);
   const today = letterDay(input.today, locale) ?? input.today;
   const end = letterDay(input.endDay, locale);
-  const noticeBy = letterDay(input.noticeBy, locale);
+  // A Kündbar-bis day that has passed is no deadline to name any more.
+  const noticeBy = input.noticeBy && input.noticeBy >= input.today ? letterDay(input.noticeBy, locale) : null;
   const creditorId = oneLine(input.creditorId, 40);
   const mandate = oneLine(input.mandateReference, 40);
 

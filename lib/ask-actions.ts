@@ -148,15 +148,17 @@ const LETTER_START = /^ (?:bitte |please )?(?:eine |die |a )?(?:kündigung|kuend
 const CANCEL_NOT = / (?:dauerauftr(?:a|ä|ae)g\w*|(?:ü|ue)berweisung\w*|transfers?|standing orders?|orders?|auftrag|auftr(?:ä|ae)ge|termin|termine|appointments?|lastschrift\w*|direct debits?) /;
 /** Asking about it: "Bis wann kann ich Netflix kündigen", "when can I cancel". */
 const CANCEL_ASK = / (?:wann|bis wann|when|by when|until when|kann ich|darf ich|soll ich|sollte ich|lohnt|can i|could i|should i) | k(?:ü|ue)ndbar/;
+/** The words a cancellation's end day follows: "zum 31.12.", "per 31.12.", "as of December 31". */
+const CANCEL_END_BEFORE = / (?:zum|zu|per|to|as of|by the)$/;
 const CANCEL_FILLER = new Set((
   'kündige kündigen kündig kuendige kuendigen kuendig kündigung kuendigung kündigungsschreiben kuendigungsschreiben kündigungsbrief kuendigungsbrief '
   + 'kündigungsmail kuendigungsmail schreib schreibe schreiben erstell erstelle erstellen verfass verfasse verfassen formulier formuliere formulieren '
   + 'aufsetzen setz setze auf entwirf entwerfen mach mache machen brauch brauche brauchen vorbereiten bereite bereit vor bitte mir mich für fuer '
   + 'von vom bei beim an im in mein meine meinen meiner meinem meines den die das der dem des ein eine einen einem einer vertrag vertrags vertrages '
-  + 'verträge vertraege abo abos abonnement mitgliedschaft tarif mit zum zur fristgerecht sofort jetzt gleich ich will möchte moechte würde wuerde '
+  + 'verträge vertraege abo abos abonnement mitgliedschaft tarif mit zum zur bis per fristgerecht sofort jetzt gleich ich will möchte moechte würde wuerde '
   + 'gern gerne muss kannst könntest koenntest du hilf hilfe helfen zu und hey nächstmöglichen naechstmoeglichen nächsten naechsten '
   + 'please cancel cancellation letter email e-mail notice write draft prepare create make need a an the my for of with to at i want would like '
-  + 'me help subscription contract membership plan can you could as from on next possible date'
+  + 'me help subscription contract membership plan can you could as from on next possible date by'
 ).split(' '));
 
 // prepareTransfer
@@ -233,15 +235,19 @@ const pad = (n: number) => String(n).padStart(2, '0');
 // Amounts, months and days
 // ---------------------------------------------------------------------------
 
-const AMOUNT = /(?<= )(€ )?(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d{1,2})|\.(\d{2})(?!\d))?(?: (tausend|thousand|k))?(?: (€|euro|euros|eur))?(?= )/g;
+const AMOUNT = /(?<= )(€ )?(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d{1,2})|\.(\d{2})(?!\d))?(?: (tausend|thousand|tsd|k))?(?: (€|euro|euros|eur))?(?= )/g;
 const NOT_MONEY_AFTER = /^ (?:monat\w*|jahr\w*|tag\w*|woche\w*|month\w*|year\w*|day\w*|week\w*|%|prozent|percent|uhr|mal|x|times)(?= )/;
 
-/** The amount a folded message names, in cents: one with € or "Euro" first, else the only number. Null for none. */
-export function amountOf(q: string): number | null {
+/**
+ * The amount a folded message names, in cents: one with € or "Euro" first, else the only number. Null for none.
+ * `moneyOnly`: a number counts only when marked as money (€, Euro, k, tausend), so "ein iPhone 16" is none.
+ */
+export function amountOf(q: string, moneyOnly = false): number | null {
   const found: { cents: number; money: boolean }[] = [];
   for (const m of q.matchAll(AMOUNT)) {
     const after = q.slice((m.index ?? 0) + m[0].length);
-    const money = !!(m[1] || m[6]);
+    const money = !!(m[1] || m[6] || moneyOnly && m[5]);
+    if (moneyOnly && !money) continue;
     if (!money && NOT_MONEY_AFTER.test(after)) continue;
     const whole = Number(m[2].replace(/\./g, ''));
     // A year standing alone ("bis 2027") is no amount.
@@ -255,6 +261,9 @@ export function amountOf(q: string): number | null {
   if (money) return money.cents;
   return found.length === 1 ? found[0].cents : null;
 }
+
+/** A yyyy-mm-dd day while it is today or still to come; null once it has passed, or for none. */
+export const dayAhead = (day: string | null | undefined, today: string): string | null => (day && day >= today ? day : null);
 
 /** "2026-11" for today's month moved by `n` months. */
 function monthFrom(today: string, n: number): string {
@@ -311,8 +320,11 @@ export function goalMonthOf(q: string, today: string): { by: string | null; rest
   return { by: null, rest: q };
 }
 
-/** A day still to come: "31.3.", "31. März 2027", "March 31st", "2027-03-31"; this year's while ahead, else next year's. */
-export function futureDayOf(q: string, today: string): { by: string | null; rest: string } {
+/**
+ * A day still to come: "31.3.", "31. März 2027", "March 31st", "2027-03-31"; this year's while ahead, else next year's.
+ * `skip`: matches that are no day here (an amount, a day after the wrong word); the next one is tried.
+ */
+export function futureDayOf(q: string, today: string, skip?: (m: RegExpExecArray) => boolean): { by: string | null; rest: string } {
   const [ty] = today.split('-').map(Number);
   const dayOf = (d: number, mo: number, y: number | null): string | null => {
     if (mo < 1 || mo > 12 || d < 1) return null;
@@ -323,16 +335,18 @@ export function futureDayOf(q: string, today: string): { by: string | null; rest
   };
   const yearOf = (y: string | undefined) => (!y ? null : y.length === 2 ? 2000 + Number(y) : Number(y));
   const rules: Array<[RegExp, (m: RegExpExecArray) => string | null]> = [
-    [/ (\d{4})-(\d{2})-(\d{2})(?= )/, (m) => dayOf(Number(m[3]), Number(m[2]), Number(m[1]))],
-    [/ (\d{1,2})\.(\d{1,2})\.?(\d{4}|\d{2})?(?= )/, (m) => dayOf(Number(m[1]), Number(m[2]), yearOf(m[3]))],
-    [new RegExp(` (\\d{1,2})(?:\\.|st|nd|rd|th)? (?:of )?(${SHORT_ALT})\\.?(?: (\\d{4}))?(?= )`), (m) => dayOf(Number(m[1]), MONTHS[m[2]] ?? MONTHS_SHORT[m[2]], yearOf(m[3]))],
-    [new RegExp(` (${SHORT_ALT})\\.? (\\d{1,2})(?:st|nd|rd|th)?(?: (\\d{4}))?(?= )`), (m) => dayOf(Number(m[2]), MONTHS[m[1]] ?? MONTHS_SHORT[m[1]], yearOf(m[3]))],
+    [/ (\d{4})-(\d{2})-(\d{2})(?= )/g, (m) => dayOf(Number(m[3]), Number(m[2]), Number(m[1]))],
+    [/ (\d{1,2})\.(\d{1,2})\.?(\d{4}|\d{2})?(?= )/g, (m) => dayOf(Number(m[1]), Number(m[2]), yearOf(m[3]))],
+    [new RegExp(` (\\d{1,2})(?:\\.|st|nd|rd|th)? (?:of )?(${SHORT_ALT})\\.?(?: (\\d{4}))?(?= )`, 'g'), (m) => dayOf(Number(m[1]), MONTHS[m[2]] ?? MONTHS_SHORT[m[2]], yearOf(m[3]))],
+    [new RegExp(` (${SHORT_ALT})\\.? (\\d{1,2})(?:st|nd|rd|th)?(?: (\\d{4}))?(?= )`, 'g'), (m) => dayOf(Number(m[2]), MONTHS[m[1]] ?? MONTHS_SHORT[m[1]], yearOf(m[3]))],
   ];
   for (const [re, at] of rules) {
-    const m = re.exec(q);
-    if (!m) continue;
-    const by = at(m);
-    if (by) return { by, rest: `${q.slice(0, m.index)} ${q.slice(m.index + m[0].length)}`.replace(/\s+/g, ' ') };
+    for (const m of q.matchAll(re)) {
+      if (skip?.(m)) continue;
+      const by = at(m);
+      if (by) return { by, rest: `${q.slice(0, m.index)} ${q.slice(m.index + m[0].length)}`.replace(/\s+/g, ' ') };
+      break;
+    }
   }
   return { by: null, rest: q };
 }
@@ -487,8 +501,8 @@ function cancelOf(question: string, q: string, today: string): ActionIntent | nu
   if (CANCEL_ASK.test(q) || CANCEL_NOT.test(q)) return null;
   const letter = LETTER_NOUN.test(q) || (LETTER_WORD.test(q) && LETTER_WRITE.test(q)) || LETTER_START.test(q);
   if (!letter && !CANCEL_VERB.test(q)) return null;
-  // "Kündige Netflix zum 31.12.": the day it ends.
-  const { by, rest } = futureDayOf(q, today);
+  // "Kündige Netflix zum 31.12.": the day it ends, only after "zum"; "Kundennummer 12.345" or "bis 30.11." is none.
+  const { by, rest } = futureDayOf(q, today, (m) => !CANCEL_END_BEFORE.test(q.slice(0, m.index)));
   const words = rest.trim().split(/[\s\-–]+/).filter((w) => w && !CANCEL_FILLER.has(w) && nameLike(w));
   return { kind: 'cancelLetter', name: words.slice(0, 3).join(' ') || null, end: by };
 }

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  actionOf, amountOf, budgetAfter, categoryIn, contractChoices, contractsFor, filePlan, futureDayOf, goalMonthOf, isAction, namesPayee,
+  actionOf, amountOf, budgetAfter, categoryIn, contractChoices, contractsFor, dayAhead, filePlan, futureDayOf, goalMonthOf, isAction, namesPayee,
   transferPayee, type FileView,
 } from './ask-actions.ts';
 import { intentOf } from './ask-intents.ts';
@@ -306,4 +306,19 @@ test('several contracts of one name are picked from, never the first taken', () 
   assert.deepEqual(contractChoices(items.slice(2, 4), 'telekom', titles, id).map(id), ['a']);
   assert.deepEqual(contractChoices([items[3]], 'telekom handy', titles, id).map(id), ['c']);
   assert.deepEqual(contractChoices(items, 'spotify', titles, id).map(id), ['d']);
+});
+
+test('a cancellation letter ends on a day only after "zum"', () => {
+  const letter = (name: string | null, end: string | null = null) => ({ kind: 'cancelLetter', name, end });
+  assert.deepEqual(read('Kündige Vodafone Kundennummer 12.345'), letter('vodafone kundennummer'));
+  assert.deepEqual(read('Kündigung für Netflix bis 30.11.'), letter('netflix'));
+  assert.deepEqual(read('Kündige Netflix per 31.12.'), letter('netflix', '2026-12-31'));
+  assert.deepEqual(read('cancel Netflix as of December 31'), letter('netflix', '2026-12-31'));
+});
+
+test('a day ahead: today and later stay, a day passed is none', () => {
+  assert.equal(dayAhead('2026-11-12', TODAY), '2026-11-12');
+  assert.equal(dayAhead('2026-12-31', TODAY), '2026-12-31');
+  assert.equal(dayAhead('2026-11-11', TODAY), null);
+  assert.equal(dayAhead(null, TODAY), null);
 });
