@@ -6,27 +6,21 @@
 // 2.4 s per image vs 0.9 s.
 //
 //   python scripts/eval-gemma-vision/make_set.py <folder>
-//   node scripts/eval-gemma-vision/bench.mjs <folder> <mmproj file>
-import { spawn } from 'node:child_process';
+//   node scripts/eval-gemma-vision/bench.mjs <folder> <mmproj file> [--model <file.gguf>] [--server <llama-server>]
+//
+// --model with its own mmproj compares another image-capable model.
 import fs from 'node:fs';
-import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { costLine, modelArgs, spread, startLlama } from '../eval-llama.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const { readInvoiceText } = await import(pathToFileURL(path.join(ROOT, 'lib', 'invoice-text.ts')).href);
 const [setDir, mmproj] = process.argv.slice(2);
 const truth = JSON.parse(fs.readFileSync(path.join(setDir, 'truth.json'), 'utf8'));
 
 // --- Gemma
-const dir = path.join(process.env.LOCALAPPDATA, 'de.elnino0916.sooskasse-fints', 'gemma');
-const find = (d, name) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) { const f = find(p, name); if (f) return f; } else if (e.name === name) return p; } return null; };
-const exe = find(path.join(dir, 'llama-b12250'), 'llama-server.exe');
-const port = await new Promise((r) => { const s = net.createServer().listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => r(p)); }); });
-const child = spawn(exe, ['-m', path.join(dir, 'gemma-4-E2B_q4_0-it.gguf'), '--mmproj', mmproj, '--host', '127.0.0.1', '--port', String(port), '--jinja', '-c', '8192', '-np', '1', '-ngl', '99', '--device', 'Vulkan0', '--no-webui'], { stdio: 'ignore', windowsHide: true });
-process.on('exit', () => child.kill());
-const BASE = `http://127.0.0.1:${port}`;
-for (let i = 0; ; i++) { if (child.exitCode != null || i > 900) throw new Error('no start'); try { if ((await fetch(`${BASE}/health`)).ok) break; } catch {} await new Promise((r) => setTimeout(r, 200)); }
+const llama = await startLlama({ ...modelArgs(process.argv.slice(2)), mmproj, ctx: 8192 });
 
 const SYSTEM = 'Du liest das Foto einer Rechnung oder eines Kassenbons und antwortest nur mit einem JSON-Objekt. '
   + 'Felder: "art": "rechnung" oder "kassenbon"; "name": der Aussteller (Firma oder Laden, nicht der Kunde); "betrag": der zu zahlende Gesamtbetrag als Zahl (nicht netto, nicht MwSt.); '
@@ -35,7 +29,7 @@ const SYSTEM = 'Du liest das Foto einer Rechnung oder eines Kassenbons und antwo
 async function gemma(file) {
   const b64 = fs.readFileSync(path.join(setDir, file)).toString('base64');
   const t = performance.now();
-  const r = await fetch(`${BASE}/v1/chat/completions`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
+  const r = await fetch(`${llama.base}/v1/chat/completions`, { method: 'POST', headers: llama.headers, body: JSON.stringify({
     messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: [{ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${b64}` } }, { type: 'text', text: 'Lies dieses Dokument.' }] }],
     temperature: 0, top_k: 1, seed: 0, max_tokens: 300, chat_template_kwargs: { enable_thinking: false }, response_format: { type: 'json_object' },
   }) });
@@ -83,12 +77,12 @@ for (const t of truth) {
   console.log(`${t.file}: gemma ${JSON.stringify(o)} (${Math.round(g.ms)} ms) | tesseract ${JSON.stringify({ name: s.r.name, amount: s.r.amount, iban: s.r.iban, purpose: s.r.purpose })} (${Math.round(s.ms)} ms)`);
 }
 const med = (xs) => Math.round([...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)]);
-console.log('\nfield                 Gemma E2B      Tesseract + rules');
+console.log(`\nfield                 ${llama.label.slice(0, 14).padEnd(14)} Tesseract + rules`);
 for (const f of [...new Set([...Object.keys(score.gemma), ...Object.keys(score.tess)])].sort()) {
   const g = score.gemma[f], s = score.tess[f];
   console.log(`${f.padEnd(20)}  ${g ? `${g[0]}/${g[1]}` : '-'}`.padEnd(37) + (s ? `${s[0]}/${s[1]}` : '-'));
 }
 console.log(`median per image: Gemma ${med(times.gemma)} ms, Tesseract ${med(times.tess)} ms`);
 await worker.terminate();
-child.kill();
+console.log(costLine(llama.label, await llama.stop(), spread(times.gemma)));
 process.exit(0);

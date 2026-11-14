@@ -5,13 +5,10 @@
 // guard lets through per run (the goal: no run below the one without a style)
 // and three sentences of each, to compare the tones by eye.
 //
-//   node scripts/eval-fragen/run-writer-style.mjs <gemma folder>
-import { spawn } from 'node:child_process';
-import crypto from 'node:crypto';
-import fs from 'node:fs';
-import net from 'node:net';
+//   node scripts/eval-fragen/run-writer-style.mjs [<gemma folder>] [--model <file.gguf>] [--server <llama-server>]
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { costLine, modelArgs, spread, startLlama } from '../eval-llama.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const lib = (p) => import(pathToFileURL(path.join(ROOT, 'lib', p)).href);
@@ -21,33 +18,14 @@ const { checkPlan, plannerInput, plannerSystem } = await lib('ask-planner.ts');
 const { writerInput, writerSystem, usable, sentenceCount } = await lib('gemma-writer.ts');
 const { answerDetails, nameFits } = await lib('ask-style.ts');
 
-const dir = process.argv[2];
-const find = (d, name) => {
-  for (const e of fs.readdirSync(d, { withFileTypes: true })) {
-    const p = path.join(d, e.name);
-    if (e.isDirectory()) { const f = find(p, name); if (f) return f; } else if (e.name === name) return p;
-  }
-  return null;
-};
-const exe = find(path.join(dir, 'llama-b12250'), 'llama-server.exe');
-const model = path.join(dir, 'gemma-4-E2B_q4_0-it.gguf');
-const port = await new Promise((r) => { const s = net.createServer().listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => r(p)); }); });
-const key = crypto.randomBytes(32).toString('hex');
-const BASE = `http://127.0.0.1:${port}`;
-const child = spawn(exe, ['-m', model, '--host', '127.0.0.1', '--port', String(port), '--jinja', '-c', '4096', '-np', '1', '-ngl', '99', '--device', 'Vulkan0', '--no-webui'],
-  { env: { ...process.env, LLAMA_API_KEY: key }, stdio: 'ignore', windowsHide: true });
-process.on('exit', () => child.kill());
-for (let i = 0; ; i++) {
-  if (child.exitCode != null || i > 600) throw new Error('no start');
-  try { if ((await fetch(`${BASE}/health`, { headers: { authorization: `Bearer ${key}` } })).ok) break; } catch { /* starting */ }
-  await new Promise((r) => setTimeout(r, 200));
-}
+const args = process.argv.slice(2);
+const llama = await startLlama(modelArgs(args, args[0] && !args[0].startsWith('--') ? args[0] : null));
+const times = { plan: [], write: [] };
 async function prompt(system, user, json = false) {
-  const r = await fetch(`${BASE}/v1/chat/completions`, {
-    method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
-    body: JSON.stringify({ messages: [{ role: 'system', content: system }, { role: 'user', content: user }], temperature: 0, top_k: 1, seed: 0, max_tokens: 220, cache_prompt: true, chat_template_kwargs: { enable_thinking: false }, ...(json ? { response_format: { type: 'json_object' } } : {}) }),
-  });
-  return String((await r.json()).choices?.[0]?.message?.content ?? '').trim();
+  const t = performance.now();
+  const text = await llama.chat([{ role: 'system', content: system }, { role: 'user', content: user }], { maxTokens: 220, json });
+  times[json ? 'plan' : 'write'].push(performance.now() - t);
+  return text;
 }
 
 const today = '2026-11-12';
@@ -140,4 +118,5 @@ for (const run of runs) {
   console.log(`\n== ${run.label}: ${ok}/${readings.length} durch den Guard, ${named} mit Namen, ${(sentences / readings.length).toFixed(1)} Sätze im Schnitt`);
   for (const s of samples) console.log(`   ${s}`);
 }
+console.log(`\n${costLine(`${llama.label} writer`, await llama.stop(), spread(times.write))}`);
 process.exit(0);

@@ -27,8 +27,10 @@ This run uses the rules only, with no model. It prints totals by kind of answer,
 
 ```
 node scripts/eval-fragen/run-gemma.mjs [--set blind.json] [--failures] [--dir <gemma folder>]
-node scripts/eval-fragen/run-writer.mjs <gemma folder>
+node scripts/eval-fragen/run-writer.mjs [<gemma folder>]
 ```
+
+Every Gemma eval also takes `--model <file.gguf>` and `--server <llama-server>` to run another model (`scripts/eval-llama.mjs`), and ends with its load time, memory and time per call. With blind.json, `run-gemma.mjs` prints only the score. Four other models were compared on 2026-11-14: `docs/model-comparison-2026-11.md`.
 
 `run-gemma.mjs` starts llama-server from the app's Gemma folder (or `--dir`) and plans every turn as the desktop app does (`lib/ask-planner.ts`). `run-writer.mjs` prints the sentences Gemma writes for ten questions over invented bookings, with the guard's verdict, to compare models by eye.
 
