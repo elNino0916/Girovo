@@ -26,7 +26,8 @@ import { Button } from '../ui';
 import { AppIcon } from './ApiConsent';
 
 /** How many calls the Verlauf shows. */
-const LOG_SHOWN = 30;
+/** The Verlauf shows the newest few; "Alle anzeigen" opens the rest (owner 2026-11-15: at most 3). */
+const LOG_SHOWN = 3;
 
 const when = (iso: string) => new Date(iso).toLocaleString(intlLocale(), { dateStyle: 'short', timeStyle: 'short' });
 
@@ -151,8 +152,9 @@ function AppGroup({ grant, setGrants }: { grant: ApiGrant; setGrants: (fn: (g: A
 function LogRows({ log }: { log: readonly ApiLogEntry[] }) {
   const t = useT();
   const words = t.api.page;
+  const [all, setAll] = useState(false);
   if (!log.length) return <SettingItem icon={<HistoryIcon />} title={words.noLog} />;
-  const newest = log.slice(-LOG_SHOWN).reverse();
+  const newest = (all ? [...log] : log.slice(-LOG_SHOWN)).reverse();
   return (
     <>
       {newest.map((e, i) => {
@@ -177,6 +179,18 @@ function LogRows({ log }: { log: readonly ApiLogEntry[] }) {
           />
         );
       })}
+      {log.length > LOG_SHOWN && (
+        <button
+          type="button"
+          data-item
+          data-pressable
+          aria-expanded={all}
+          onClick={() => setAll((v) => !v)}
+          className="row-focus flex min-h-12 w-full items-center px-4 py-3 text-left text-[14px] leading-5 font-medium text-accent"
+        >
+          {all ? words.showLess : words.showAll(log.length)}
+        </button>
+      )}
     </>
   );
 }

@@ -73,6 +73,9 @@ export const de = {
     unknownPublisher: 'Herausgeber unbekannt',
     log: 'Verlauf',
     noLog: 'Noch keine Anfragen.',
+    /** Under the newest three: the rest of the Verlauf. */
+    showAll: (n: number) => `Alle anzeigen (${n})`,
+    showLess: 'Weniger anzeigen',
     developers: 'Für Entwickler',
     docs: 'Dokumentation',
     docsLater: 'Kommt bald auf girovo.de.',
@@ -214,6 +217,8 @@ export const en: typeof de = {
     unknownPublisher: 'Unknown publisher',
     log: 'History',
     noLog: 'No requests yet.',
+    showAll: (n) => `Show all (${n})`,
+    showLess: 'Show less',
     developers: 'For developers',
     docs: 'Documentation',
     docsLater: 'Coming soon on girovo.de.',

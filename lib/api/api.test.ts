@@ -321,7 +321,7 @@ test('router: a hello that names an unknown permission, or none at all, is inval
   assert.equal(h.asked.length, 0);
 });
 
-test('router: refused is remembered until restart, switched off is not asked again', async () => {
+test('router: refused is remembered until restart, switched off is not asked again on that connection', async () => {
   const h = harness({ answer: (r) => (r.client.publisher.kind === 'unknown' ? { refused: true } : { allow: ['accounts.read'] }) });
   const no = await h.call(unknownApp, 'girovo.hello', { app: 'Tool', permissions: ['transactions.read'] });
   assert.equal(no.error.code, 'refused_by_user');
@@ -336,11 +336,17 @@ test('router: refused is remembered until restart, switched off is not asked aga
   const yes = await h.call(verified, 'girovo.hello', { app: 'Haushalt', permissions: ['accounts.read', 'transactions.read'] }, 'c3');
   assert.deepEqual(yes.result.granted, ['accounts.read']);
   await h.call(verified, 'girovo.hello', { app: 'Haushalt', permissions: ['accounts.read', 'transactions.read'] }, 'c3');
-  assert.equal(h.asked.length, 3, 'what the user switched off is not asked again in this run');
+  assert.equal(h.asked.length, 3, 'what the user switched off is not asked again on the same connection');
+  // The app's next connection (it ran again) may ask once more (owner 2026-11-15).
+  h.router.closed('c3');
+  const again = await h.call(verified, 'girovo.hello', { app: 'Haushalt', permissions: ['accounts.read', 'transactions.read'] }, 'c4');
+  assert.equal(h.asked.length, 4, 'a new connection asks for what is still missing');
+  assert.deepEqual(h.asked[3].permissions, ['transactions.read'], 'only what the app does not have yet');
+  assert.deepEqual(again.result.granted, ['accounts.read']);
   // A fresh router (a restart) asks again.
   const after = new ApiRouter({ ...harnessHost(h.grants()), ask: async (r) => { h.asked.push(r); return { allow: [] }; } });
   await after.handle({ id: 1, connection: 'x', client: verified, method: 'girovo.hello', params: { app: 'Haushalt', permissions: ['transactions.read'] } });
-  assert.equal(h.asked.length, 4);
+  assert.equal(h.asked.length, 5);
 });
 
 function harnessHost(grants: ApiGrant[]): RouterHost {

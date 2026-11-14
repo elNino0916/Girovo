@@ -160,7 +160,11 @@ export class ApiRouter {
   private readonly hellos = new Map<string, Hello>();
   /** Apps refused in this run, by grant key. */
   private readonly refused = new Set<string>();
-  /** Permissions the user switched off in a dialog, per app, in this run. */
+  /**
+   * Permissions the user switched off in a dialog, per connection: that
+   * connection is not asked for them again, but the app's next connection is
+   * (owner 2026-11-15: rerunning an app must be able to ask again).
+   */
   private readonly declined = new Map<string, Set<ApiPermission>>();
   /** A dialog waiting per app: a second hello waits for it instead of opening another. */
   private readonly pending = new Map<string, Promise<unknown>>();
@@ -222,6 +226,7 @@ export class ApiRouter {
     const conn = String(connection);
     this.hellos.delete(conn);
     this.subs.delete(conn);
+    this.declined.delete(conn);
     for (const c of this.waiting.get(conn) ?? []) c.abort();
     this.waiting.delete(conn);
   }
@@ -231,6 +236,7 @@ export class ApiRouter {
     for (const conn of [...this.waiting.keys()]) this.closed(conn);
     this.hellos.clear();
     this.subs.clear();
+    this.declined.clear();
     this.snapshot = null;
   }
 
@@ -422,7 +428,7 @@ export class ApiRouter {
 
     const have = findGrant(this.host.grants(), call.client)?.permissions ?? [];
     let granted: ApiPermission[] = [...have];
-    const declined = this.declined.get(key) ?? new Set<ApiPermission>();
+    const declined = this.declined.get(conn) ?? new Set<ApiPermission>();
     const wanted = asked.filter((x) => !have.includes(x) && !declined.has(x));
     if (wanted.length) {
       const controller = new AbortController();
@@ -457,7 +463,7 @@ export class ApiRouter {
       }
       const allow = answer.allow.filter((x) => wanted.includes(x));
       const off = wanted.filter((x) => !allow.includes(x));
-      if (off.length) this.declined.set(key, new Set([...declined, ...off]));
+      if (off.length) this.declined.set(conn, new Set([...declined, ...off]));
       const at = this.host.now().toISOString();
       this.host.setGrants((grants) => withGrant(grants, call.client, allow, at));
       granted = orderedPermissions([...have, ...allow]);

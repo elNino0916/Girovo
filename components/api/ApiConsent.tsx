@@ -89,7 +89,8 @@ function ConsentSheet({ waiting }: { waiting: NonNullable<ReturnType<typeof useC
   });
 
   const allowButton = (
-    <Button key="allow" variant={unknown ? 'secondary' : 'primary'} onClick={allow}>{words.allow}</Button>
+    // Nothing switched on is nothing to allow: Ablehnen is the answer then.
+    <Button key="allow" variant={unknown ? 'secondary' : 'primary'} onClick={allow} disabled={on.size === 0}>{words.allow}</Button>
   );
   const refuseButton = (
     <Button key="refuse" variant={unknown ? 'primary' : 'secondary'} onClick={refuse}>{words.refuse}</Button>
