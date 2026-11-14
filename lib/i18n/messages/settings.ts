@@ -256,6 +256,8 @@ export const de = {
   ask: {
     title: 'Girovo AI',
     hint: 'Antworten in ganzen Sätzen',
+    /** Under the switch: what Girovo AI reads stays on the device (the model runs there). */
+    private: 'Deine Fragen und Umsätze verlassen nie dein Gerät.',
     /** The switch while the model is not here yet: on a phone, on the desktop. */
     needsModel: (phone: boolean): string => (phone ? 'Geht, sobald Gemini Nano bereit ist' : 'Lade zuerst das Modell unten'),
     group: 'Antworten',
@@ -509,6 +511,7 @@ export const en: typeof de = {
   ask: {
     title: 'Girovo AI',
     hint: 'Answers in full sentences',
+    private: 'Your questions and transactions never leave your device.',
     needsModel: (phone) => (phone ? 'Works once Gemini Nano is ready' : 'Download the model below first'),
     group: 'Answers',
     nano: 'Gemini Nano',

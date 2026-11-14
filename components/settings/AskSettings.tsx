@@ -19,7 +19,7 @@ import { useLocale, useT } from '@/lib/i18n/react';
 import { asksWith } from '@/lib/nano-ask';
 import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
-import { CheckCircleIcon, DownloadIcon, AiMarkIcon } from '../icons';
+import { CheckCircleIcon, DownloadIcon, AiMarkIcon, LockIcon } from '../icons';
 import { AiWordmark } from '../shell/BrandMark';
 import { AiCategorizeRow } from '../insights/ai/AiCategorize';
 import { AiNamesRow } from '../insights/ai/AiNamesSetting';
@@ -101,6 +101,13 @@ export function AskPage() {
         />
         {/* The desktop only: the phone shows Gemini Nano's brands as before. */}
         {!IS_ANDROID && <AiNamesRow />}
+      </SettingsGroup>
+
+      {/* Owner, 2026-11-14: said plainly. True on both: the desktop's model listens on 127.0.0.1 only
+          (src-tauri/src/gemma.rs; only its download comes from outside), Gemini Nano runs on the phone,
+          and no usage event carries a question. */}
+      <SettingsGroup>
+        <SettingItem icon={<LockIcon />} title={words.private} />
       </SettingsGroup>
 
       {/* The desktop with Gemma: the bookings in Sonstiges, read once the user asks (components/insights/ai/AiCategorize.tsx). */}
