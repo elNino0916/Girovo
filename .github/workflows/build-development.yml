@@ -16,9 +16,17 @@ permissions:
   contents: read
 
 jobs:
+  # Release runs (release=true) of a commit with scripts/sign-windows.mjs are
+  # signed with the MT-Media certificate (docs/mt-media-code-signing.md): this
+  # job builds the programs, sign-windows packs and signs them in the
+  # `signing` environment, which waits for the owner's approval. Development
+  # builds of every push stay unsigned.
   build-windows:
     name: Windows installer build
     runs-on: windows-latest
+    outputs:
+      sign: ${{ steps.build.outputs.sign }}
+      version: ${{ steps.version.outputs.version }}
 
     steps:
       - name: Check out source
@@ -57,9 +65,18 @@ jobs:
           workspaces: src-tauri
 
       - name: Build installer
-        run: node scripts/dist-desktop.mjs --platform win32
+        id: build
+        shell: bash
+        run: |
+          if [ "${{ inputs.release }}" = "true" ] && [ -f scripts/sign-windows.mjs ]; then
+            node scripts/dist-desktop.mjs --platform win32 --no-bundle
+            echo "sign=true" >> "$GITHUB_OUTPUT"
+          else
+            node scripts/dist-desktop.mjs --platform win32
+          fi
 
       - name: Upload development artifacts
+        if: steps.build.outputs.sign != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: Girovo-${{ steps.version.outputs.version }}-windows
@@ -67,6 +84,75 @@ jobs:
             dist/*-Setup.exe
           if-no-files-found: error
           retention-days: 14
+
+      # The programs for sign-windows, which packs and signs them.
+      - name: Upload the programs for signing
+        if: steps.build.outputs.sign == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Girovo-${{ steps.version.outputs.version }}-windows-programs
+          path: |
+            package.json
+            src-tauri/target/release/Girovo.exe
+            src-tauri/binaries/
+            src-tauri/onnxruntime/
+            models/category-model/
+          if-no-files-found: error
+          retention-days: 1
+
+  # The installer signed with the MT-Media certificate (docs/mt-media-code-signing.md).
+  # The key lives in the `signing` environment, which waits for the owner's
+  # approval and allows main only. This job runs no npm ci and no cargo build,
+  # so no package from either can reach the key: it takes the programs the job
+  # before built, installs the Tauri CLI alone, and lets Tauri sign Girovo.exe,
+  # its helpers and the uninstaller before NSIS packs them, then the installer.
+  sign-windows:
+    name: Windows installer, signed
+    needs: build-windows
+    if: needs.build-windows.outputs.sign == 'true'
+    runs-on: windows-latest
+    environment: signing
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: Girovo-${{ needs.build-windows.outputs.version }}-windows-programs
+          path: .
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: The Tauri CLI alone
+        shell: bash
+        run: |
+          v=$(node -p "require('./package.json').devDependencies['@tauri-apps/cli']")
+          npm install --prefix "$RUNNER_TEMP/tauri-cli" --ignore-scripts --no-audit --no-fund "@tauri-apps/cli@$v"
+          echo "GIROVO_TAURI_CLI=$RUNNER_TEMP/tauri-cli/node_modules/.bin/tauri.cmd" >> "$GITHUB_ENV"
+      - name: Signing certificate
+        shell: pwsh
+        env:
+          MT_MEDIA_PFX_BASE64: ${{ secrets.MT_MEDIA_PFX_BASE64 }}
+          MT_MEDIA_PFX_PASSWORD: ${{ secrets.MT_MEDIA_PFX_PASSWORD }}
+        run: ./scripts/ci-signing-cert.ps1 import
+      - name: Installer, signed and checked
+        run: node scripts/dist-desktop.mjs --platform win32 --bundle-only --sign
+      - name: Forget the certificate
+        if: always()
+        shell: pwsh
+        run: ./scripts/ci-signing-cert.ps1 forget
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Girovo-${{ needs.build-windows.outputs.version }}-windows
+          path: |
+            dist/*-Setup.exe
+            dist/*-Setup.exe.blockmap
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Girovo-${{ needs.build-windows.outputs.version }}-windows-signing-log
+          path: dist/signing-log.jsonl
+          if-no-files-found: error
+          retention-days: 30
 
   build-linux:
     name: Linux AppImage and deb build
