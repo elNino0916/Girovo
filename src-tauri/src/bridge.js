@@ -184,6 +184,41 @@
     },
   });
 
+  // The Girovo API (src/api/, docs/girovo-api.md): other apps on this
+  // computer call Girovo over a pipe or socket the shell keeps. The shell says
+  // who each caller is and hands every request to the page as onCall's
+  // { id, connection, client, method, params }; the page answers it with
+  // reply(id, { result }) or reply(id, { error: { code, message, data } }).
+  // setEnabled answers { running, address }, status adds connections, icon
+  // gives the caller's icon as a PNG data URL or null. onCall and onClosed
+  // return their own unsubscribe.
+  define('electronGirovoApi', {
+    setEnabled: function (on) { return invoke('api_set_enabled', { on: on === true }); },
+    status: function () { return invoke('api_status'); },
+    icon: function (exe) {
+      return invoke('api_client_icon', { exe: typeof exe === 'string' ? exe : '' }).catch(function () { return null; });
+    },
+    onCall: function (callback) {
+      if (typeof callback !== 'function') return function () {};
+      return listen('api:call', callback);
+    },
+    onClosed: function (callback) {
+      if (typeof callback !== 'function') return function () {};
+      return listen('api:closed', callback);
+    },
+    reply: function (id, payload) {
+      var p = payload && typeof payload === 'object' ? payload : {};
+      var args = { id: String(id) };
+      if (p.error && typeof p.error === 'object') {
+        args.error = { code: String(p.error.code || 'internal'), message: String(p.error.message == null ? '' : p.error.message) };
+        if (p.error.data !== undefined) args.error.data = p.error.data;
+      } else {
+        args.result = p.result === undefined ? null : p.result;
+      }
+      return invoke('api_reply', args);
+    },
+  });
+
   // Saving a file the app made (the CSV export, a backup) through a native
   // Save As, answered once the file is written or the dialog dismissed
   // (src/save.rs). The bytes go as the request's body, as they are; the name

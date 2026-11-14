@@ -15,6 +15,7 @@
 // with Windows for "Neue Umsätze melden" (`--background`) shows neither: Girovo
 // waits in the notification area (background.rs).
 
+mod api;
 mod background;
 mod closing;
 mod edition;
@@ -90,6 +91,7 @@ pub fn run() {
     .manage(model::Model::default())
     .manage(Arc::new(sync_lan::LanShelf::default()))
     .manage(telemetry::Telemetry::default())
+    .manage(api::Api::default())
     .register_uri_scheme_protocol("girovo-shell", |_ctx, request| shell::serve_shell(request.uri().path()))
     .setup(|app| {
       // Before any window: a copy stuck on its way out would freeze this one's page (leftover.rs).
@@ -191,9 +193,13 @@ pub fn run() {
           .decorations(cfg!(not(windows)))
           .initialization_script(script.clone())
           .additional_browser_args(&shell::browser_args())
-          .on_page_load(move |_window, payload| {
+          .on_page_load(move |window, payload| {
             if payload.event() == PageLoadEvent::Finished {
               let _ = loaded_tx.send(());
+            }
+            // The Girovo API's listener goes with the page that set it up (api/mod.rs).
+            if payload.event() == PageLoadEvent::Started {
+              api::page_loading(window.app_handle());
             }
           })
           .on_new_window(|url, _features| {
@@ -309,6 +315,10 @@ pub fn run() {
       gemma::gemma_cancel,
       gemma::gemma_remove,
       gemma::gemma_prompt,
+      api::api_set_enabled,
+      api::api_status,
+      api::api_reply,
+      api::api_client_icon,
     ])
     .build(tauri::generate_context!())
     .expect("error while running Girovo");
@@ -319,6 +329,8 @@ pub fn run() {
       app.state::<telemetry::Telemetry>().closing(app);
       // The local model's server ends with the app, a download stops (gemma.rs).
       gemma::on_exit(app);
+      // The Girovo API's connections end, its socket file goes (api/mod.rs).
+      api::on_exit(app);
     }
   });
   // Past Tauri's cleanup (the plugins' exit hooks, the updater's installer

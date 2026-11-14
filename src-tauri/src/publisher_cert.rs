@@ -12,8 +12,9 @@
 
 use serde::Serialize;
 
+// Also the Girovo API's, to know MT-Media's signature by its thumbprint (api/signature.rs).
 #[path = "../cert-helper/src/identity.rs"]
-mod identity;
+pub(crate) mod identity;
 
 /// The helper's exit codes (cert-helper/src/lib.rs).
 const HELPER_OK: i32 = 0;
