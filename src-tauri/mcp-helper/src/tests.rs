@@ -32,6 +32,8 @@ struct FakeState {
   dialog: Dialog,
   /// Every request as it came: (method, params).
   seen: Vec<(String, Value)>,
+  /// Turns every connection away with this reason, as Girovo's shell does when busy.
+  refuse: Option<&'static str>,
 }
 
 type Shared = Arc<Mutex<FakeState>>;
@@ -106,6 +108,12 @@ fn serve_connection<S: std::io::Read + Write>(stream: S, writer: &mut dyn Write,
     if reader.read_line(&mut line).unwrap_or(0) == 0 {
       return;
     }
+    if let Some(reason) = state.lock().unwrap().refuse {
+      let error = json!({ "jsonrpc": "2.0", "id": null, "error": { "code": -32000, "message": "Too many connections", "data": { "reason": reason } } });
+      writer.write_all(format!("{error}\n").as_bytes()).unwrap();
+      writer.flush().unwrap();
+      return;
+    }
     let request: Value = serde_json::from_str(&line).unwrap();
     let method = request["method"].as_str().unwrap().to_string();
     let reply = match answer(&mut state.lock().unwrap(), &method, &request["params"]) {
@@ -172,7 +180,7 @@ fn fake_at(address: &str, state: Shared, connections: usize, limit: Option<usize
 }
 
 fn state(granted: &[&str], dialog: Dialog) -> Shared {
-  Arc::new(Mutex::new(FakeState { granted: granted.iter().map(|s| s.to_string()).collect(), dialog, seen: Vec::new() }))
+  Arc::new(Mutex::new(FakeState { granted: granted.iter().map(|s| s.to_string()).collect(), dialog, seen: Vec::new(), refuse: None }))
 }
 
 fn methods(state: &Shared) -> Vec<String> {
@@ -485,6 +493,21 @@ fn a_girovo_that_went_away_and_came_back_is_reached_again() {
 }
 
 #[test]
+fn a_connection_girovo_turns_away_says_so() {
+  let address = unique_address();
+  let girovo = state(&[], Dialog::AllowAll);
+  girovo.lock().unwrap().refuse = Some("busy");
+  let fake = fake_at(&address, girovo.clone(), 1, None);
+  let mut a = Assistant::start(&address);
+  a.initialize("2025-06-18");
+  let r = a.call(1, "list_accounts", json!({}));
+  assert_eq!(r["isError"], true);
+  assert_eq!(text(&r, 0), "Girovo hat die Verbindung abgelehnt. Zu viele Verbindungen sind offen.");
+  drop(a);
+  fake.join().unwrap();
+}
+
+#[test]
 fn girovo_errors_read_plainly() {
   use crate::{CallError, error_text};
   let rpc = |reason: &str, data: Value| CallError::Rpc { reason: reason.into(), message: "m".into(), data };
@@ -492,6 +515,10 @@ fn girovo_errors_read_plainly() {
   assert_eq!(error_text(&rpc("bank_error", json!({ "reason": "bank_error", "text": "PIN falsch" }))), "Die Bank meldet: PIN falsch");
   assert_eq!(error_text(&rpc("invalid", json!({ "reason": "invalid", "param": "month" }))), "Ungültige Angabe. m ({\"param\":\"month\"})");
   assert!(error_text(&CallError::NotAllowed { refused_app: true }).contains("abgelehnt"));
+  assert!(error_text(&CallError::NotGirovo).contains("anderen Benutzers"));
+  let refused = |reason: &str| CallError::Refused { reason: reason.into(), message: "Girovo could not tell which program this is".into() };
+  assert_eq!(error_text(&refused("denied")), "Girovo hat die Verbindung abgelehnt. Girovo konnte nicht erkennen, welches Programm fragt.");
+  assert_eq!(error_text(&refused("new")), "Girovo hat die Verbindung abgelehnt. Girovo could not tell which program this is");
 }
 
 #[test]

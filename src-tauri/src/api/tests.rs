@@ -167,6 +167,36 @@ fn a_process_that_is_not_there_is_nobody() {
   assert!(identify::client(u32::MAX - 2).is_none());
 }
 
+#[test]
+fn a_file_put_in_place_with_the_same_size_and_time_is_hashed_anew() {
+  let dir = std::env::temp_dir().join(format!("girovo-identify-{}", uuid::Uuid::new_v4()));
+  std::fs::create_dir_all(&dir).unwrap();
+  let path = dir.join("app.exe");
+  let (granted, other) = (b"granted app, first build", b"another app, same length");
+  assert_eq!(granted.len(), other.len());
+  std::fs::write(&path, granted).unwrap();
+  let time = std::fs::metadata(&path).unwrap().modified().unwrap();
+  let first = identify::facts_of(&path, &path).unwrap();
+  // Another program in its place: same path, same size, the old time.
+  std::fs::write(&path, other).unwrap();
+  std::fs::File::options().write(true).open(&path).unwrap().set_modified(time).unwrap();
+  assert_eq!(std::fs::metadata(&path).unwrap().modified().unwrap(), time);
+  let second = identify::facts_of(&path, &path).unwrap();
+  assert_ne!(second.sha256, first.sha256);
+  assert_eq!(second.sha256, identify::sha256_of(&path).unwrap());
+  assert_eq!(second.name, "app.exe");
+  #[cfg(windows)]
+  {
+    // While it is hashed and checked, nobody can write, rename or delete it.
+    let held = identify::open_unchangeable(&path).unwrap();
+    assert!(std::fs::OpenOptions::new().write(true).open(&path).is_err());
+    assert!(std::fs::rename(&path, dir.join("moved.exe")).is_err());
+    assert!(std::fs::remove_file(&path).is_err());
+    drop(held);
+  }
+  let _ = std::fs::remove_dir_all(&dir);
+}
+
 #[cfg(windows)]
 #[test]
 fn windows_own_programs_are_verified_through_their_catalog() {
@@ -403,6 +433,48 @@ async fn a_call_nobody_answers_times_out() {
   assert_eq!(err["error"]["data"]["reason"], "timeout");
   // Too late now.
   assert!(!h.server.reply(&call.id, Reply::Result(json!(1))));
+}
+
+#[tokio::test]
+async fn a_bank_refresh_may_take_longer() {
+  let mut h = harness(Limits { call_timeout: Duration::from_millis(200), long_call_timeout: Duration::from_secs(5), ..Limits::default() });
+  let mut client = connect(h.server.address()).await;
+  send(&mut client, json!({ "jsonrpc": "2.0", "id": 6, "method": "girovo.bank.refresh", "params": {} })).await;
+  let call = next(&mut h.calls).await;
+  // Well past the usual limit, the Freigabe still counts.
+  tokio::time::sleep(Duration::from_millis(600)).await;
+  assert!(h.server.reply(&call.id, Reply::Result(json!({ "newBookings": 0 }))));
+  let ok = answer(&mut client).await.unwrap();
+  assert_eq!(ok["id"], 6);
+  assert_eq!(ok["result"]["newBookings"], 0);
+}
+
+#[tokio::test]
+async fn a_connection_that_asks_nothing_is_closed() {
+  let mut h = harness(Limits { first_request_timeout: Duration::from_millis(300), ..Limits::default() });
+  let mut silent = connect(h.server.address()).await;
+  let err = answer(&mut silent).await.unwrap();
+  assert_eq!(err["id"], Value::Null);
+  assert_eq!(err["error"]["data"]["reason"], "timeout");
+  assert!(answer(&mut silent).await.is_none());
+  // One that asked stays open past it.
+  let mut talking = connect(h.server.address()).await;
+  send(&mut talking, hello(1)).await;
+  let call = next(&mut h.calls).await;
+  tokio::time::sleep(Duration::from_millis(600)).await;
+  h.server.reply(&call.id, Reply::Result(json!({ "granted": [] })));
+  assert_eq!(answer(&mut talking).await.unwrap()["id"], 1);
+}
+
+#[tokio::test]
+async fn one_program_cannot_take_every_connection() {
+  let mut h = harness(Limits { max_per_client: 1, ..Limits::default() });
+  let (_first, _) = connected(&mut h, 1).await;
+  let mut second = connect(h.server.address()).await;
+  let err = answer(&mut second).await.unwrap();
+  assert_eq!(err["id"], Value::Null);
+  assert_eq!(err["error"]["data"]["reason"], "busy");
+  assert!(answer(&mut second).await.is_none());
 }
 
 #[tokio::test]

@@ -217,9 +217,20 @@ fn tool_result(tool: &tools::Tool, outcome: Result<Value, CallError>, structured
 pub fn error_text(e: &CallError) -> String {
   match e {
     CallError::NotRunning => NOT_RUNNING.to_string(),
+    CallError::NotGirovo => "Unter Girovos Adresse antwortet ein Programm eines anderen Benutzers. Girovo MCP verbindet sich nicht damit.".to_string(),
     CallError::NotAllowed { refused_app: false } => "Der Nutzer hat das in Girovo nicht erlaubt.".to_string(),
     CallError::NotAllowed { refused_app: true } => {
       "Der Nutzer hat diesen Assistenten in Girovo abgelehnt. Fragen kann er erst wieder, wenn Girovo neu gestartet ist.".to_string()
+    }
+    CallError::Refused { reason, message } => {
+      let why = match reason.as_str() {
+        "busy" => "Zu viele Verbindungen sind offen.".to_string(),
+        "denied" => "Girovo konnte nicht erkennen, welches Programm fragt.".to_string(),
+        "timeout" => "Es kam keine Anfrage rechtzeitig.".to_string(),
+        _ if message.is_empty() => reason.clone(),
+        _ => message.clone(),
+      };
+      format!("Girovo hat die Verbindung abgelehnt. {why}")
     }
     CallError::Rpc { reason, message, data } => {
       let detail = |text: String| {

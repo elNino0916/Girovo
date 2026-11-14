@@ -18,7 +18,7 @@
 //   `api:waiting { clients }` says who waits (`api_waiting` asks), and the
 //   held calls go to the page once it is ready, else `locked` after 120 s;
 // - the page answers with `api_reply { id, result | error }`; unanswered after
-//   150 s the client hears `timeout`;
+//   150 s the client hears `timeout` (girovo.bank.refresh: 10 minutes);
 // - `api:closed { connection }` once a connection ends;
 // - `api_notify { connection, method, params }` sends that connection a
 //   JSON-RPC notification (events.subscribe), false once it is gone;

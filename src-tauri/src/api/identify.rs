@@ -12,7 +12,6 @@ use std::collections::HashMap;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
-use std::time::SystemTime;
 
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -61,7 +60,7 @@ pub struct Client {
 
 /// A display name is the program's own text; this much is plenty for a dialog.
 const MAX_NAME: usize = 120;
-/// Files looked at once are remembered; past this many the memory starts over.
+/// Signatures looked at once are remembered; past this many the memory starts over.
 const CACHE_MAX: usize = 64;
 
 /// The process `pid` and its parent, or None when the process can't be read
@@ -74,7 +73,7 @@ pub fn client(pid: u32) -> Option<Client> {
 
 fn process(pid: u32) -> Option<Client> {
   let exe = os::exe_of(pid)?;
-  let facts = facts_cached(&exe, pid)?;
+  let facts = facts_of(&exe, &os::readable(&exe, pid))?;
   Some(Client {
     pid,
     exe: exe.to_string_lossy().into_owned(),
@@ -86,69 +85,72 @@ fn process(pid: u32) -> Option<Client> {
 }
 
 #[derive(Debug, Clone)]
-struct Facts {
-  sha256: String,
-  name: String,
-  publisher: Publisher,
+pub(super) struct Facts {
+  pub(super) sha256: String,
+  pub(super) name: String,
+  pub(super) publisher: Publisher,
 }
 
-/// What tells a changed file from the one looked at before.
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct Stamp {
-  len: u64,
-  modified: Option<SystemTime>,
-  /// Linux: the inode, so a file replaced under the same name and time is new.
-  node: (u64, u64),
-}
-
-fn cache() -> &'static Mutex<HashMap<PathBuf, (Stamp, Facts)>> {
-  static CACHE: OnceLock<Mutex<HashMap<PathBuf, (Stamp, Facts)>>> = OnceLock::new();
+/// What a file's signature says and the name in its resources, by the file's SHA-256.
+fn cache() -> &'static Mutex<HashMap<String, (Publisher, Option<String>)>> {
+  static CACHE: OnceLock<Mutex<HashMap<String, (Publisher, Option<String>)>>> = OnceLock::new();
   CACHE.get_or_init(Default::default)
-}
-
-/// Hashing a large program and checking its signature takes a moment, and an
-/// app connects again and again: the facts are kept per (path, size, time).
-fn facts_cached(exe: &Path, pid: u32) -> Option<Facts> {
-  let source = os::readable(exe, pid);
-  let stamp = stamp_of(&source)?;
-  if let Some((seen, facts)) = cache().lock().unwrap().get(exe) {
-    if *seen == stamp {
-      return Some(facts.clone());
-    }
-  }
-  let facts = facts_of(exe, &source)?;
-  let mut cache = cache().lock().unwrap();
-  if cache.len() >= CACHE_MAX {
-    cache.clear();
-  }
-  cache.insert(exe.to_path_buf(), (stamp, facts.clone()));
-  Some(facts)
-}
-
-fn stamp_of(path: &Path) -> Option<Stamp> {
-  let meta = std::fs::metadata(path).ok()?;
-  #[cfg(unix)]
-  let node = {
-    use std::os::unix::fs::MetadataExt;
-    (meta.dev(), meta.ino())
-  };
-  #[cfg(not(unix))]
-  let node = (0, 0);
-  Some(Stamp { len: meta.len(), modified: meta.modified().ok(), node })
 }
 
 /// `exe` is the path shown; `source` the file read, which on Linux is
 /// /proc/<pid>/exe: the very file that runs, even if the path now names another.
-fn facts_of(exe: &Path, source: &Path) -> Option<Facts> {
-  let sha256 = sha256_of(source)?;
+///
+/// The file is hashed on every connection. Its size and time prove nothing: a
+/// program of the same user could put another file of the same size and the
+/// old time in a granted app's place and take over its grant. Only the slow
+/// part, the signature check, is remembered, by the hash. While it is hashed
+/// and checked the file stays open with nobody allowed to write, rename or
+/// delete it (Windows), so the signature speaks for the very bytes hashed.
+pub(super) fn facts_of(exe: &Path, source: &Path) -> Option<Facts> {
+  let mut file = open_unchangeable(source).ok()?;
+  let sha256 = sha256_from(&mut file)?;
+  let (publisher, name) = signed_cached(&sha256, exe);
+  drop(file);
   let file_name = exe.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| exe.to_string_lossy().into_owned());
-  let (publisher, name) = os::publisher_and_name(exe);
   let name = name.map(|n| clean(&n)).filter(|n| !n.is_empty()).unwrap_or_else(|| clean(&file_name));
   Some(Facts { sha256, name, publisher })
 }
 
+/// Checking a signature takes a moment and an app connects again and again:
+/// the result is kept for the file's content, which the hash names.
+fn signed_cached(sha256: &str, exe: &Path) -> (Publisher, Option<String>) {
+  if let Some(known) = cache().lock().unwrap().get(sha256) {
+    return known.clone();
+  }
+  let found = os::publisher_and_name(exe);
+  let mut cache = cache().lock().unwrap();
+  if cache.len() >= CACHE_MAX {
+    cache.clear();
+  }
+  cache.insert(sha256.to_string(), found.clone());
+  found
+}
+
+/// The file opened for reading, on Windows without sharing it for writing or
+/// deleting: nobody can change, rename or replace it while this is open, and
+/// it fails while someone is writing it.
+pub(super) fn open_unchangeable(path: &Path) -> std::io::Result<std::fs::File> {
+  #[cfg(windows)]
+  {
+    use std::os::windows::fs::OpenOptionsExt;
+    const FILE_SHARE_READ: u32 = 1;
+    std::fs::OpenOptions::new().read(true).share_mode(FILE_SHARE_READ).open(path)
+  }
+  #[cfg(not(windows))]
+  std::fs::File::open(path)
+}
+
+#[cfg(test)]
 pub fn sha256_of(path: &Path) -> Option<String> {
-  let mut file = std::fs::File::open(path).ok()?;
+  sha256_from(&mut std::fs::File::open(path).ok()?)
+}
+
+fn sha256_from(file: &mut std::fs::File) -> Option<String> {
   let mut hasher = Sha256::new();
   let mut buf = vec![0u8; 256 * 1024];
   loop {
