@@ -9,6 +9,7 @@ import { PAGE_CLUSTERS, PAGE_OF, PAGE_ORDER, hasUpdateRows, isSettingsPage, page
 const TARGETS: readonly SettingsTarget[] = [
   'language', 'theme', 'black', 'idle', 'categories', 'logos', 'usage', 'device', 'data', 'keep', 'backup', 'updates',
   'channel', 'early', 'fromFile', 'loginBalances', 'loginBookings', 'keepBalances', 'alerts', 'ask', 'publisher',
+  'askTone', 'askLength', 'askName',
 ];
 
 test('every setting the search opens lives on a page that exists', () => {

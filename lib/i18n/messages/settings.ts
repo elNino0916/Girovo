@@ -265,6 +265,36 @@ export const de = {
     group: 'Modell',
     /** The group of what Girovo AI does besides answering (the desktop: names, categories). */
     features: 'Funktionen',
+    /** How Girovo AI answers (components/settings/AskStyle.tsx, lib/ask-style.ts). */
+    style: {
+      group: 'Antworten',
+      tone: 'Ton',
+      friendly: 'Freundlich',
+      plain: 'Sachlich',
+      length: 'Länge',
+      short: 'Kurz',
+      long: 'Ausführlich',
+      useName: 'Mit Vornamen ansprechen',
+      calls: (name: string) => `Girovo AI nennt dich ${name}`,
+      noName: 'Trag deinen Vornamen unten ein',
+      nameLabel: 'Dein Vorname',
+      /** Under the field: what an empty field means. */
+      fromBank: (name: string) => `Leer lassen für ${name}, wie deine Bank dich nennt`,
+      fromNobody: 'Girovo kennt deinen Vornamen noch nicht',
+      example: 'So klingt es',
+      /** The example when no bookings are loaded: made up, said as the chosen style would say it. */
+      sample: {
+        question: 'Wie viel ging im Oktober an Rewe?',
+        friendly: {
+          short: 'Im Oktober hast du bei Rewe 312,40 € ausgegeben.',
+          long: 'Im Oktober hast du bei Rewe 312,40 € ausgegeben, bei 9 Umsätzen. Das sind 28,10 € weniger als im September. Der größte Betrag waren 64,90 € am 12. Oktober.',
+        },
+        plain: {
+          short: 'Im Oktober: 312,40 € an Rewe.',
+          long: 'Im Oktober: 312,40 € an Rewe, 9 Umsätze. Im September: 340,50 €. Größter Umsatz: 64,90 €, Rewe, 12. Oktober.',
+        },
+      },
+    },
     nano: 'Gemini Nano',
     nanoReady: 'Bereit',
     nanoDownloading: 'Android lädt es gerade',
@@ -567,6 +597,33 @@ export const en: typeof de = {
     needsModel: (phone) => (phone ? 'Works once Gemini Nano is ready.' : 'Works once the model below is downloaded.'),
     group: 'Model',
     features: 'Features',
+    style: {
+      group: 'Answers',
+      tone: 'Tone',
+      friendly: 'Friendly',
+      plain: 'Plain',
+      length: 'Length',
+      short: 'Short',
+      long: 'Detailed',
+      useName: 'Call me by my first name',
+      calls: (name) => `Girovo AI calls you ${name}`,
+      noName: 'Enter your first name below',
+      nameLabel: 'Your first name',
+      fromBank: (name) => `Leave empty for ${name}, as your bank calls you`,
+      fromNobody: 'Girovo doesn\u2019t know your first name yet',
+      example: 'How it sounds',
+      sample: {
+        question: 'How much went to Rewe in October?',
+        friendly: {
+          short: 'In October, you spent €312.40 at Rewe.',
+          long: 'In October, you spent €312.40 at Rewe across 9 transactions. That is €28.10 less than in September. The largest single payment was €64.90 on 12 October.',
+        },
+        plain: {
+          short: 'In October: €312.40 at Rewe.',
+          long: 'In October: €312.40 at Rewe, 9 transactions. In September: €340.50. Largest transaction: €64.90, Rewe, 12 October.',
+        },
+      },
+    },
     nano: 'Gemini Nano',
     nanoReady: 'Ready',
     nanoDownloading: 'Android is downloading it',

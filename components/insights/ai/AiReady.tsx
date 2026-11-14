@@ -20,6 +20,7 @@ import { useEffect, useId, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { AI_MARK_ARMS, AI_MARK_BAR_WIDTH, AI_MARK_DIAGONALS, AI_MARK_DIAGONAL_WIDTH } from '../../icons';
 import { AiWordmark } from '../../shell/BrandMark';
+import { useAskStyle } from '../ask/useAskStyle';
 import { welcomeQuestions, type WelcomeBooking } from '@/lib/ai-welcome';
 import { bookingDay } from '@/lib/analytics';
 import { dayKey, tidyName } from '@/lib/format';
@@ -93,6 +94,8 @@ function focusAskField(tries = 12) {
 function Moment({ onDone }: { onDone: () => void }) {
   const t = useT();
   const words = t.ask.welcome;
+  // Greets by first name where Girovo AI may use it (Einstellungen → Girovo AI → Anrede).
+  const style = useAskStyle();
   const titleId = useId();
   const leadId = useId();
   // Made once, as the moment opens: a booking arriving meanwhile does not swap a row under the finger.
@@ -119,7 +122,7 @@ function Moment({ onDone }: { onDone: () => void }) {
               <Mark drawn />
             </div>
             <h2 id={titleId} className="ai-ready-title ai-ready-rise" style={at(0.95)}>{words.title(<AiWordmark key="name" />)}</h2>
-            <p id={leadId} className="ai-ready-lead ai-ready-rise" style={at(1.05)}>{words.lead}</p>
+            <p id={leadId} className="ai-ready-lead ai-ready-rise" style={at(1.05)}>{style.name ? words.leadNamed(style.name) : words.lead}</p>
           </div>
           <ul className="ai-ready-list" aria-label={words.examples}>
             {questions.map((q, i) => (

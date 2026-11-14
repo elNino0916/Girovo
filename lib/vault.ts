@@ -38,6 +38,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { isGrouping, sanitizeAccountOrder } from './account-overview.ts';
+import { cleanAskName, isAskLength, isAskTone } from './ask-style-fields.ts';
 import { isRecord } from './guards.ts';
 import { mergeAiNames, sanitizeAiNames } from './ai-names-store.ts';
 import { sanitizeContractNames, sanitizeNoticed, sanitizeReminders } from './contract-watch.ts';
@@ -299,6 +300,11 @@ export function sanitizeVault(input: unknown, now = Date.now()): VaultData | nul
     // Girovo Next: asking switched off, and its sheet seen once.
     ...(input.askOff === true ? { askOff: true as const } : {}),
     ...(input.askIntroSeen === true ? { askIntroSeen: true as const } : {}),
+    // Girovo AI's answer style (lib/ask-style.ts): each only while it is not the default.
+    ...(isAskTone(input.askTone) && input.askTone !== 'friendly' ? { askTone: input.askTone } : {}),
+    ...(isAskLength(input.askLength) && input.askLength !== 'short' ? { askLength: input.askLength } : {}),
+    ...(cleanAskName(input.askName) ? { askName: cleanAskName(input.askName)! } : {}),
+    ...(input.askNameOff === true ? { askNameOff: true as const } : {}),
     // Girovo AI's cleaned names on the desktop (lib/ai-names-store.ts): the switch, and the names within their cap.
     ...(input.aiNamesOn === true ? { aiNamesOn: true as const } : {}),
     ...(sanitizeAiNames(input.aiNames) ? { aiNames: sanitizeAiNames(input.aiNames)! } : {}),
@@ -624,6 +630,13 @@ export function mergeVaults(current: VaultData, fromBackup: VaultData): VaultDat
     // How the accounts are arranged is this computer's while it says anything; else the backup's.
     ...(current.accountOrder || !backup.accountOrder ? {} : { accountOrder: backup.accountOrder }),
     ...(current.accountGrouping || !backup.accountGrouping ? {} : { accountGrouping: backup.accountGrouping }),
+    // Girovo AI's answer style: this computer's where it chose one, else the backup's.
+    ...(current.askTone || !backup.askTone ? {} : { askTone: backup.askTone }),
+    ...(current.askLength || !backup.askLength ? {} : { askLength: backup.askLength }),
+    ...(current.askName || current.askNameOff || !(backup.askName || backup.askNameOff) ? {} : {
+      ...(backup.askName ? { askName: backup.askName } : {}),
+      ...(backup.askNameOff ? { askNameOff: true as const } : {}),
+    }),
     // The newest read of each account, and every day either of them knows — unless this computer said no.
     ...(current.keepBalances === false ? {} : {
       keptBalances: newestKept(backup.keptBalances, current.keptBalances),

@@ -6,6 +6,7 @@
 // provider can never disagree about a shape.
 
 import type { AccountGrouping } from './account-overview';
+import type { AskLength, AskTone } from './ask-style-fields';
 import type { CategoryId, CustomCategory } from './categories';
 import type { KeptBalance, NetWorthDay } from './kept-balances';
 import type { SavingsGoal } from './savings-goal';
@@ -30,7 +31,8 @@ export type DashboardTab = 'overview' | 'analysis' | 'contracts' | 'settings';
 /** A setting the search can bring the user to on the Einstellungen page (components/settings). */
 export type SettingsTarget =
   | 'language' | 'theme' | 'black' | 'idle' | 'categories' | 'logos' | 'usage' | 'device' | 'data' | 'keep' | 'backup' | 'updates'
-  | 'channel' | 'early' | 'fromFile' | 'loginBalances' | 'loginBookings' | 'keepBalances' | 'alerts' | 'ask' | 'publisher';
+  | 'channel' | 'early' | 'fromFile' | 'loginBalances' | 'loginBookings' | 'keepBalances' | 'alerts' | 'ask' | 'publisher'
+  | 'askTone' | 'askLength' | 'askName';
 
 /** A date range as `<input type="date">` speaks it: local yyyy-mm-dd. */
 export type DateRange = { from: string; to: string };
@@ -266,6 +268,14 @@ export type VaultData = {
   askOff?: true;
   /** Girovo Next: the sheet that explains asking was seen once. */
   askIntroSeen?: true;
+  /** Girovo AI's tone (lib/ask-style.ts); left out while it is the default, friendly. Synced. */
+  askTone?: AskTone;
+  /** Girovo AI's length; left out while it is the default, short. Synced. */
+  askLength?: AskLength;
+  /** The first name Girovo AI calls the user by, typed in Einstellungen; else the bank's holder name is used. Synced. */
+  askName?: string;
+  /** Girovo AI calls the user by no name. Synced. */
+  askNameOff?: true;
   /** Girovo Next on the desktop: "Namen mit Girovo AI aufräumen" switched on. This device's own, never synced. */
   aiNamesOn?: true;
   /** Girovo AI's cleaned counterparty names (lib/ai-names-store.ts), kept while switched off. This device's own, never synced. */

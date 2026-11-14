@@ -14,8 +14,9 @@ import type { Locale } from '@/lib/i18n/locale';
 import { useFints } from '../FintsProvider';
 import {
   ArchiveIcon, BellIcon, BoltIcon, CalendarIcon, ChartIcon, ClockIcon, FileIcon, GlobeIcon, ImageIcon, LockIcon, MoonIcon,
-  RefreshIcon, ShieldIcon, SplitIcon, TagIcon, WalletIcon,
+  NoteIcon, ExpandIcon, UserIcon, RefreshIcon, ShieldIcon, SplitIcon, TagIcon, WalletIcon,
 } from '../icons';
+import { useAskPage } from './AskSettings';
 import { useUsageConsent } from '../telemetry/usage';
 import { useUpdates } from '../updates/store';
 
@@ -51,6 +52,8 @@ export function useSettingFinds(): SettingFind[] {
   const { state: update } = useUpdates();
   const logos = !!meta?.merchantLogos;
   const publisher = typeof window !== 'undefined' && !!window.electronPublisherCert;
+  // Girovo AI's answer style, where its page is shown.
+  const askPage = useAskPage();
   const fromFile = update?.kind === 'nsis' && typeof window !== 'undefined' && !!window.electronUpdater?.chooseFile;
   return useMemo(() => {
     const s = (target: SettingsTarget, words: WordsId, name: (m: Messages) => string, icon: SettingFind['icon']): SettingFind =>
@@ -66,6 +69,9 @@ export function useSettingFinds(): SettingFind[] {
       logos && s('logos', 'logos', (m) => m.session.logos, (p) => <ImageIcon {...p} />),
       !!usage && s('usage', 'usage', (m) => m.session.usage, (p) => <ChartIcon {...p} />),
       s('device', 'device', (m) => m.settings.find.device, (p) => <ShieldIcon {...p} />),
+      askPage && s('askTone', 'askTone', (m) => `${m.settings.ask.title}: ${m.settings.ask.style.tone}`, (p) => <NoteIcon {...p} />),
+      askPage && s('askLength', 'askLength', (m) => `${m.settings.ask.title}: ${m.settings.ask.style.length}`, (p) => <ExpandIcon {...p} />),
+      askPage && s('askName', 'askName', (m) => m.settings.ask.style.useName, (p) => <UserIcon {...p} />),
       // Windows desktop only, as on the page (components/settings/PublisherCert.tsx).
       publisher && s('publisher', 'publisher', (m) => m.settings.publisherCert.row, (p) => <ShieldIcon check {...p} />),
       (ready || vaultStatus === 'error') && s('data', 'data', (m) => m.session.vault, (p) => <LockIcon {...p} />),
@@ -80,5 +86,5 @@ export function useSettingFinds(): SettingFind[] {
       fromFile && s('fromFile', 'fromFile', (m) => m.settings.fromFile.title, (p) => <FileIcon {...p} />),
     ];
     return list.filter((x): x is SettingFind => !!x);
-  }, [logos, usage, vaultStatus, backgroundChecks, update, fromFile, publisher]);
+  }, [logos, usage, vaultStatus, backgroundChecks, update, fromFile, publisher, askPage]);
 }

@@ -31,6 +31,7 @@ import { useModelReady } from '../insights/ask-gate';
 import { useGemma } from '../insights/gemma';
 import { Button, Progress } from '../ui';
 import { MainSwitch, SettingItem, SettingsGroup } from './rows';
+import { AskStyleGroup } from './AskStyle';
 
 const noSubscription = () => () => {};
 
@@ -122,6 +123,9 @@ export function AskPage() {
           </p>
         </div>
       </section>
+
+      {/* How Girovo AI answers: tone, length, the first name, and an example (components/settings/AskStyle.tsx). */}
+      <AskStyleGroup />
 
       <SettingsGroup title={words.group}>
         <ModelRow />

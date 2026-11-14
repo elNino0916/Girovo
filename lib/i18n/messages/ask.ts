@@ -4,6 +4,12 @@
 
 import type { ReactNode } from 'react';
 
+/** The count of bookings after an answer's figure (Länge: Ausführlich), or the sentence's end. */
+const tailDe = (count: ReactNode | null, n: number): ReactNode[] => (count === null ? ['.'] : [', bei ', count, n === 1 ? ' Umsatz.' : ' Umsätzen.']);
+const plainTailDe = (count: ReactNode | null, n: number): ReactNode[] => (count === null ? ['.'] : [', ', count, n === 1 ? ' Umsatz.' : ' Umsätze.']);
+const tailEn = (count: ReactNode | null, n: number): ReactNode[] => (count === null ? ['.'] : [' across ', count, n === 1 ? ' transaction.' : ' transactions.']);
+const plainTailEn = (count: ReactNode | null, n: number): ReactNode[] => (count === null ? ['.'] : [', ', count, n === 1 ? ' transaction.' : ' transactions.']);
+
 export const de = {
   title: 'Girovo AI',
   placeholder: 'Wie viel ging an Amazon?',
@@ -96,6 +102,8 @@ export const de = {
     followUp: 'Weiter fragen',
     send: 'Fragen',
     empty: 'Frag etwas zu deinen Umsätzen. Girovo antwortet in ganzen Sätzen.',
+    /** The empty conversation with the user's first name (Einstellungen → Girovo AI → Anrede). */
+    emptyNamed: (name: string) => `Hallo ${name}, was möchtest du wissen? Girovo antwortet in ganzen Sätzen.`,
     you: 'Du:',
     girovo: 'Girovo:',
     /** Under every answer of Girovo AI, small. */
@@ -134,24 +142,47 @@ export const de = {
         today: 'Heute',
         range: (range: string) => `Im Zeitraum ${range}`,
       },
-      outCategory: (when: string | null, topic: ReactNode, amount: ReactNode, count: ReactNode, n: number): ReactNode[] => (when
-        ? [when, ' hast du für ', topic, ' ', amount, ' ausgegeben, bei ', count, n === 1 ? ' Umsatz.' : ' Umsätzen.']
-        : ['Für ', topic, ' hast du ', amount, ' ausgegeben, bei ', count, n === 1 ? ' Umsatz.' : ' Umsätzen.']),
-      outName: (when: string | null, topic: ReactNode, amount: ReactNode, count: ReactNode, n: number): ReactNode[] => (when
-        ? [when, ' hast du bei ', topic, ' ', amount, ' ausgegeben, bei ', count, n === 1 ? ' Umsatz.' : ' Umsätzen.']
-        : ['Bei ', topic, ' hast du ', amount, ' ausgegeben, bei ', count, n === 1 ? ' Umsatz.' : ' Umsätzen.']),
-      out: (when: string | null, amount: ReactNode, count: ReactNode, n: number): ReactNode[] => (when
-        ? [when, ' hast du ', amount, ' ausgegeben, bei ', count, n === 1 ? ' Umsatz.' : ' Umsätzen.']
-        : ['Du hast ', amount, ' ausgegeben, bei ', count, n === 1 ? ' Umsatz.' : ' Umsätzen.']),
-      inCategory: (when: string | null, topic: ReactNode, amount: ReactNode, count: ReactNode, n: number): ReactNode[] => (when
-        ? [when, ' hast du als ', topic, ' ', amount, ' bekommen, bei ', count, n === 1 ? ' Umsatz.' : ' Umsätzen.']
-        : ['Als ', topic, ' hast du ', amount, ' bekommen, bei ', count, n === 1 ? ' Umsatz.' : ' Umsätzen.']),
-      inName: (when: string | null, topic: ReactNode, amount: ReactNode, count: ReactNode, n: number): ReactNode[] => (when
-        ? [when, ' hast du von ', topic, ' ', amount, ' bekommen, bei ', count, n === 1 ? ' Umsatz.' : ' Umsätzen.']
-        : ['Von ', topic, ' hast du ', amount, ' bekommen, bei ', count, n === 1 ? ' Umsatz.' : ' Umsätzen.']),
-      in: (when: string | null, amount: ReactNode, count: ReactNode, n: number): ReactNode[] => (when
-        ? [when, ' hast du ', amount, ' bekommen, bei ', count, n === 1 ? ' Umsatz.' : ' Umsätzen.']
-        : ['Du hast ', amount, ' bekommen, bei ', count, n === 1 ? ' Umsatz.' : ' Umsätzen.']),
+      // The count after the figure only in a long answer (Länge: Ausführlich); null ends the sentence there.
+      outCategory: (when: string | null, topic: ReactNode, amount: ReactNode, count: ReactNode | null, n: number): ReactNode[] => (when
+        ? [when, ' hast du für ', topic, ' ', amount, ' ausgegeben', ...tailDe(count, n)]
+        : ['Für ', topic, ' hast du ', amount, ' ausgegeben', ...tailDe(count, n)]),
+      outName: (when: string | null, topic: ReactNode, amount: ReactNode, count: ReactNode | null, n: number): ReactNode[] => (when
+        ? [when, ' hast du bei ', topic, ' ', amount, ' ausgegeben', ...tailDe(count, n)]
+        : ['Bei ', topic, ' hast du ', amount, ' ausgegeben', ...tailDe(count, n)]),
+      out: (when: string | null, amount: ReactNode, count: ReactNode | null, n: number): ReactNode[] => (when
+        ? [when, ' hast du ', amount, ' ausgegeben', ...tailDe(count, n)]
+        : ['Du hast ', amount, ' ausgegeben', ...tailDe(count, n)]),
+      inCategory: (when: string | null, topic: ReactNode, amount: ReactNode, count: ReactNode | null, n: number): ReactNode[] => (when
+        ? [when, ' hast du als ', topic, ' ', amount, ' bekommen', ...tailDe(count, n)]
+        : ['Als ', topic, ' hast du ', amount, ' bekommen', ...tailDe(count, n)]),
+      inName: (when: string | null, topic: ReactNode, amount: ReactNode, count: ReactNode | null, n: number): ReactNode[] => (when
+        ? [when, ' hast du von ', topic, ' ', amount, ' bekommen', ...tailDe(count, n)]
+        : ['Von ', topic, ' hast du ', amount, ' bekommen', ...tailDe(count, n)]),
+      in: (when: string | null, amount: ReactNode, count: ReactNode | null, n: number): ReactNode[] => (when
+        ? [when, ' hast du ', amount, ' bekommen', ...tailDe(count, n)]
+        : ['Du hast ', amount, ' bekommen', ...tailDe(count, n)]),
+      /** Ton: Sachlich. The same facts as short lines: "Im Oktober: 312,40 € an Rewe." */
+      plain: {
+        outCategory: (when: string | null, topic: ReactNode, amount: ReactNode, count: ReactNode | null, n: number): ReactNode[] => [when ? `${when}: ` : '', amount, ' für ', topic, ...plainTailDe(count, n)],
+        outName: (when: string | null, topic: ReactNode, amount: ReactNode, count: ReactNode | null, n: number): ReactNode[] => [when ? `${when}: ` : '', amount, ' an ', topic, ...plainTailDe(count, n)],
+        out: (when: string | null, amount: ReactNode, count: ReactNode | null, n: number): ReactNode[] => [when ? `${when}: ` : '', amount, ' ausgegeben', ...plainTailDe(count, n)],
+        inCategory: (when: string | null, topic: ReactNode, amount: ReactNode, count: ReactNode | null, n: number): ReactNode[] => [when ? `${when}: ` : '', amount, ' als ', topic, ...plainTailDe(count, n)],
+        inName: (when: string | null, topic: ReactNode, amount: ReactNode, count: ReactNode | null, n: number): ReactNode[] => [when ? `${when}: ` : '', amount, ' von ', topic, ...plainTailDe(count, n)],
+        in: (when: string | null, amount: ReactNode, count: ReactNode | null, n: number): ReactNode[] => [when ? `${when}: ` : '', amount, ' bekommen', ...plainTailDe(count, n)],
+      },
+      /** Länge: Ausführlich. The month before, against the answer's figure. */
+      before: {
+        friendly: (month: string, diff: ReactNode | null, more: boolean): ReactNode[] => (diff
+          ? ['Das sind ', diff, more ? ' mehr' : ' weniger', ' als im ', month, '.']
+          : ['Genauso viel wie im ', month, '.']),
+        plain: (month: string, amount: ReactNode): ReactNode[] => ['Im ', month, ': ', amount, '.'],
+      },
+      /** Länge: Ausführlich. The largest booking among those counted. */
+      top: {
+        friendlyOut: (name: string, amount: ReactNode, day: string): ReactNode[] => ['Der größte Betrag waren ', amount, ' bei ', name, ' am ', day, '.'],
+        friendlyIn: (name: string, amount: ReactNode, day: string): ReactNode[] => ['Der größte Eingang waren ', amount, ' von ', name, ' am ', day, '.'],
+        plain: (name: string, amount: ReactNode, day: string): ReactNode[] => ['Größter Umsatz: ', amount, ', ', name, ', ', day, '.'],
+      },
       both: (when: string | null, out: ReactNode, inn: ReactNode): ReactNode[] => (when
         ? [when, ' hast du ', out, ' ausgegeben und ', inn, ' bekommen.']
         : ['Ausgegeben hast du ', out, ', bekommen ', inn, '.']),
@@ -181,6 +212,8 @@ export const de = {
     /** The name is Girovo AI's wordmark (components/shell/BrandMark.tsx). */
     title: (name: ReactNode): ReactNode[] => [name, ' ist bereit'],
     lead: 'Frag etwas zu deinen Umsätzen. Jeden Betrag rechnet Girovo selbst aus.',
+    /** The lead with the user's first name. */
+    leadNamed: (name: string) => `Hallo ${name}. Frag etwas zu deinen Umsätzen. Jeden Betrag rechnet Girovo selbst aus.`,
     examples: 'Zum Beispiel',
     fine: 'Girovo AI kann Fehler machen.',
     ask: 'Selbst fragen',
@@ -648,6 +681,7 @@ export const en: typeof de = {
     followUp: 'Ask a follow-up',
     send: 'Ask',
     empty: 'Ask something about your transactions. Girovo answers in full sentences.',
+    emptyNamed: (name) => `Hi ${name}, what would you like to know? Girovo answers in full sentences.`,
     you: 'You:',
     girovo: 'Girovo:',
     mistakes: 'Girovo AI can make mistakes.',
@@ -680,12 +714,29 @@ export const en: typeof de = {
         today: 'Today',
         range: (range) => `Between ${range}`,
       },
-      outCategory: (when, topic, amount, count, n) => [when ? `${when}, you` : 'You', ' spent ', amount, ' on ', topic, ' across ', count, n === 1 ? ' transaction.' : ' transactions.'],
-      outName: (when, topic, amount, count, n) => [when ? `${when}, you` : 'You', ' spent ', amount, ' at ', topic, ' across ', count, n === 1 ? ' transaction.' : ' transactions.'],
-      out: (when, amount, count, n) => [when ? `${when}, you` : 'You', ' spent ', amount, ' across ', count, n === 1 ? ' transaction.' : ' transactions.'],
-      inCategory: (when, topic, amount, count, n) => [when ? `${when}, you` : 'You', ' received ', amount, ' as ', topic, ' across ', count, n === 1 ? ' transaction.' : ' transactions.'],
-      inName: (when, topic, amount, count, n) => [when ? `${when}, you` : 'You', ' received ', amount, ' from ', topic, ' across ', count, n === 1 ? ' transaction.' : ' transactions.'],
-      in: (when, amount, count, n) => [when ? `${when}, you` : 'You', ' received ', amount, ' across ', count, n === 1 ? ' transaction.' : ' transactions.'],
+      outCategory: (when, topic, amount, count, n) => [when ? `${when}, you` : 'You', ' spent ', amount, ' on ', topic, ...tailEn(count, n)],
+      outName: (when, topic, amount, count, n) => [when ? `${when}, you` : 'You', ' spent ', amount, ' at ', topic, ...tailEn(count, n)],
+      out: (when, amount, count, n) => [when ? `${when}, you` : 'You', ' spent ', amount, ...tailEn(count, n)],
+      inCategory: (when, topic, amount, count, n) => [when ? `${when}, you` : 'You', ' received ', amount, ' as ', topic, ...tailEn(count, n)],
+      inName: (when, topic, amount, count, n) => [when ? `${when}, you` : 'You', ' received ', amount, ' from ', topic, ...tailEn(count, n)],
+      in: (when, amount, count, n) => [when ? `${when}, you` : 'You', ' received ', amount, ...tailEn(count, n)],
+      plain: {
+        outCategory: (when, topic, amount, count, n) => [when ? `${when}: ` : '', amount, ' on ', topic, ...plainTailEn(count, n)],
+        outName: (when, topic, amount, count, n) => [when ? `${when}: ` : '', amount, ' at ', topic, ...plainTailEn(count, n)],
+        out: (when, amount, count, n) => [when ? `${when}: ` : '', amount, ' spent', ...plainTailEn(count, n)],
+        inCategory: (when, topic, amount, count, n) => [when ? `${when}: ` : '', amount, ' as ', topic, ...plainTailEn(count, n)],
+        inName: (when, topic, amount, count, n) => [when ? `${when}: ` : '', amount, ' from ', topic, ...plainTailEn(count, n)],
+        in: (when, amount, count, n) => [when ? `${when}: ` : '', amount, ' received', ...plainTailEn(count, n)],
+      },
+      before: {
+        friendly: (month, diff, more) => (diff ? ['That is ', diff, more ? ' more' : ' less', ' than in ', month, '.'] : ['The same as in ', month, '.']),
+        plain: (month, amount) => ['In ', month, ': ', amount, '.'],
+      },
+      top: {
+        friendlyOut: (name, amount, day) => ['The largest single payment was ', amount, ' at ', name, ' on ', day, '.'],
+        friendlyIn: (name, amount, day) => ['The largest payment in was ', amount, ' from ', name, ' on ', day, '.'],
+        plain: (name, amount, day) => ['Largest transaction: ', amount, ', ', name, ', ', day, '.'],
+      },
       both: (when, out, inn) => [when ? `${when}, you` : 'You', ' spent ', out, ' and received ', inn, '.'],
       count: (when, count, amount, topic) => (topic
         ? [when ? `${when}, at ` : 'At ', topic, ' it was ', count, ', ', amount, ' in total.']
@@ -705,6 +756,7 @@ export const en: typeof de = {
   welcome: {
     title: (name) => [name, ' is ready'],
     lead: 'Ask something about your transactions. Girovo works out every amount itself.',
+    leadNamed: (name) => `Hi ${name}. Ask something about your transactions. Girovo works out every amount itself.`,
     examples: 'For example',
     fine: 'Girovo AI can make mistakes.',
     ask: 'Ask a question',

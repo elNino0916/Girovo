@@ -44,7 +44,7 @@ export const TOMBSTONE_MS = 3 * 365 * 86_400_000;
 
 type MapField = 'aliases' | 'categoryRules' | 'txCategories' | 'splits' | 'budgets' | 'notes' | 'keptBalances' | 'contractReminders' | 'contractNames' | 'manualContracts' | 'manualDays';
 const MAPS: readonly MapField[] = ['aliases', 'categoryRules', 'txCategories', 'splits', 'budgets', 'notes', 'keptBalances', 'contractReminders', 'contractNames', 'manualContracts', 'manualDays'];
-const SCALARS = ['avatar', 'avatarImage', 'accountGrouping', 'accountOrder'] as const;
+const SCALARS = ['avatar', 'avatarImage', 'accountGrouping', 'accountOrder', 'askTone', 'askLength', 'askName', 'askNameOff'] as const;
 
 /** How each list's members are told apart. */
 const LISTS = {
@@ -153,6 +153,11 @@ export function vaultFromEntries(entries: ReadonlyMap<string, unknown>, base: Va
   if (lists.splitRequests.length) out.splitRequests = ordered('splitRequests', lists.splitRequests as NonNullable<VaultData['splitRequests']>);
   if (scalars.accountOrder !== undefined) out.accountOrder = scalars.accountOrder as string[];
   if (scalars.accountGrouping !== undefined) out.accountGrouping = scalars.accountGrouping as VaultData['accountGrouping'];
+  // Girovo AI's answer style follows the user to every device.
+  if (scalars.askTone !== undefined) out.askTone = scalars.askTone as VaultData['askTone'];
+  if (scalars.askLength !== undefined) out.askLength = scalars.askLength as VaultData['askLength'];
+  if (scalars.askName !== undefined) out.askName = scalars.askName as string;
+  if (scalars.askNameOff !== undefined) out.askNameOff = true;
   if (base.keepBalances === false) {
     out.keepBalances = false;
   } else {

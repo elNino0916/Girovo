@@ -19,12 +19,21 @@
 // repo, C:\Users\ninob\girovo-llm-eval): 24 of 24 answers passed the number
 // guard on Gemma 4 E2B.
 //
+// Girovo AI's answer style (lib/ask-style.ts) adds the friendly tone and the
+// length to the instructions; a long answer's facts carry last month's figure
+// and the largest booking; a first answer may open with the user's first name.
+// The guard holds the length (sentences) and the name (once, at the start).
+// The plain tone is never written by Gemma: E2B drifted back to "hast du …"
+// and passed the guard less often (scripts/eval-fragen/run-writer-style.mjs,
+// 2026-11-15), so the ready-made plain lines say it.
+//
 // Pure: no path aliases, `.ts` on sibling imports.
 
 import { bookingDay } from './analytics.ts';
 import type { AskAnswer, AskQuery } from './nano-ask.ts';
 import type { CategoryId } from './categories.ts';
 import type { SerializedTransaction } from './fints-types.ts';
+import type { AnswerDetails, AskLength, AskTone } from './ask-style.ts';
 
 export type WriterLang = 'de' | 'en';
 
@@ -77,6 +86,8 @@ const W = {
     partial: (d: string) => `Hinweis: Umsätze sind erst ab dem ${d} geladen, es kann mehr gewesen sein.`,
     outside: 'Für diesen Zeitraum sind keine Umsätze geladen.',
     none: (a: string, b: string) => `Keine passenden Umsätze unter den geladenen Umsätzen (${a} bis ${b}).`, to: 'bis',
+    before: (month: string) => `Im Monat davor (${month})`, topOut: 'Größte Ausgabe darunter', topIn: 'Größter Eingang darunter',
+    address: (name: string) => `Anrede: Fang die Antwort mit „${name}, “ an. Den Namen sonst nicht nennen.`,
   },
   en: {
     q: 'Question', facts: 'Facts (worked out by Girovo)', searched: 'What it is about', out: 'Spending', in: 'Income', all: 'Spending and income',
@@ -90,13 +101,36 @@ const W = {
     partial: (d: string) => `Note: transactions are only loaded from ${d}, so there may have been more.`,
     outside: 'No transactions are loaded for this period.',
     none: (a: string, b: string) => `No matching transactions among the loaded ones (${a} to ${b}).`, to: 'to',
+    before: (month: string) => `The month before (${month})`, topOut: 'Largest expense among them', topIn: 'Largest payment in among them',
+    address: (name: string) => `Address: start the answer with "${name}, ". Do not use the name anywhere else.`,
   },
 };
 // i18n-data-end
 
-/** The writer's instructions, in the app's language (a question's own language is only a guess). */
-export function writerSystem(lang: WriterLang): string {
-  return lang === 'en' ? WRITER_EN : WRITER_DE;
+// i18n-data-start — the style's lines, as Gemma reads them
+const STYLE = {
+  de: {
+    friendly: 'Für diese Antwort: Klingt freundlich und warm, wie jemand, der dir gern hilft. Trotzdem kurz und genau, keine Ausrufezeichen, keine Emojis.',
+    short: 'Genau ein Satz.',
+    long: 'Zwei bis drei kurze Sätze. Steht in den Fakten der Monat davor oder die größte Ausgabe, nenn sie auch.',
+  },
+  en: {
+    friendly: 'For this answer: sound friendly and warm, like someone who is glad to help. Still short and exact, no exclamation marks, no emojis.',
+    short: 'Exactly one sentence.',
+    long: 'Two or three short sentences. If the facts have the month before or the largest expense, mention them too.',
+  },
+};
+// i18n-data-end
+
+/** Whether Gemma writes an answer in this tone: only the friendly one (the plain lines are the app's own). */
+export const writesTone = (tone: AskTone) => tone === 'friendly';
+
+/** The writer's instructions, in the app's language (a question's own language is only a guess), with the answer's length. */
+export function writerSystem(lang: WriterLang, style?: { length: AskLength }): string {
+  const base = lang === 'en' ? WRITER_EN : WRITER_DE;
+  if (!style) return base;
+  const s = STYLE[lang];
+  return `${base}\n${s.friendly} ${s[style.length]}`;
 }
 
 const LOCALE: Record<WriterLang, string> = { de: 'de-DE', en: 'en-GB' };
@@ -170,12 +204,23 @@ export type WriterInput = {
   name?: string;
   /** kind 'average': said per year (the facts hold a year's figure), else per month. */
   per?: 'month' | 'year';
+  /** The first name the answer may open with ("Nino, im Oktober …"): only there, only once. */
+  address?: string;
+  /** How many sentences the answer may have, at most (Länge). */
+  sentences?: number;
+};
+
+/** What the answer style adds to one answer's facts (lib/ask-style.ts). */
+export type WriterExtra = {
+  details?: AnswerDetails | null;
+  address?: string | null;
+  length?: AskLength;
 };
 
 /** A name from a booking, as data: one line, no longer than a name needs. */
 const asData = (name: string) => name.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
 
-export function writerInput(question: string, a: AskAnswer, c: FactsContext): WriterInput {
+export function writerInput(question: string, a: AskAnswer, c: FactsContext, extra: WriterExtra = {}): WriterInput {
   const w = W[c.lang];
   const numbers: FactNumbers = { amounts: new Set(), counts: new Set(), days: new Set(), years: new Set() };
   const money = (cents: number) => {
@@ -274,12 +319,59 @@ export function writerInput(question: string, a: AskAnswer, c: FactsContext): Wr
       lines.push(`${w.count}: ${count(a.count)}`);
     }
     if (a.partial) lines.push(w.partial(day(a.from)));
+    // A long answer's details: last month's figure against this one, and the largest booking counted.
+    const d = extra.details;
+    if (d?.before) {
+      const [y, m] = d.before.month.split('-').map(Number);
+      numbers.years.add(y);
+      const month = new Intl.DateTimeFormat(LOCALE[c.lang], { month: 'long', year: 'numeric' }).format(new Date(y, m - 1, 1));
+      const diff = a.cents - d.before.cents;
+      lines.push(`${w.before(month)}: ${money(d.before.cents)}`);
+      lines.push(`${w.diff}: ${diff === 0 ? w.same : `${money(Math.abs(diff))} ${diff > 0 ? w.more : w.less}`}`);
+    }
+    if (d?.top) {
+      const tx = d.top;
+      lines.push(`${tx.amount > 0 ? w.topIn : w.topOut}: ${asData(c.payeeOf(tx))}, ${money(Math.abs(Math.round(tx.amount * 100)))}, ${w.on} ${day(bookingDay(tx))}`);
+    }
   }
+  const address = extra.address ? asData(extra.address) : undefined;
+  if (address) lines.push(w.address(address));
   const prompt = [`${w.q}: ${question.trim()}`, `${w.facts}:`, ...lines.map((l) => `- ${l}`)].join('\n');
+  // Short: one sentence, and one more for a note the facts carry; long: up to three, and the note.
+  const note = a.partial || (a.compare && (a.compare.b.partial || a.compare.a.outside || a.compare.b.outside)) ? 1 : 0;
+  const sentences = extra.length ? (extra.length === 'long' ? 3 : 1) + note : undefined;
   return {
     prompt, numbers, lang: c.lang, kind: q.kind, name: q.search && q.dir !== 'all' ? asData(q.search) : undefined,
     ...(q.kind === 'average' && a.year ? { per: 'year' as const } : {}),
+    ...(address ? { address } : {}),
+    ...(sentences ? { sentences } : {}),
   };
+}
+
+/**
+ * How many sentences a text has: each full stop, question or exclamation mark
+ * before a space or the end, except a day's ("am 12. Oktober"); an amount's
+ * end ("€312.40. That …") is a sentence's end. A last sentence without its
+ * mark counts too.
+ */
+export function sentenceCount(text: string): number {
+  const t = text.trim();
+  if (!/\p{L}/u.test(t)) return 0;
+  let n = 0;
+  for (const m of t.matchAll(/[.!?](?=\s|$)/g)) {
+    const i = m.index ?? 0;
+    if (/(?<![\d.,])\d{1,2}$/.test(t.slice(0, i)) && MONTH.test(t.slice(i + 1).trimStart())) continue;
+    n++;
+  }
+  return /[.!?]$/.test(t) ? n : n + 1;
+}
+
+/** The address is said once, at the very start, or not at all; never a name the facts did not offer. */
+function addressOk(s: string, address: string | undefined): boolean {
+  if (!address) return true;
+  const n = address.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const all = [...s.matchAll(new RegExp(`(?<![\\p{L}\\p{N}])${n}(?![\\p{L}\\p{N}])`, 'gu'))];
+  return all.length === 0 || (all.length === 1 && all[0].index === 0);
 }
 
 // i18n-data-start — words a sentence must not use: a number or a currency said in words, a percentage
@@ -396,6 +488,11 @@ export function usable(sentence: string | null, input: WriterInput): sentence is
   if (!s || s.length > 400) return false;
   // The owner's rule for the interface: no dashes (the prompt asks; the guard makes sure).
   if (/[–—]|\s-\s/.test(s)) return false;
+  // Friendly is no shouting: no exclamation mark, no emoji.
+  if (/!|\p{Extended_Pictographic}/u.test(s)) return false;
+  // The length chosen (Länge), and the name once, at the start.
+  if (input.sentences && sentenceCount(s) > input.sentences) return false;
+  if (!addressOk(s, input.address)) return false;
   if (SPELLED.test(s) || CONTACT.test(s.replace(AMOUNT[input.lang], ''))) return false;
   // An average must say it is one: "Du hast 12,99 € für Netflix ausgegeben" reads as the total.
   if (input.kind === 'average' && !(input.per === 'year' ? PER_YEAR : PER_MONTH).test(s)) return false;

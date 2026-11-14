@@ -8,6 +8,7 @@ import {
   type DateRange, EMPTY_VAULT, type InboxMessage, type StatementInfo, type TransferTemplate, type VaultData,
 } from '@/lib/app-types';
 import { isGrouping, sanitizeAccountOrder } from '@/lib/account-overview';
+import { cleanAskName, isAskLength, isAskTone } from '@/lib/ask-style-fields';
 import { isAvatarChoice, isAvatarImage, OWN_PICTURE } from '@/lib/avatars';
 import { sanitizeBudgets } from '@/lib/budgets';
 import { sanitizeContractNames, sanitizeNoticed, sanitizeReminders } from '@/lib/contract-watch';
@@ -737,6 +738,11 @@ export function normalizeVault(raw: VaultData | null | undefined): VaultData {
     // Girovo Next: asking switched off, and its sheet seen once.
     ...(raw.askOff === true ? { askOff: true as const } : {}),
     ...(raw.askIntroSeen === true ? { askIntroSeen: true as const } : {}),
+    // Girovo AI's answer style (lib/ask-style.ts): each only while it is not the default.
+    ...(isAskTone(raw.askTone) && raw.askTone !== 'friendly' ? { askTone: raw.askTone } : {}),
+    ...(isAskLength(raw.askLength) && raw.askLength !== 'short' ? { askLength: raw.askLength } : {}),
+    ...(cleanAskName(raw.askName) ? { askName: cleanAskName(raw.askName)! } : {}),
+    ...(raw.askNameOff === true ? { askNameOff: true as const } : {}),
     // Kept too, or a login would switch Girovo AI's names off and forget them.
     ...(raw.aiNamesOn === true ? { aiNamesOn: true as const } : {}),
     ...(sanitizeAiNames(raw.aiNames) ? { aiNames: sanitizeAiNames(raw.aiNames)! } : {}),

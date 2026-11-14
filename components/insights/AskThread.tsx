@@ -27,11 +27,13 @@ import { isAction } from '@/lib/ask-actions';
 import { isFact } from '@/lib/ask-facts';
 import { seriesTitle } from '@/lib/recurring';
 import { setThemePref } from '@/lib/theme';
-import { segments, usable, writerInput, writerSystem, type WriterLang } from '@/lib/gemma-writer';
+import { segments, usable, writerInput, writerSystem, writesTone, type WriterLang } from '@/lib/gemma-writer';
+import { addressed, answerDetails, nameFits, type AnswerDetails, type AskStyle } from '@/lib/ask-style';
 import { bookingDay, periodTotals } from '@/lib/analytics';
 import { categoryLabel, counterpartyName, type CategoryId } from '@/lib/categories';
 import type { SerializedTransaction } from '@/lib/fints-types';
-import { dayKey, fmtDate, fmtMonth, fmtRange } from '@/lib/format';
+import { dayKey, fmtDate, fmtMonth, fmtRange, tidyName } from '@/lib/format';
+import { topPayee } from '@/lib/ai-welcome';
 import { LOCALE_NAMES, activeLocale, intlLocale } from '@/lib/i18n/locale';
 import { useLocale, useT } from '@/lib/i18n/react';
 import {
@@ -46,7 +48,7 @@ import { ArrowRightIcon, BackIcon, CloseIcon, AiMarkIcon, HistoryIcon, PlusIcon,
 import { AiWordmark } from '../shell/BrandMark';
 import { usePhone } from '../shell/usePhone';
 import { Button, IconButton, Menu, MenuItem, MenuSeparator, Overlay, cx } from '../ui';
-import { searchText, txText } from '../transactions/model';
+import { merchantFor, searchText, txText } from '../transactions/model';
 import { openTxDetail } from '../transactions/detail-host';
 import { useScopeData, type ScopeData } from './analysis-model';
 import { AskTile } from './Ask';
@@ -61,6 +63,7 @@ import {
   newConversation, openAskWithRecap, settleOutcome, settleTurn, settleWritten, showConversation, updateTurnQuery, useAskThread, type Turn,
 } from './ask-thread-store';
 import { ReadingChips } from './ask/ReadingChips';
+import { useAskStyle } from './ask/useAskStyle';
 import { gemmaPrompt, gemmaUsable, useGemma } from './gemma';
 import { useThemePref } from '../ThemeToggle';
 import { useRecurringModel } from './recurring-model';
@@ -259,7 +262,7 @@ function useOpenBooking() {
 }
 
 /** Girovo's answer to one question, said in sentences over the figures it computed. */
-function AnswerText({ answer, own, show, scopeAll, onShown, written }: {
+export function AnswerText({ answer, own, show, scopeAll, onShown, written, style, details = null, address = null, preview = false }: {
   answer: AskAnswer;
   own: Own;
   show: ReturnType<typeof useShowInList>;
@@ -267,6 +270,14 @@ function AnswerText({ answer, own, show, scopeAll, onShown, written }: {
   onShown: () => void;
   /** Gemma's sentences (passed the number guard); the template's when absent. */
   written?: string;
+  /** Girovo AI's answer style (lib/ask-style.ts): the tone picks the sentences, the length whether the count and the details are said. */
+  style: AskStyle;
+  /** A long answer's details: last month's figure and the largest booking. */
+  details?: AnswerDetails | null;
+  /** The first name the answer opens with, where it may. */
+  address?: string | null;
+  /** Einstellungen' example: the sentence alone, no button. */
+  preview?: boolean;
 }) {
   const t = useT();
   const words = t.ask;
@@ -346,13 +357,38 @@ function AnswerText({ answer, own, show, scopeAll, onShown, written }: {
     lines.push(say.both(when, money(answer.outCents), money(answer.inCents)));
   } else {
     if (q.kind === 'average') lines.push([words.noWholeMonth]);
+    // Ton: the friendly sentences or the plain lines; Länge: the count only in a long answer.
+    const s = style.tone === 'plain' ? say.plain : say;
+    const n = style.length === 'long' ? count(answer.count) : null;
     const make = q.dir === 'in'
-      ? (q.category ? say.inCategory : q.search ? say.inName : null)
-      : (q.category ? say.outCategory : q.search ? say.outName : null);
+      ? (q.category ? s.inCategory : q.search ? s.inName : null)
+      : (q.category ? s.outCategory : q.search ? s.outName : null);
     lines.push(make && topic
-      ? make(when, topic, money(answer.cents), count(answer.count), answer.count)
-      : (q.dir === 'in' ? say.in : say.out)(when, money(answer.cents), count(answer.count), answer.count));
+      ? make(when, topic, money(answer.cents), n, answer.count)
+      : (q.dir === 'in' ? s.in : s.out)(when, money(answer.cents), n, answer.count));
+    // A long answer: last month's figure, then the largest booking counted.
+    if (style.length === 'long' && details?.before) {
+      const month = fmtMonth(details.before.month);
+      const before = details.before;
+      const diff = answer.cents - before.cents;
+      lines.push(style.tone === 'plain'
+        ? say.before.plain(month, money(before.cents, before.filter, null, false))
+        : say.before.friendly(month, diff === 0 ? null : <Fig><Money value={Math.abs(diff) / 100} currency={currency} tone="plain" /></Fig>, diff > 0));
+    }
+    if (style.length === 'long' && details?.top) {
+      const tx = details.top;
+      const amount = (
+        <Fig onShow={() => { openBooking(tx); onShown(); }}>
+          <Money value={Math.abs(tx.amount)} currency={tx.currency || currency} tone="plain" />
+        </Fig>
+      );
+      const name = txText(tx).name || counterpartyName(tx);
+      const day = dayInWords(bookingDay(tx));
+      lines.push(style.tone === 'plain' ? say.top.plain(name, amount, day) : tx.amount > 0 ? say.top.friendlyIn(name, amount, day) : say.top.friendlyOut(name, amount, day));
+    }
   }
+  // The first answer of a conversation may open with the user's first name.
+  if (address && lines.length) lines[0] = addressed(lines[0], address);
   if (answer.partial) lines.push([words.partial(fmtDate(answer.from))]);
   if (aside > 0) lines.push([t.insights.analysis.foreignBookings(aside)]);
 
@@ -363,7 +399,7 @@ function AnswerText({ answer, own, show, scopeAll, onShown, written }: {
           : lines.map((parts, i) => <Fragment key={i}>{i > 0 && ' '}<Say parts={parts} /></Fragment>)}
       </p>
       {extra}
-      {answer.count > 0 && !answer.outside && q.kind !== 'rank' && q.kind !== 'compare' && (
+      {!preview && answer.count > 0 && !answer.outside && q.kind !== 'rank' && q.kind !== 'compare' && (
         <Button variant="secondary" size="sm" className="mt-3" onClick={() => open(answer.tx, answer.filter)}>
           {/* One booking answers "Größte Ausgabe" and "Zuletzt": the button names it as one. */}
           {words.thread.show((q.kind === 'largest' || q.kind === 'last') && answer.tx ? 1 : answer.count)}
@@ -432,26 +468,31 @@ const writing = new Set<string>();
  * its sentences on the turn when they pass the number guard (lib/gemma-writer.ts);
  * otherwise the template says it. Nothing happens without the shell's Gemma.
  */
-function useWriter(turn: Turn, answer: AskAnswer | null, ctx: AskCtx, own: Own, latest: boolean): { pending: boolean; text?: string } {
+function useWriter(
+  turn: Turn, answer: AskAnswer | null, ctx: AskCtx, own: Own, latest: boolean,
+  style: AskStyle, details: AnswerDetails | null, address: string | null,
+): { pending: boolean; text?: string } {
   const gemma = useGemma();
   const ready = gemmaUsable(gemma);
-  const key = answer ? answerKey(answer) : '';
+  // The style too: another tone, length or name is written again.
+  const key = answer ? `${answerKey(answer)}|${style.tone}|${style.length}|${address ?? ''}|${details?.before?.cents ?? ''}|${details?.top ? `${details.top.amount}@${bookingDay(details.top)}` : ''}` : '';
   const current = turn.writtenFor === key;
   useEffect(() => {
     // Only the newest turn is written: older ones keep what they had, so a new question never waits behind them.
-    if (!ready || !answer || turn.seed || turn.edited || answer.query.kind === 'list' || !turn.question || current || !latest) return;
+    // The plain tone is the app's own lines, never Gemma's (lib/gemma-writer.ts).
+    if (!ready || !answer || turn.seed || turn.edited || answer.query.kind === 'list' || !turn.question || current || !latest || !writesTone(style.tone)) return;
     const job = `${turn.id}:${key}`;
     if (writing.has(job)) return;
     writing.add(job);
     const lang = writerLang();
     const nameOf = (id: CategoryId) => own.find((c) => c.id === id)?.name ?? categoryLabel(id);
-    const input = writerInput(turn.question, answer, { lang, nameOf, payeeOf: (tx) => ctx.payeeOf?.(tx) || counterpartyName(tx) });
-    void gemmaPrompt(writerSystem(lang), input.prompt, 160)
+    const input = writerInput(turn.question, answer, { lang, nameOf, payeeOf: (tx) => ctx.payeeOf?.(tx) || counterpartyName(tx) }, { details, address, length: style.length });
+    void gemmaPrompt(writerSystem(lang, style), input.prompt, style.length === 'long' ? 220 : 160)
       .then((text) => settleWritten(turn.id, usable(text, input) ? text.trim() : false, key))
       .finally(() => writing.delete(job));
-  }, [ready, answer, turn.id, turn.question, turn.seed, turn.edited, key, current, ctx, own, latest]);
+  }, [ready, answer, turn.id, turn.question, turn.seed, turn.edited, key, current, ctx, own, latest, style, details, address]);
   // A reading changed by a chip is said by the template: Gemma's sentences were about the question as asked.
-  if (!ready || !answer || turn.seed || turn.edited || answer.query.kind === 'list') return { pending: false };
+  if (!ready || !answer || turn.seed || turn.edited || answer.query.kind === 'list' || !writesTone(style.tone)) return { pending: false };
   if (!current) return { pending: latest };
   return { pending: false, text: turn.written || undefined };
 }
@@ -688,10 +729,12 @@ function Mistakes() {
   return <p className="mt-2 text-[12px] leading-4 text-ink-2">{useT().ask.thread.mistakes}</p>;
 }
 
-function TurnView({ turn, data, ctx, own, onShown, latest }: {
+function TurnView({ turn, data, ctx, own, onShown, latest, first }: {
   turn: Turn;
   /** The conversation's newest turn: the one Gemma writes. */
   latest: boolean;
+  /** The conversation's first question: its answer may open with the user's first name. */
+  first: boolean;
   data: ScopeData | null;
   ctx: AskCtx;
   own: Own;
@@ -704,7 +747,21 @@ function TurnView({ turn, data, ctx, own, onShown, latest }: {
     [turn.query, data, ctx],
   );
   const recap = useRecap(data, ctx, turn.seed?.month ?? null);
-  const writer = useWriter(turn, turn.state === 'answered' ? answer : null, ctx, own, latest);
+  const style = useAskStyle();
+  // A long answer's details, worked out exactly as the answer was.
+  const details = useMemo(() => {
+    if (style.length !== 'long' || !answer || !data) return null;
+    const today = dayKey(new Date());
+    return answerDetails(answer, (q) => computeAnswer(q, data.txs, ctx, { from: data.from, to: data.to }, today), today);
+  }, [style.length, answer, data, ctx]);
+  // The name only at the start of the first answer, and never beside the same name in what it is about.
+  const address = useMemo(() => {
+    if (!first || !style.name || !answer) return null;
+    const payee = (tx: SerializedTransaction | null | undefined) => (tx ? `${txText(tx).name} ${counterpartyName(tx)}` : '');
+    const about = [turn.question, answer.query.search, payee(answer.tx), payee(details?.top), ...(answer.rank ?? []).slice(0, 5).map((r) => r.name ?? '')].join(' ');
+    return nameFits(style.name, about) ? style.name : null;
+  }, [first, style.name, answer, details, turn.question]);
+  const writer = useWriter(turn, turn.state === 'answered' ? answer : null, ctx, own, latest, style, details, address);
   return (
     <li className="flex flex-col gap-3">
       {turn.question && (
@@ -722,7 +779,7 @@ function TurnView({ turn, data, ctx, own, onShown, latest }: {
         {turn.state === 'answered' && turn.intent && <IntentAnswer turn={turn} intent={turn.intent} onShown={onShown} />}
         {turn.state === 'answered' && turn.explain && <ExplainAnswer turn={turn} onShown={onShown} />}
         {turn.state === 'answered' && !turn.seed && !turn.intent && !turn.explain && (answer
-          ? <AnswerText answer={answer} own={own} show={show} scopeAll={data?.scope === 'all'} onShown={onShown} written={writer.text} />
+          ? <AnswerText answer={answer} own={own} show={show} scopeAll={data?.scope === 'all'} onShown={onShown} written={writer.text} style={style} details={details} address={address} />
           : <p className="text-[16px] leading-6 sm:text-[14px]">{words.thread.notLoaded}</p>)}
         {turn.state === 'answered' && !turn.seed && !turn.intent && answer && data && (
           <ReadingChips query={answer.query} loaded={data} own={own} onChange={(query) => updateTurnQuery(turn.id, query)} />
@@ -767,6 +824,9 @@ function Thread({ face, onClose }: { face: 'screen' | 'panel'; onClose: () => vo
   const last = [...turns].reverse().find((x) => x.query)?.query ?? null;
   const next = useNextQuestions(last);
   const busy = turns.some((x) => x.state === 'reading');
+  // The empty conversation greets by first name; the first question's answer may open with it.
+  const style = useAskStyle();
+  const firstAsked = turns.findIndex((x) => !!x.question && !x.seed);
 
   useEffect(() => {
     const el = listRef.current;
@@ -843,11 +903,11 @@ function Thread({ face, onClose }: { face: 'screen' | 'panel'; onClose: () => vo
         {turns.length === 0 ? (
           <>
           <AskNotes data={data} ctx={ctx} own={own} month={thisMonth()} tile onShown={onShown} />
-          <p className="mt-6 max-w-[34ch] text-[16px] leading-6 text-ink-2 sm:text-[14px] sm:leading-5">{words.empty}</p>
+          <p className="mt-6 max-w-[34ch] text-[16px] leading-6 text-ink-2 sm:text-[14px] sm:leading-5">{style.name ? words.emptyNamed(style.name) : words.empty}</p>
           </>
         ) : (
           <ol aria-live="polite" className="flex flex-col gap-5 pt-1 pb-4">
-            {turns.map((turn, i) => <TurnView key={turn.id} turn={turn} data={data} ctx={ctx} own={own} onShown={onShown} latest={i === turns.length - 1} />)}
+            {turns.map((turn, i) => <TurnView key={turn.id} turn={turn} data={data} ctx={ctx} own={own} onShown={onShown} latest={i === turns.length - 1} first={i === firstAsked} />)}
           </ol>
         )}
       </div>
@@ -979,4 +1039,59 @@ export function AnalysisAskHead({ data }: { data: ScopeData | null }) {
   // The page counts fewer accounts than the recap does (one account, or the ticked layers): the tile says so.
   if (canAsk) return <MonthRecap narrower={!!data && !!all && data.accounts.length < all.accounts.length} />;
   return IS_ANDROID && !vault?.askOff && data ? <AskTile data={data} /> : null;
+}
+
+/**
+ * Einstellungen' example of Girovo AI's answer style (components/settings/AskStyle.tsx):
+ * the payee paid most often last month, asked about and answered in the chosen
+ * tone and length, with the first name, from the user's own bookings exactly
+ * as the conversation would say it (the ready-made sentences). Made up where
+ * nothing of last month is loaded.
+ */
+export function StyleExample({ style }: { style: AskStyle }) {
+  const t = useT();
+  const words = t.settings.ask.style;
+  const data = useAskScope();
+  const { ctx, own } = useAskContext(data?.currency ?? 'EUR');
+  const { merchants, categoryOf } = useFints();
+  const show = useShowInList();
+  const real = useMemo(() => {
+    if (!data) return null;
+    const today = dayKey(new Date());
+    const loaded = { from: data.from, to: data.to };
+    // The payee as "Girovo AI ist bereit" picks it (lib/ai-welcome.ts topPayee): the brand where Girovo
+    // knows it, else the list's name tidied, never a bank's raw line.
+    const label = (tx: SerializedTransaction) => merchantFor(merchants, tx)?.label || tidyName(txText(tx).name);
+    const month = lastMonth();
+    const name = topPayee(data.txs.map((tx) => ({ day: bookingDay(tx), amount: tx.amount, payee: label(tx), category: categoryOf(tx).id })), month);
+    if (!name) return null;
+    // Its bookings, worked out as an answer about that name.
+    const folded = name.toLocaleLowerCase('de');
+    const mine = data.txs.filter((tx) => label(tx).replace(/\s+/g, ' ').trim().toLocaleLowerCase('de').startsWith(folded));
+    const compute = (q: AskQuery) => {
+      const a = computeAnswer({ ...q, search: null }, mine, ctx, loaded, today);
+      return { ...a, query: { ...a.query, search: name } };
+    };
+    const answer = compute({ kind: 'sum', dir: 'out', category: null, search: name, period: { kind: 'lastMonth' } });
+    if (answer.outside || answer.partial || answer.count === 0) return null;
+    const details = answerDetails(answer, compute, today);
+    const monthWord = new Intl.DateTimeFormat(intlLocale(), { month: 'long' }).format(new Date(`${month}-01T12:00:00`));
+    return { answer, details, question: t.ask.welcome.q.payee(monthWord, name), payee: name };
+  }, [data, ctx, t, merchants, categoryOf]);
+  // The name never beside the same name in the answer.
+  const address = style.name && (!real || nameFits(style.name, real.payee)) ? style.name : null;
+  const sample = words.sample[style.tone][style.length];
+  return (
+    <div data-item className="flex flex-col gap-3 px-4 pt-3 pb-4">
+      <p className="text-[14px] leading-5 font-medium text-ink-2">{words.example}</p>
+      <div className="ml-auto w-fit max-w-[85%] rounded-[20px] rounded-br-[4px] bg-accent-soft px-4 py-2.5 text-[14px] leading-5 text-[var(--tonal-ink)]">
+        {real ? real.question : words.sample.question}
+      </div>
+      <GirovoTile>
+        {real
+          ? <AnswerText answer={real.answer} own={own} show={show} scopeAll onShown={() => {}} style={style} details={real.details} address={address} preview />
+          : <p className="text-[16px] leading-6 text-ink sm:text-[14px] sm:leading-[22px]">{addressed([sample], address).join('')}</p>}
+      </GirovoTile>
+    </div>
+  );
 }

@@ -71,6 +71,9 @@ export const PAGE_OF: Record<SettingsTarget, SettingsPage> = {
   theme: 'appearance',
   black: 'appearance',
   ask: 'ask',
+  askTone: 'ask',
+  askLength: 'ask',
+  askName: 'ask',
   // The update's state and "Nach Updates suchen" stay in Über Girovo's head.
   updates: 'about',
   channel: 'updates',
