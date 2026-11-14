@@ -209,27 +209,32 @@ export function SwitchItem({
 /**
  * A page's main switch, as Android heads a feature's page with it: one wide
  * pill above the page's groups that turns the whole feature on or off (Girovo
- * AI). On, it stands on Girovo AI's violet container; off, on the highest
- * container; disabled, its name at 38%. The whole pill is the switch's label.
+ * AI, Girovo API). On, it stands on Girovo AI's violet container (`tone`
+ * 'api': Girovo API's, the primary container, Girovo's blue); off, on the
+ * highest container; disabled, its name at 38%. The whole pill is the switch's label.
  * What is under it (why it cannot turn on, what stays private) is its
  * description, by `describedBy`.
  */
 export function MainSwitch({
-  title, checked, onChange, disabled, describedBy, setting,
+  title, checked, onChange, disabled, describedBy, setting, tone = 'ai',
 }: {
   title: ReactNode; checked: boolean; onChange: (next: boolean) => void; disabled?: boolean; describedBy?: string; setting?: SettingsTarget;
+  tone?: 'ai' | 'api';
 }) {
   const id = useId();
   const switchId = `main${id}`;
   return (
     <div
       data-main-switch
+      data-tone={tone}
       data-on={checked || undefined}
       data-disabled={disabled || undefined}
       data-setting={setting}
       className={cx(
         'relative flex min-h-[72px] items-center gap-4 rounded-full py-3 pr-4 pl-6 transition-colors',
-        checked ? 'bg-[var(--ai-container)] text-[var(--ai-on-container)]' : 'bg-[var(--md-surface-container-highest)] text-ink',
+        !checked ? 'bg-[var(--md-surface-container-highest)] text-ink'
+          : tone === 'api' ? 'bg-[var(--md-primary-container)] text-[var(--md-on-primary-container)]'
+            : 'bg-[var(--ai-container)] text-[var(--ai-on-container)]',
         !disabled && 'cursor-pointer',
       )}
     >

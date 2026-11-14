@@ -520,3 +520,22 @@ test('restoring a backup from before the move keeps the newer entries under the 
     assert.deepEqual(d.vault.notes, { [N]: 'Kuchen für Oma' }, d.name);
   }
 });
+
+test('the Girovo API switch, apps and Verlauf are kept here and never come in from a backup', () => {
+  const grant = { exe: 'C:/Apps/Haushalt.exe', publisher: { kind: 'verified', name: 'Beispiel GmbH' }, name: 'Haushaltsbuch', permissions: ['accounts.read'], at: '2026-11-14T10:00:00.000Z' };
+  const log = [{ at: '2026-11-14T10:00:00.000Z', app: 'k', name: 'Haushaltsbuch', method: 'accounts.list', ok: true }];
+  const here = vault.sanitizeVault({ ...EMPTY_VAULT, apiOn: true, apiGrants: [grant], apiLog: log })!;
+  assert.equal(here.apiOn, true);
+  assert.deepEqual(here.apiGrants, [grant]);
+  assert.deepEqual(here.apiLog, log);
+  assert.equal(vault.sanitizeVault({ ...EMPTY_VAULT, apiOn: 'yes', apiGrants: [{ exe: 'x' }], apiLog: 'x' })!.apiOn, undefined);
+  const other = { ...grant, exe: 'C:/Other.exe' };
+  const backup = vault.sanitizeVault({ ...EMPTY_VAULT, apiOn: true, apiGrants: [other], apiLog: [] })!;
+  const merged = vault.mergeVaults(here, backup);
+  assert.deepEqual(merged.apiGrants, [grant], 'the apps of this computer, none of the backup');
+  assert.deepEqual(merged.apiLog, log);
+  const fresh = vault.mergeVaults(EMPTY_VAULT, backup);
+  assert.equal(fresh.apiOn, undefined);
+  assert.equal(fresh.apiGrants, undefined);
+  assert.equal(vault.withoutDeviceApi(backup).apiGrants, undefined);
+});

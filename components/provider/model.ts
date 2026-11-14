@@ -17,6 +17,7 @@ import { sanitizeContractNames, sanitizeNoticed, sanitizeReminders } from '@/lib
 import { sanitizeManual, sanitizeManualDays } from '@/lib/manual-contracts';
 import { sanitizeAiNames } from '@/lib/ai-names-store';
 import { sanitizeClosedNotes } from '@/lib/ask-notes-line';
+import { sanitizeApiGrants, sanitizeApiLog } from '@/lib/api/grants';
 import type { CategoryId } from '@/lib/categories';
 import { post } from '@/lib/client-api';
 import type { KeptDoc } from '@/lib/docs';
@@ -760,6 +761,10 @@ export function normalizeVault(raw: VaultData | null | undefined): VaultData {
     ...(sanitizeAiNames(raw.aiNames) ? { aiNames: sanitizeAiNames(raw.aiNames)! } : {}),
     // Kept too, or a login would bring back the notes closed on the Übersicht's line.
     ...(sanitizeClosedNotes(raw.aiNotesClosed) ? { aiNotesClosed: sanitizeClosedNotes(raw.aiNotesClosed)! } : {}),
+    // Kept too, or a login would switch the Girovo API off and forget the apps allowed and their Verlauf.
+    ...(raw.apiOn === true ? { apiOn: true as const } : {}),
+    ...(sanitizeApiGrants(raw.apiGrants).length ? { apiGrants: sanitizeApiGrants(raw.apiGrants) } : {}),
+    ...(sanitizeApiLog(raw.apiLog).length ? { apiLog: sanitizeApiLog(raw.apiLog) } : {}),
     updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : EMPTY_VAULT.updatedAt,
   };
 }

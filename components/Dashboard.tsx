@@ -46,6 +46,7 @@ import { SplitRequests } from './transactions/SplitRequests';
 import { Inbox } from './Inbox';
 import { CommandPalette } from './CommandPalette';
 import { AskPanel, AskReader, AskThreadScreen } from './insights/AskThread';
+import { ApiHost } from './api/ApiHost';
 import { AiReady } from './insights/ai/AiReady';
 import { SessionGuard } from './SessionGuard';
 import { ShortcutsHelp } from './ShortcutsHelp';
@@ -314,6 +315,8 @@ function ShellLayers({ frame = false }: { frame?: boolean }) {
       {!frame && <CommandPalette />}
       {/* Girovo Next: the conversation's reading, and on the phone its full-screen view. */}
       <AskReader />
+      {/* Girovo Next on the desktop: the Girovo API's calls and its consent dialog (components/api/ApiHost.tsx); nothing without the shell's bridge. */}
+      <ApiHost />
       {!frame && <AskThreadScreen />}
       {/* Girovo AI ready for the first time, or switched on again: once, over the page. */}
       <AiReady />

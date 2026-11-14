@@ -14,7 +14,8 @@
 // and the sheet shows the one picked, the first to begin with.
 //
 //   Girovo AI (Girovo Next) — asking on or off, what answers (./AskSettings.tsx);
-//   Girovo API — nothing yet, a line that it comes later;
+//   Girovo API — on the desktop app the switch, the apps allowed and the
+//     Verlauf (components/api/ApiSettings.tsx); elsewhere a line that it comes later;
 //   Sicherheit & Datenschutz — unlocking (fingerprint, Windows Hello, security
 //     keys, further banks with the first) and the automatic logout; what the
 //     phone's check found and the bank's registration of the device; the two
@@ -65,6 +66,8 @@ import { Button, Dot, Kbd, Segmented, Spinner, cx } from '../ui';
 import { KeepRow, KeepOffDialog, ResetDocsDialog, ResetHistoryDialog, ResetVaultDialog, WipeVaultDialog } from './data-dialogs';
 import { ResetAppRow } from './ResetApp';
 import { AskPage, useAskPage } from './AskSettings';
+import { hasApiBridge } from '../api/bridge';
+import { ApiSettingsPage } from '../api/ApiSettings';
 import { BackupRows } from './BackupDialogs';
 import { ImportRow } from './ImportDialog';
 import { CategorySettings } from './CategorySettings';
@@ -139,6 +142,10 @@ export function useSettingsPages(): PageEntry[] {
   const theme = useThemePref();
   const askPage = useAskPage();
   const askOff = !!vault?.askOff;
+  // Girovo API: on the desktop app with the shell's bridge, on or off and how many apps; elsewhere it comes later.
+  const apiBridge = hasApiBridge();
+  const apiOn = !!vault?.apiOn;
+  const apiApps = vault?.apiGrants?.length ?? 0;
   const { state: update } = useUpdates();
   const playUpdate = !!usePlayUpdate()?.available;
   const words = t.settings;
@@ -158,7 +165,7 @@ export function useSettingsPages(): PageEntry[] {
     const newer = update && hasNewer(update) ? update.release : null;
     const summary: Record<SettingsPage, string> = {
       ask: askOff ? words.summary.askOff : words.summary.askOn,
-      api: words.summary.apiSoon,
+      api: !apiBridge ? words.summary.apiSoon : apiOn ? t.api.summaryOn(apiApps) : t.api.summaryOff,
       // After Windows Hello the short word: the desktop sidebar's row has one short line.
       security: IS_ANDROID
         ? line([words.summary.fingerprint, words.summary.idle])
@@ -186,7 +193,7 @@ export function useSettingsPages(): PageEntry[] {
       brand: id === 'api' ? <ApiWordmark /> : id === 'ask' ? <AiWordmark /> : undefined,
       Icon: ICONS[id],
     }));
-  }, [t, locale, bank, backgroundChecks, windowsHello, sync, vaultStatus, theme, askPage, askOff, update, playUpdate, words]);
+  }, [t, locale, bank, backgroundChecks, windowsHello, sync, vaultStatus, theme, askPage, askOff, apiBridge, apiOn, apiApps, update, playUpdate, words]);
 }
 
 export function Settings() {
@@ -308,9 +315,10 @@ function PageContent({ page, onDialog }: { page: SettingsPage; onDialog: (d: Dat
   }
 }
 
-/** Girovo API: nothing to set yet, only when it comes. */
+/** Girovo API: the switch, the apps and the Verlauf on the desktop app (components/api/ApiSettings.tsx); elsewhere, when it comes. */
 function ApiPage() {
   const t = useT();
+  if (hasApiBridge()) return <ApiSettingsPage />;
   return (
     <SettingsGroup>
       <SettingItem icon={<InfoIcon />} title={t.settings.ask.later} />

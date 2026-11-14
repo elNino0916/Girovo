@@ -547,8 +547,8 @@
     background-image: var(--ai-wash);
   }
   /* A page's main switch (components/settings/rows.tsx MainSwitch): the switch on Girovo AI's violet, not
-     the app's blue, and the pill's own state layer, as a row's. */
-  :root[data-look='material'] [data-main-switch] m3e-switch {
+     the app's blue, and the pill's own state layer, as a row's. Girovo API's (data-tone='api') keeps the blue. */
+  :root[data-look='material'] [data-main-switch]:not([data-tone='api']) m3e-switch {
     --m3e-switch-selected-track-color: var(--ai-mark);
     --m3e-switch-selected-hover-track-color: var(--ai-mark);
     --m3e-switch-selected-focus-track-color: var(--ai-mark);

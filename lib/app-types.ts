@@ -23,6 +23,7 @@ import type { ContractReminder } from './contract-watch';
 import type { ManualContract, ManualDay } from './manual-contracts';
 import type { AiNamesCache } from './ai-names-store';
 import type { SavedConversation } from './ask-saved';
+import type { ApiGrant, ApiLogEntry } from './api/types';
 
 export type { CategoryId };
 
@@ -288,6 +289,12 @@ export type VaultData = {
   aiNames?: AiNamesCache;
   /** Girovo AI's notes closed on the desktop Übersicht's line, by key (lib/ask-notes-line.ts). This device's own, never synced. */
   aiNotesClosed?: string[];
+  /** Girovo Next on the desktop: "Girovo API zulassen" switched on (docs/girovo-api.md). This device's own, never synced. */
+  apiOn?: true;
+  /** The apps allowed to use the Girovo API, each with its permissions (lib/api/grants.ts). This device's own, never synced. */
+  apiGrants?: ApiGrant[];
+  /** The Girovo API's Verlauf: the last calls of each app (lib/api/grants.ts capLog). This device's own, never synced. */
+  apiLog?: ApiLogEntry[];
   /** ISO */
   updatedAt: string;
 };

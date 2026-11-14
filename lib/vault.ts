@@ -43,6 +43,7 @@ import { isAskLength, isAskTone } from './ask-style-fields.ts';
 import { isRecord } from './guards.ts';
 import { mergeAiNames, sanitizeAiNames } from './ai-names-store.ts';
 import { sanitizeClosedNotes } from './ask-notes-line.ts';
+import { sanitizeApiGrants, sanitizeApiLog } from './api/grants.ts';
 import { sanitizeContractNames, sanitizeNoticed, sanitizeReminders } from './contract-watch.ts';
 import { sanitizeManual, sanitizeManualDays } from './manual-contracts.ts';
 import { sanitizeKeptBalances, sanitizeNetWorth } from './kept-balances.ts';
@@ -314,6 +315,10 @@ export function sanitizeVault(input: unknown, now = Date.now()): VaultData | nul
     ...(sanitizeAiNames(input.aiNames) ? { aiNames: sanitizeAiNames(input.aiNames)! } : {}),
     // Girovo AI's notes closed on the desktop Übersicht's line (lib/ask-notes-line.ts): keys, the newest within the cap.
     ...(sanitizeClosedNotes(input.aiNotesClosed) ? { aiNotesClosed: sanitizeClosedNotes(input.aiNotesClosed)! } : {}),
+    // The Girovo API (lib/api/grants.ts): the switch, the apps allowed and the Verlauf, well formed and within their caps.
+    ...(input.apiOn === true ? { apiOn: true as const } : {}),
+    ...(sanitizeApiGrants(input.apiGrants).length ? { apiGrants: sanitizeApiGrants(input.apiGrants) } : {}),
+    ...(sanitizeApiLog(input.apiLog).length ? { apiLog: sanitizeApiLog(input.apiLog) } : {}),
     updatedAt: iso(input.updatedAt) ?? EMPTY_VAULT.updatedAt,
   };
 }
@@ -577,7 +582,8 @@ function newestKept(backup: VaultData['keptBalances'], current: VaultData['keptB
  * withoutMovedLegacy) — beside it, it would come back over the newer one.
  */
 export function mergeVaults(current: VaultData, fromBackup: VaultData): VaultData {
-  const backup = withoutMovedLegacy(fromBackup, current);
+  // The Girovo API's switch, apps and Verlauf are this computer's: a backup's never come in (`...current` keeps these).
+  const backup = withoutDeviceApi(withoutMovedLegacy(fromBackup, current));
   const own = new Map(current.customCategories.map((c) => [c.name.toLocaleLowerCase('de'), c.id]));
   const ids = new Set(current.customCategories.map((c) => c.id));
   const idMap = new Map<CategoryId, CategoryId>();
@@ -654,6 +660,19 @@ export function mergeVaults(current: VaultData, fromBackup: VaultData): VaultDat
 }
 
 /**
+ * The vault without the Girovo API's switch, apps and Verlauf: they are the
+ * computer's they were allowed on, so a backup brings none of them along.
+ */
+export function withoutDeviceApi(v: VaultData): VaultData {
+  if (!v.apiOn && !v.apiGrants && !v.apiLog) return v;
+  const rest = { ...v };
+  delete rest.apiOn;
+  delete rest.apiGrants;
+  delete rest.apiLog;
+  return rest;
+}
+
+/**
  * Restores a backup's vault into this login's: written as it is when there
  * is none here yet, folded in (mergeVaults) when there is. Refused (409) while
  * the file here does not open with this PIN — a reset comes first.
@@ -663,5 +682,5 @@ export async function restoreVault(s: Session, backup: unknown): Promise<VaultPu
   if (!incoming) throw new VaultError(msgs().provider.vault.format, 400);
   const current = await loadVault(s);
   if (current.status === 'error') throw new VaultError(msgs().provider.vault.locked, 409);
-  return saveVault(s, current.data ? mergeVaults(current.data, incoming) : incoming);
+  return saveVault(s, current.data ? mergeVaults(current.data, incoming) : withoutDeviceApi(incoming));
 }

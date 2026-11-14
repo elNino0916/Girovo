@@ -278,6 +278,8 @@ export type MockOptions = {
    * Abos has no list of the bank's.
    */
   noOrders?: boolean;
+  /** Fields merged into the vault last (?api=…: the Girovo API's switch, apps and Verlauf, ./api.ts). */
+  vaultExtra?: Partial<VaultData>;
 };
 
 export type MockFintsProviderProps = MockOptions & {
@@ -617,6 +619,7 @@ function initialState(data: MockData, preset: MockPreset, opts: MockOptions) {
     ...(opts.categoryRules ? { categoryRules: opts.categoryRules } : {}),
     ...(opts.budgets ? { budgets: data.budgets } : {}),
     ...(opts.kept && !opts.oneAccount ? balancesKeptAtStart(data, opts) : {}),
+    ...opts.vaultExtra,
   };
   return {
     range: kept ? spanOf(ACCT.giro, range) : range,

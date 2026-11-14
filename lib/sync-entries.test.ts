@@ -310,3 +310,15 @@ test('a receipt tied to a key from before is tied to the key now inside the roun
   moveMergedKeys(n, MOVES, d.vault, 200);
   assert.deepEqual(n.entries.get(docPath), entry);
 });
+
+test('the Girovo API switch, apps and Verlauf are never entries: each device keeps its own', () => {
+  const grant = { exe: 'C:/Apps/Haushalt.exe', publisher: { kind: 'verified', name: 'Beispiel GmbH' }, name: 'Haushaltsbuch', permissions: ['accounts.read'], at: '2026-11-14T10:00:00.000Z' };
+  const base: VaultData = { ...EMPTY_VAULT, apiOn: true, apiGrants: [grant] as VaultData['apiGrants'], apiLog: [{ at: '2026-11-14T10:00:00.000Z', app: 'k', name: 'H', method: 'hello', ok: true }] };
+  const entries = vaultEntries(base);
+  assert.ok(![...entries.keys()].some((k) => k.startsWith('api')));
+  const back = vaultFromEntries(new Map(), base);
+  assert.equal(back.apiOn, true);
+  assert.deepEqual(back.apiGrants, base.apiGrants);
+  assert.deepEqual(back.apiLog, base.apiLog);
+  assert.equal(vaultFromEntries(entries, EMPTY_VAULT).apiGrants, undefined, 'the apps of another device never arrive');
+});

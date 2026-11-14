@@ -6,6 +6,7 @@
 // of showing up blank. See lib/i18n/README.md for how to write them.
 
 import * as android from './android.ts';
+import * as api from './api.ts';
 import * as ask from './ask.ts';
 import * as plus from './plus.ts';
 import * as auth from './auth.ts';
@@ -58,6 +59,7 @@ const de = {
   sync: sync.de,
   ask: ask.de,
   plus: plus.de,
+  api: api.de,
 };
 
 export type Messages = typeof de;
@@ -87,6 +89,7 @@ const en: Messages = {
   sync: sync.en,
   ask: ask.en,
   plus: plus.en,
+  api: api.en,
 };
 
 // The Android app says "Telefon" where the desktop says "Rechner" (phone.ts).

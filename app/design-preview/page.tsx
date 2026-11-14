@@ -22,6 +22,8 @@
 //                  &update=available|ready|…  a fake desktop updater (./updater.ts)
 //                  &publisher=notInstalled|trusted|invalid|expired|mismatch  MT-Media als Herausgeber (./publisher.ts)
 //                  &gemma=absent|partial|downloading|ready|error  the desktop's model for Girovo AI (./gemma.ts)
+//                  &api=consent|consent-unknown|consent-mcp|apps  the Girovo API's dialog or its apps (./api.ts);
+//                       with view=settings&page=api, Einstellungen → Girovo API
 //                  &terms=ask                 the login before the terms of use are agreed to (lib/terms.ts)
 //                  &nano=working|unsupported|…  Android: a fake Gemini Nano (./nano.ts)
 //                  &integrity=modified|unknown|kept  Android: the integrity check's answer (./nano.ts)
@@ -71,6 +73,7 @@ import type { PlusState } from '@/lib/plus';
 import { installFakeUpdater, isUpdateScenario, type UpdateScenario } from './updater';
 import { installFakePublisherCert, isPublisherState, type PublisherState } from './publisher';
 import { installFakeGemma, isGemmaState, type GemmaPreviewState } from './gemma';
+import { apiVault, installFakeApi, isApiScenario, type ApiScenario } from './api';
 import { USAGE_SCENARIOS, installFakeTelemetry } from './telemetry';
 import { setTermsPreview } from '@/lib/terms';
 
@@ -1647,6 +1650,14 @@ function prepareGemma(key: string, state: GemmaPreviewState | null) {
   if (!IS_ANDROID) installFakeGemma(state);
 }
 
+/** Likewise the fake Girovo API bridge (?api=…). */
+let apiKey: string | null = null;
+function prepareApi(key: string, scenario: ApiScenario | null) {
+  if (apiKey === key) return;
+  apiKey = key;
+  if (!IS_ANDROID) installFakeApi(scenario);
+}
+
 /** Likewise the fake Gemini Nano and integrity check (?nano=…, ?integrity=…, Android preview only). */
 let nanoKey: string | null = null;
 function prepareNano(key: string, scenario: NanoScenario | null, integrity: IntegrityScenario | null, plus: PlusState | null) {
@@ -1687,6 +1698,9 @@ export default function DesignPreview({ searchParams }: { searchParams: Promise<
   preparePublisher(JSON.stringify(params), isPublisherState(publisherParam) ? publisherParam : null);
   const gemmaParam = one(params.gemma);
   prepareGemma(JSON.stringify(params), isGemmaState(gemmaParam) ? gemmaParam : null);
+  const apiParam = one(params.api);
+  const apiScenario = isApiScenario(apiParam) && !IS_ANDROID ? apiParam : null;
+  prepareApi(JSON.stringify(params), apiScenario);
   const nanoParam = one(params.nano);
   const integrityParam = one(params.integrity);
   const plusParam = one(params.plus);
@@ -1726,6 +1740,8 @@ export default function DesignPreview({ searchParams }: { searchParams: Promise<
     ...(isPlusScenario(plusParam) ? { plus: plusParam } : {}),
     // An old page's id (privacy) opens where its settings are now.
     ...(pageFrom(one(params.page)) ? { settingsPage: pageFrom(one(params.page))! } : {}),
+    // "Girovo AI ist bereit" seen, so the API's dialog and page are not under it.
+    ...(apiScenario ? { vaultExtra: { ...def.options?.vaultExtra, askIntroSeen: true as const, ...apiVault(apiScenario) } } : {}),
   };
 
   const theme = one(params.theme);
@@ -1857,6 +1873,10 @@ const EXTRAS: { q: string; label: string }[] = [
   { q: 'view=overview&privacy=1', label: 'Beträge ausgeblendet' },
   { q: 'view=overview&acct=karte&privacy=1', label: 'Kreditkarte ausgeblendet' },
   { q: 'view=settings&logos=on&page=security', label: 'Einstellungen: Firmenlogos an' },
+  { q: 'view=settings&page=api&api=apps', label: 'Einstellungen: Girovo API mit Apps' },
+  { q: 'view=overview&api=consent', label: 'Girovo API: Zugriff erlauben (bestätigter Herausgeber)' },
+  { q: 'view=overview&api=consent-unknown', label: 'Girovo API: Zugriff erlauben (unbekannter Herausgeber)' },
+  { q: 'view=overview&api=consent-mcp', label: 'Girovo API: Claude über Girovo MCP' },
   { q: 'view=settings&logos=unavailable&page=security', label: 'Einstellungen: ohne Firmenlogos' },
   { q: 'view=session&unclear=1', label: 'Sitzung: Überweisung unklar' },
   { q: 'view=palette-logout&unclear=1', label: 'Suche „abm“, Überweisung unklar' },

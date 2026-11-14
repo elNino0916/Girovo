@@ -1,5 +1,38 @@
 export {};
 
+import type { ApiCall, ApiClosed, ApiReplyPayload } from '../lib/api/types';
+
+/** What the Girovo API's shell side says of itself (src-tauri/src/api/, docs/girovo-api.md). */
+export type GirovoApiStatus = {
+  /** The pipe (Windows) or socket (Linux) is there and listening. */
+  running: boolean;
+  /** Its address: \\.\pipe\girovo-api-<SID> or $XDG_RUNTIME_DIR/girovo-api.sock; null while off. */
+  address: string | null;
+};
+
+/** window.electronGirovoApi (src-tauri/src/bridge.js). */
+export type GirovoApiBridge = {
+  /**
+   * Opens (true) or removes (false) the pipe or socket. The shell forgets it
+   * with every page load and app start: the page calls it again each time
+   * vault.apiOn is set (components/api/ApiHost.tsx), else calls answer `locked`.
+   */
+  setEnabled: (on: boolean) => Promise<GirovoApiStatus>;
+  status: () => Promise<GirovoApiStatus & { connections: number }>;
+  /** The executable's icon as a data URL, or null where it has none. */
+  icon: (exe: string) => Promise<string | null>;
+  /** Hears each call (`api:call`); returns its unsubscribe. */
+  onCall: (callback: (call: ApiCall) => void) => () => void;
+  /** Hears each hang-up (`api:closed`); returns its unsubscribe. */
+  onClosed: (callback: (closed: ApiClosed) => void) => () => void;
+  /**
+   * Answers one call: `{ result }` or `{ error: { code, message, data? } }`.
+   * False when nobody waits for it any more (the app hung up, or the shell's
+   * 150 s passed).
+   */
+  reply: (id: ApiCall['id'], payload: ApiReplyPayload) => Promise<boolean>;
+};
+
 /** What src-tauri/src/publisher_cert.rs reads from the machine's trust stores. */
 export type PublisherCertStatus = {
   available: boolean;
@@ -192,6 +225,12 @@ declare global {
   }
 
   interface Window {
+    /**
+     * Girovo Next's Girovo API on the desktop (src-tauri/src/api/, docs/girovo-api.md):
+     * the pipe or socket other apps ask through. Undefined outside the desktop
+     * shell (the browser, Android, the design preview without ?api=…).
+     */
+    electronGirovoApi?: GirovoApiBridge;
     /**
      * Girovo Next's "Fragen" with Gemma 4 E2B on this computer (src-tauri/src/gemma.rs).
      * Undefined outside the desktop shell (and in shells from before it).

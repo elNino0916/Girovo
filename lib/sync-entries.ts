@@ -147,6 +147,10 @@ export function vaultFromEntries(entries: ReadonlyMap<string, unknown>, base: Va
   if (base.aiNames) out.aiNames = base.aiNames;
   // The notes closed on the Übersicht's line: this desktop's, never entries.
   if (base.aiNotesClosed?.length) out.aiNotesClosed = base.aiNotesClosed;
+  // The Girovo API (lib/api/grants.ts): its switch, the apps allowed here and their Verlauf are this computer's, never entries.
+  if (base.apiOn) out.apiOn = true;
+  if (base.apiGrants?.length) out.apiGrants = base.apiGrants;
+  if (base.apiLog?.length) out.apiLog = base.apiLog;
   // A reminder set on one device reminds on all; what this one's Mitteilungen showed is its own.
   if (Object.keys(maps.contractReminders).length) out.contractReminders = maps.contractReminders as NonNullable<VaultData['contractReminders']>;
   if (Object.keys(maps.contractNames).length) out.contractNames = maps.contractNames as NonNullable<VaultData['contractNames']>;
