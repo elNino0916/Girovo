@@ -17,9 +17,11 @@ import { useAskStyle } from '../insights/ask/useAskStyle';
 import { Segmented } from '../ui';
 import { SegmentedItem, SettingsGroup, SwitchItem } from './rows';
 
-export function AskStyleGroup() {
+/** `off`: Girovo AI is switched off (or can't answer yet): the choices dim and wait, as the Funktionen rows do. */
+export function AskStyleGroup({ off = false }: { off?: boolean }) {
   const t = useT();
   const words = t.settings.ask.style;
+  const isOff = off ? t.settings.aiCategorize.isOff : undefined;
   const { vault, updateVault } = useFints();
   const style = useAskStyle();
   const nameOn = !vault?.askNameOff;
@@ -45,33 +47,35 @@ export function AskStyleGroup() {
 
   return (
     <SettingsGroup title={words.group}>
-      <SegmentedItem icon={<NoteIcon />} title={words.tone} setting="askTone" wide>
+      <SegmentedItem icon={<NoteIcon />} title={words.tone} summary={isOff} setting="askTone" wide disabled={off}>
         <Segmented
           aria-label={words.tone}
           size="sm"
           value={style.tone}
           onChange={setTone}
-          options={[{ value: 'friendly', label: words.friendly }, { value: 'plain', label: words.plain }]}
+          options={[{ value: 'friendly', label: words.friendly, disabled: off }, { value: 'plain', label: words.plain, disabled: off }]}
         />
       </SegmentedItem>
-      <SegmentedItem icon={<ExpandIcon />} title={words.length} setting="askLength" wide>
+      <SegmentedItem icon={<ExpandIcon />} title={words.length} summary={isOff} setting="askLength" wide disabled={off}>
         <Segmented
           aria-label={words.length}
           size="sm"
           value={style.length}
           onChange={setLength}
-          options={[{ value: 'short', label: words.short }, { value: 'long', label: words.long }]}
+          options={[{ value: 'short', label: words.short, disabled: off }, { value: 'long', label: words.long, disabled: off }]}
         />
       </SegmentedItem>
       <SwitchItem
         icon={<UserIcon />}
         setting="askName"
         title={words.useName}
-        summary={nameOn ? (style.name ? words.calls(style.name) : words.noName) : undefined}
+        summary={off ? isOff : nameOn ? (style.name ? words.calls(style.name) : words.noName) : undefined}
         checked={nameOn}
         onChange={setNameOn}
+        disabled={off}
       />
-      <StyleExample style={style} />
+      {/* An example of answers that won't come while it is off would only confuse. */}
+      {!off && <StyleExample style={style} />}
     </SettingsGroup>
   );
 }

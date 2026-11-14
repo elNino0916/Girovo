@@ -294,12 +294,13 @@ export function ChoiceItem<T extends string | number>({
  * would not fit one line.
  */
 export function SegmentedItem({
-  icon, title, summary, setting, wide, children,
-}: Omit<ItemProps, 'trailing' | 'below'> & { wide?: boolean; children: ReactNode }) {
+  icon, title, summary, setting, wide, disabled, children,
+}: Omit<ItemProps, 'trailing' | 'below'> & { wide?: boolean; disabled?: boolean; children: ReactNode }) {
+  // Disabled, glyph, name and line dim together as a switch row's do; the caller disables the buttons.
   return (
     <div data-item data-setting={setting} className={cx(ITEM, 'flex-wrap gap-y-3')}>
-      {icon && <Glyph>{icon}</Glyph>}
-      <Text title={title} summary={summary} />
+      {icon && <Glyph dim={disabled}>{icon}</Glyph>}
+      <Text title={title} summary={summary} dim={disabled} />
       {/* Under the name (on the text's edge) once the row is too narrow for both. */}
       <span
         className={cx(

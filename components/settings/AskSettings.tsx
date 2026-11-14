@@ -125,7 +125,7 @@ export function AskPage() {
       </section>
 
       {/* How Girovo AI answers: tone, length, the first name, and an example (components/settings/AskStyle.tsx). */}
-      <AskStyleGroup />
+      <AskStyleGroup off={!on} />
 
       <SettingsGroup title={words.group}>
         <ModelRow />
