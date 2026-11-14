@@ -21,6 +21,7 @@
 //                  &second=linked|loggedOut|remembered   a second bank in the view (Weitere Bank anmelden)
 //                  &update=available|ready|…  a fake desktop updater (./updater.ts)
 //                  &publisher=notInstalled|trusted|invalid|expired|mismatch  MT-Media als Herausgeber (./publisher.ts)
+//                  &gemma=absent|partial|downloading|ready|error  the desktop's model for Girovo AI (./gemma.ts)
 //                  &terms=ask                 the login before the terms of use are agreed to (lib/terms.ts)
 //                  &nano=working|unsupported|…  Android: a fake Gemini Nano (./nano.ts)
 //                  &integrity=modified|unknown|kept  Android: the integrity check's answer (./nano.ts)
@@ -69,6 +70,7 @@ import {
 import type { PlusState } from '@/lib/plus';
 import { installFakeUpdater, isUpdateScenario, type UpdateScenario } from './updater';
 import { installFakePublisherCert, isPublisherState, type PublisherState } from './publisher';
+import { installFakeGemma, isGemmaState, type GemmaPreviewState } from './gemma';
 import { USAGE_SCENARIOS, installFakeTelemetry } from './telemetry';
 import { setTermsPreview } from '@/lib/terms';
 
@@ -1636,6 +1638,14 @@ function preparePublisher(key: string, state: PublisherState | null) {
   installFakePublisherCert(state);
 }
 
+/** Likewise the fake desktop model (?gemma=…). */
+let gemmaKey: string | null = null;
+function prepareGemma(key: string, state: GemmaPreviewState | null) {
+  if (gemmaKey === key) return;
+  gemmaKey = key;
+  if (!IS_ANDROID) installFakeGemma(state);
+}
+
 /** Likewise the fake Gemini Nano and integrity check (?nano=…, ?integrity=…, Android preview only). */
 let nanoKey: string | null = null;
 function prepareNano(key: string, scenario: NanoScenario | null, integrity: IntegrityScenario | null, plus: PlusState | null) {
@@ -1674,6 +1684,8 @@ export default function DesignPreview({ searchParams }: { searchParams: Promise<
   );
   const publisherParam = one(params.publisher);
   preparePublisher(JSON.stringify(params), isPublisherState(publisherParam) ? publisherParam : null);
+  const gemmaParam = one(params.gemma);
+  prepareGemma(JSON.stringify(params), isGemmaState(gemmaParam) ? gemmaParam : null);
   const nanoParam = one(params.nano);
   const integrityParam = one(params.integrity);
   const plusParam = one(params.plus);

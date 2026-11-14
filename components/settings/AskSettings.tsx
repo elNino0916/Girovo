@@ -1,32 +1,36 @@
 'use client';
 
 // Girovo Next: Einstellungen' page "Girovo AI" (lib/settings-pages.ts
-// 'ask'), the first. The switch turns asking on or off everywhere
-// (vault.askOff, read by components/insights/ask-gate.ts), on the AI wash
-// with its spark; it turns on only once the model that answers is here
-// (ask-gate.ts useModelReady), so it never promises answers that cannot come.
-// Under it, what answers: on a phone with Gemini Nano, Nano and the state
-// AICore reports; on the desktop the model's download, its progress and its
-// state; on a phone without Nano a row that says the model is not loadable yet.
+// 'ask'), the first. Its layout is the owner's pick B "Hauptschalter"
+// (2026-11-14, .impeccable/mocks/decision/ai-page/board.png): the page's main
+// switch "Girovo AI verwenden" turns asking on or off everywhere (vault.askOff,
+// read by components/insights/ask-gate.ts), violet while on; it turns on only
+// once the model that answers is here (ask-gate.ts useModelReady), so it never
+// promises answers that cannot come, and the line under it says so. Then the
+// privacy sentence, then "Modell", what answers: on a phone with Gemini Nano,
+// Nano and the state AICore reports; on the desktop the model's download, its
+// progress and its state; on a phone without Nano a row that says the model is
+// not loadable yet. Last, on the desktop with Gemma, "Funktionen": cleaned
+// names and Mit Girovo AI kategorisieren. No row carries the AI wash: the
+// violet is the main switch's and the mark's alone.
 // The answers come in the app's language (Sprache & Darstellung).
 //
 // The page shows on the desktop always, and on Android wherever the runtime
 // can ask at all (window.girovoMobile.ask), Nano or not: a phone without Nano
 // still sees the switch and the honest model row.
 
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useId, useState, useSyncExternalStore } from 'react';
 import { useLocale, useT } from '@/lib/i18n/react';
 import { asksWith } from '@/lib/nano-ask';
 import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../FintsProvider';
-import { CheckCircleIcon, DownloadIcon, AiMarkIcon, LockIcon } from '../icons';
-import { AiWordmark } from '../shell/BrandMark';
+import { CheckCircleIcon, DownloadIcon, InfoIcon, LockIcon } from '../icons';
 import { AiCategorizeRow } from '../insights/ai/AiCategorize';
 import { AiNamesRow } from '../insights/ai/AiNamesSetting';
 import { useModelReady } from '../insights/ask-gate';
 import { useGemma } from '../insights/gemma';
 import { Button, Progress } from '../ui';
-import { SettingItem, SettingsGroup, SwitchItem } from './rows';
+import { MainSwitch, SettingItem, SettingsGroup } from './rows';
 
 const noSubscription = () => () => {};
 
@@ -70,6 +74,10 @@ export function AskPage() {
   const t = useT();
   const words = t.settings.ask;
   const { vault, updateVault } = useFints();
+  const id = useId();
+  // Names and categories need the shell's Gemma (as their rows check themselves): elsewhere no "Funktionen".
+  const gemma = useGemma();
+  const features = !IS_ANDROID && !!gemma?.supported;
   // On unless switched off (the field is there only while it is off), and only with the model here.
   const ready = useModelReady() === true;
   const on = ready && !vault?.askOff;
@@ -86,36 +94,47 @@ export function AskPage() {
     delete rest.askOff;
     return rest;
   });
+  const why = `${id}-why`;
+  const privateId = `${id}-private`;
   return (
     <>
-      <SettingsGroup>
-        <SwitchItem
-          tone="ai"
-          icon={<AiMarkIcon />}
-          setting="ask"
+      <section data-setting="ask">
+        <MainSwitch
+          title={words.use}
           checked={on}
           onChange={setOn}
           disabled={!ready}
-          title={<AiWordmark />}
-          summary={ready ? words.hint : words.needsModel(IS_ANDROID)}
+          describedBy={ready ? privateId : `${why} ${privateId}`}
         />
-        {/* The desktop only: the phone shows Gemini Nano's brands as before. */}
-        {!IS_ANDROID && <AiNamesRow />}
-      </SettingsGroup>
-
-      {/* Owner, 2026-11-14: said plainly. True on both: the desktop's model listens on 127.0.0.1 only
-          (src-tauri/src/gemma.rs; only its download comes from outside), Gemini Nano runs on the phone,
-          and no usage event carries a question. */}
-      <SettingsGroup>
-        <SettingItem icon={<LockIcon />} title={words.private} />
-      </SettingsGroup>
-
-      {/* The desktop with Gemma: the bookings in Sonstiges, read once the user asks (components/insights/ai/AiCategorize.tsx). */}
-      <AiCategorizeRow />
+        <div className="flex flex-col gap-1 px-6 pt-3 text-[14px] leading-5 text-ink-2">
+          {!ready && (
+            <p id={why} className="flex items-start gap-2.5">
+              <InfoIcon size={18} className="mt-px shrink-0" />
+              {words.needsModel(IS_ANDROID)}
+            </p>
+          )}
+          {/* Owner, 2026-11-14: said plainly. True on both: the desktop's model listens on 127.0.0.1 only
+              (src-tauri/src/gemma.rs; only its download comes from outside), Gemini Nano runs on the phone,
+              and no usage event carries a question. */}
+          <p id={privateId} className="flex items-start gap-2.5">
+            <LockIcon size={18} className="mt-px shrink-0" />
+            {words.private}
+          </p>
+        </div>
+      </section>
 
       <SettingsGroup title={words.group}>
         <ModelRow />
       </SettingsGroup>
+
+      {/* The desktop with Gemma: cleaned names, and the bookings in Sonstiges read once the user asks
+          (components/insights/ai/AiNamesSetting.tsx, AiCategorize.tsx). The phone shows Gemini Nano's brands as before. */}
+      {features && (
+        <SettingsGroup title={words.features}>
+          <AiNamesRow />
+          <AiCategorizeRow />
+        </SettingsGroup>
+      )}
     </>
   );
 }

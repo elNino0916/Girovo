@@ -255,17 +255,21 @@ export const de = {
    */
   ask: {
     title: 'Girovo AI',
-    hint: 'Antworten in ganzen Sätzen',
+    /** The page's main switch: Girovo AI on or off everywhere. */
+    use: 'Girovo AI verwenden',
     /** Under the switch: what Girovo AI reads stays on the device (the model runs there). */
     private: 'Deine Fragen und Umsätze verlassen nie dein Gerät.',
-    /** The switch while the model is not here yet: on a phone, on the desktop. */
-    needsModel: (phone: boolean): string => (phone ? 'Geht, sobald Gemini Nano bereit ist' : 'Lade zuerst das Modell unten'),
-    group: 'Antworten',
+    /** Under the switch while the model is not here yet: on a phone, on the desktop (its model group is right below). */
+    needsModel: (phone: boolean): string => (phone ? 'Geht, sobald Gemini Nano bereit ist.' : 'Geht, sobald das Modell unten geladen ist.'),
+    /** The group of what answers; "Sprachmodell" sounded wrong (owner, 2026-11-14). */
+    group: 'Modell',
+    /** The group of what Girovo AI does besides answering (the desktop: names, categories). */
+    features: 'Funktionen',
     nano: 'Gemini Nano',
     nanoReady: 'Bereit',
     nanoDownloading: 'Android lädt es gerade',
     nanoDownloadable: 'Noch nicht geladen',
-    model: 'Sprachmodell',
+    model: 'Modell für Girovo AI',
     /** Its size: on a phone, and on the desktop. */
     modelSize: (phone: boolean): string => (phone ? 'Etwa 2,6 GB' : 'Etwa 3 GB'),
     load: 'Laden',
@@ -367,7 +371,7 @@ export const de = {
   aiNames: {
     title: 'Namen mit Girovo AI aufräumen',
     hint: 'Zeigt Rewe statt REWE MARKT GMBH 4711',
-    needsModel: 'Lade zuerst das Modell unten',
+    needsModel: 'Geht, sobald das Modell geladen ist',
     isOff: 'Geht, wenn Girovo AI an ist',
     /** While the names are cleaned in the background. */
     progress: (done: number, total: number) => `${done} von ${total} Namen aufgeräumt`,
@@ -558,15 +562,16 @@ export const en: typeof de = {
 
   ask: {
     title: 'Girovo AI',
-    hint: 'Answers in full sentences',
+    use: 'Use Girovo AI',
     private: 'Your questions and transactions never leave your device.',
-    needsModel: (phone) => (phone ? 'Works once Gemini Nano is ready' : 'Download the model below first'),
-    group: 'Answers',
+    needsModel: (phone) => (phone ? 'Works once Gemini Nano is ready.' : 'Works once the model below is downloaded.'),
+    group: 'Model',
+    features: 'Features',
     nano: 'Gemini Nano',
     nanoReady: 'Ready',
     nanoDownloading: 'Android is downloading it',
     nanoDownloadable: 'Not downloaded yet',
-    model: 'Language model',
+    model: 'Model for Girovo AI',
     modelSize: (phone) => (phone ? 'About 2.6 GB' : 'About 3 GB'),
     load: 'Download',
     later: 'Coming in one of the next versions.',
@@ -656,7 +661,7 @@ export const en: typeof de = {
   aiNames: {
     title: 'Tidy names with Girovo AI',
     hint: 'Shows Rewe instead of REWE MARKT GMBH 4711',
-    needsModel: 'Download the model below first',
+    needsModel: 'Works once the model is downloaded',
     isOff: 'Works when Girovo AI is on',
     progress: (done, total) => `${done} of ${total} names tidied`,
   },

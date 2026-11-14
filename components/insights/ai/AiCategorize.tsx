@@ -25,7 +25,7 @@ import { useT } from '@/lib/i18n/react';
 import { IS_ANDROID } from '@/lib/platform';
 import { useFints } from '../../FintsProvider';
 import { AiMarkIcon, ChevronIcon } from '../../icons';
-import { ActionItem, SettingItem, SettingsGroup } from '../../settings/rows';
+import { ActionItem, SettingItem } from '../../settings/rows';
 import { menuGroups } from '../../transactions/TxDetail';
 import { Button, Checkbox, Dialog, Menu, MenuGroup, MenuItemRadio, Progress } from '../../ui';
 import { gemmaPrompt, gemmaUsable, useGemma } from '../gemma';
@@ -67,26 +67,24 @@ export function AiCategorizeRow() {
   const s = useAiCategorize();
   const [open, setOpen] = useState(false);
   if (!s.shown) return null;
+  // A row of Girovo AI's group "Funktionen" (components/settings/AskSettings.tsx); its dialog stands outside the group.
   return (
     <>
-      <SettingsGroup>
-        {s.ready ? (
-          <ActionItem
-            tone="ai"
-            icon={<AiMarkIcon />}
-            title={words.row}
-            summary={words.rowHint(s.count)}
-            onClick={() => setOpen(true)}
-          />
-        ) : (
-          <SettingItem
-            tone="ai"
-            icon={<AiMarkIcon />}
-            title={<span className="text-ink-2">{words.row}</span>}
-            summary={s.why === 'off' ? words.isOff : words.needsModel}
-          />
-        )}
-      </SettingsGroup>
+      {s.ready ? (
+        <ActionItem
+          icon={<AiMarkIcon />}
+          title={words.row}
+          summary={words.rowHint(s.count)}
+          onClick={() => setOpen(true)}
+        />
+      ) : (
+        <SettingItem
+          disabled
+          icon={<AiMarkIcon />}
+          title={words.row}
+          summary={s.why === 'off' ? words.isOff : words.needsModel}
+        />
+      )}
       {open && <AiCategorizeRun groups={s.groups} onClose={() => setOpen(false)} />}
     </>
   );

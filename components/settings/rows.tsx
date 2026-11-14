@@ -83,20 +83,25 @@ type ItemProps = {
   alert?: boolean;
   /** The on-device AI's rows (Gemini Nano, Frag deine Umsätze' switch): on the AI wash, as Android marks its AI features. */
   tone?: 'ai';
+  /** Not usable yet: the whole row at Material's 38%, its glyph, name and line alike. */
+  disabled?: boolean;
 };
+
+/** A disabled row's content: Material's 38%, the same for every part of it. */
+const DIM = 'opacity-[.38]';
 
 const ITEM = 'flex min-h-14 w-full items-center gap-4 px-4 py-3 text-left';
 
-function Glyph({ children }: { children: ReactNode }) {
+function Glyph({ children, dim }: { children: ReactNode; dim?: boolean }) {
   // The glyphs are Material Symbols (components/icons.tsx), sized by their font: 22px whatever size they were given.
-  return <span aria-hidden className="grid size-6 shrink-0 place-items-center self-center text-ink-2 [&>svg]:size-[22px] [&_.ms-icon]:text-[22px]!">{children}</span>;
+  return <span aria-hidden className={cx('grid size-6 shrink-0 place-items-center self-center text-ink-2 [&>svg]:size-[22px] [&_.ms-icon]:text-[22px]!', dim && DIM)}>{children}</span>;
 }
 
-function Text({ title, titleId, summary, summaryId, below, alert }: {
-  title: ReactNode; titleId?: string; summary?: ReactNode; summaryId?: string; below?: ReactNode; alert?: boolean;
+function Text({ title, titleId, summary, summaryId, below, alert, dim }: {
+  title: ReactNode; titleId?: string; summary?: ReactNode; summaryId?: string; below?: ReactNode; alert?: boolean; dim?: boolean;
 }) {
   return (
-    <span className="min-w-0 flex-1">
+    <span className={cx('min-w-0 flex-1', dim && DIM)}>
       <span id={titleId} className={cx('block text-[16px] leading-6', alert ? 'text-red' : 'text-ink')}>{title}</span>
       {summary && <span id={summaryId} className="block text-[14px] leading-5 text-ink-2">{summary}</span>}
       {below}
@@ -105,12 +110,12 @@ function Text({ title, titleId, summary, summaryId, below, alert }: {
 }
 
 /** A row that states something and offers nothing to press (the phone's integrity, the version). */
-export function SettingItem({ icon, title, summary, trailing, below, setting, alert, tone }: ItemProps) {
+export function SettingItem({ icon, title, summary, trailing, below, setting, alert, tone, disabled }: ItemProps) {
   return (
-    <div data-item data-setting={setting} data-tone={tone} className={ITEM}>
-      {icon && <Glyph>{icon}</Glyph>}
-      <Text title={title} summary={summary} below={below} alert={alert} />
-      {trailing && <span className="shrink-0">{trailing}</span>}
+    <div data-item data-setting={setting} data-tone={tone} aria-disabled={disabled || undefined} className={ITEM}>
+      {icon && <Glyph dim={disabled}>{icon}</Glyph>}
+      <Text title={title} summary={summary} below={below} alert={alert} dim={disabled} />
+      {trailing && <span className={cx('shrink-0', disabled && DIM)}>{trailing}</span>}
     </div>
   );
 }
@@ -173,14 +178,15 @@ export function SwitchItem({
   const summaryId = summary ? `${switchId}-sum` : undefined;
   return (
     <div data-item data-pressable={disabled ? undefined : ''} data-setting={setting} data-tone={tone} className={cx(ITEM, 'relative')}>
-      {icon && <Glyph>{icon}</Glyph>}
-      <span className="min-w-0 flex-1">
+      {icon && <Glyph dim={disabled}>{icon}</Glyph>}
+      {/* Disabled, name and line dim together (the switch dims itself): never a grey name over a bright line. */}
+      <span className={cx('min-w-0 flex-1', disabled && DIM)}>
         {/* Its ::after covers the row: the label's press is the row's. */}
         <label
           htmlFor={switchId}
           className={cx(
             'block text-[16px] leading-6 text-ink after:absolute after:inset-0 after:content-[""]',
-            disabled ? 'cursor-not-allowed text-ink-2' : 'cursor-pointer',
+            disabled ? 'cursor-not-allowed' : 'cursor-pointer',
           )}
         >
           {title}
@@ -196,6 +202,47 @@ export function SwitchItem({
         describedBy={summaryId}
         className="relative z-10"
       />
+    </div>
+  );
+}
+
+/**
+ * A page's main switch, as Android heads a feature's page with it: one wide
+ * pill above the page's groups that turns the whole feature on or off (Girovo
+ * AI). On, it stands on Girovo AI's violet container; off, on the highest
+ * container; disabled, its name at 38%. The whole pill is the switch's label.
+ * What is under it (why it cannot turn on, what stays private) is its
+ * description, by `describedBy`.
+ */
+export function MainSwitch({
+  title, checked, onChange, disabled, describedBy, setting,
+}: {
+  title: ReactNode; checked: boolean; onChange: (next: boolean) => void; disabled?: boolean; describedBy?: string; setting?: SettingsTarget;
+}) {
+  const id = useId();
+  const switchId = `main${id}`;
+  return (
+    <div
+      data-main-switch
+      data-on={checked || undefined}
+      data-disabled={disabled || undefined}
+      data-setting={setting}
+      className={cx(
+        'relative flex min-h-[72px] items-center gap-4 rounded-full py-3 pr-4 pl-6 transition-colors',
+        checked ? 'bg-[var(--ai-container)] text-[var(--ai-on-container)]' : 'bg-[var(--md-surface-container-highest)] text-ink',
+        !disabled && 'cursor-pointer',
+      )}
+    >
+      <label
+        htmlFor={switchId}
+        className={cx(
+          'min-w-0 flex-1 text-[18px] leading-6 font-medium after:absolute after:inset-0 after:rounded-full after:content-[""]',
+          disabled ? `cursor-not-allowed ${DIM}` : 'cursor-pointer',
+        )}
+      >
+        {title}
+      </label>
+      <Switch id={switchId} checked={checked} onChange={onChange} disabled={disabled} describedBy={describedBy} className="relative z-10" />
     </div>
   );
 }

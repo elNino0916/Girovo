@@ -503,6 +503,11 @@
     /* Girovo's AI mark and the wash under what it wrote (Girovo Next's violet over Girovo's blue, owner 2026-11-11):
        brand colours, like the plate, so no wallpaper reaches them; the text on the wash keeps the row's own ink. */
     --ai-mark: #7b4fe0;
+    /* Girovo AI's flat container (the page's main switch while on, components/settings/rows.tsx MainSwitch)
+       and the ink on it; the handle of a switch on the mark's violet. */
+    --ai-container: #ece4ff;
+    --ai-on-container: #2e1470;
+    --ai-on-mark: #ffffff;
     /* Girovo API's mark (components/icons.tsx ApiMarkIcon): Girovo's blue, a brand colour too. */
     --api-mark: #0060a8;
     --ai-wash: linear-gradient(
@@ -521,6 +526,9 @@
   }
   :root[data-look='material'][data-theme='dark'] {
     --ai-mark: #b085ff;
+    --ai-container: #33295a;
+    --ai-on-container: #ece4ff;
+    --ai-on-mark: #2e1470;
     --api-mark: #9ecaff;
     --ai-wash: linear-gradient(
       115deg,
@@ -537,6 +545,27 @@
   }
   :root[data-look='material'] [data-settings-group] > [data-item][data-tone='ai'] {
     background-image: var(--ai-wash);
+  }
+  /* A page's main switch (components/settings/rows.tsx MainSwitch): the switch on Girovo AI's violet, not
+     the app's blue, and the pill's own state layer, as a row's. */
+  :root[data-look='material'] [data-main-switch] m3e-switch {
+    --m3e-switch-selected-track-color: var(--ai-mark);
+    --m3e-switch-selected-hover-track-color: var(--ai-mark);
+    --m3e-switch-selected-focus-track-color: var(--ai-mark);
+    --m3e-switch-selected-pressed-track-color: var(--ai-mark);
+    --m3e-switch-selected-handle-color: var(--ai-on-mark);
+    --m3e-switch-selected-hover-handle-color: var(--ai-on-mark);
+    --m3e-switch-selected-focus-handle-color: var(--ai-on-mark);
+    --m3e-switch-selected-pressed-handle-color: var(--ai-on-mark);
+    --m3e-switch-selected-icon-color: var(--ai-mark);
+    --m3e-switch-selected-hover-icon-color: var(--ai-mark);
+    --m3e-switch-selected-focus-icon-color: var(--ai-mark);
+    --m3e-switch-selected-pressed-icon-color: var(--ai-mark);
+  }
+  @media (hover: hover) {
+    :root[data-look='material'] [data-main-switch]:not([data-disabled]):hover {
+      box-shadow: inset 0 0 0 100vmax color-mix(in srgb, currentColor 8%, transparent);
+    }
   }
   /* The same wash under everything Girovo's AI wrote (components/insights/AskThread.tsx, Ask.tsx). */
   :root[data-look='material'] [data-ai] {

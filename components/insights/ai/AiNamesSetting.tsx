@@ -38,7 +38,6 @@ export function AiNamesRow() {
       : on && progress?.total ? words.progress(progress.done, progress.total) : words.hint;
   return (
     <SwitchItem
-      tone="ai"
       icon={<TagIcon />}
       checked={on}
       onChange={setOn}
