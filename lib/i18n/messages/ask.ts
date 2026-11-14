@@ -631,6 +631,11 @@ export const de = {
     remindAsk: (name: string, day: string, lead: string) => `Soll Girovo dich ${lead} vor dem ${day} an die Kündigung von ${name} erinnern?`,
     remindDone: (name: string, day: string) => `Erledigt, Girovo erinnert dich rechtzeitig vor dem ${day} an ${name}.`,
     remindAlready: (name: string, day: string, lead: string) => `Girovo erinnert dich schon ${lead} vor dem ${day} an ${name}.`,
+    /** "Kündige mein Fitnessstudio": the letter, opened in Verträge & Abos' dialog (components/insights/CancelLetter.tsx). */
+    letterNoName: 'Für welchen Vertrag? Schreib etwa: Kündige Netflix.',
+    letterPick: 'Dazu passen mehrere Verträge. Für welchen ist das Schreiben?',
+    letterReady: (name: string) => `Dein Kündigungsschreiben an ${name} ist fertig. Girovo schickt es nicht ab.`,
+    letterOpen: 'Kündigungsschreiben öffnen',
     transferAsk: (name: string, amount: ReactNode | null): ReactNode[] => (amount
       ? ['Soll Girovo eine Überweisung an ', name, ' über ', amount, ' vorbereiten?']
       : ['Soll Girovo eine Überweisung an ', name, ' vorbereiten?']),
@@ -1133,6 +1138,10 @@ export const en: typeof de = {
     remindAsk: (name, day, lead) => `Should Girovo remind you ${lead} before ${day} to cancel ${name}?`,
     remindDone: (name, day) => `Done, Girovo will remind you about ${name} in good time before ${day}.`,
     remindAlready: (name, day, lead) => `Girovo already reminds you about ${name} ${lead} before ${day}.`,
+    letterNoName: 'Which contract? Try: cancel Netflix.',
+    letterPick: 'Several contracts match. Which one is the letter for?',
+    letterReady: (name) => `Your cancellation letter to ${name} is ready. Girovo doesn’t send it.`,
+    letterOpen: 'Open cancellation letter',
     transferAsk: (name, amount) => (amount
       ? ['Should Girovo prepare a transfer of ', amount, ' to ', name, '?']
       : ['Should Girovo prepare a transfer to ', name, '?']),

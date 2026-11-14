@@ -33,6 +33,7 @@
 
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type Ref } from 'react';
 import { bankNumberOf } from '@/lib/account-key';
+import type { LetterLine } from '@/lib/cancel-letter';
 import { isCardAccount } from '@/lib/balances';
 import { categoryLabel, txBic } from '@/lib/categories';
 import { dayKey, fmtDate, fmtDecimal, fmtIban, ibanCountry, translateType } from '@/lib/format';
@@ -56,6 +57,7 @@ type StatementJob = Extract<PrintJob, { kind: 'statement' }>;
 type TransactionJob = Extract<PrintJob, { kind: 'transaction' }>;
 type MessageJob = Extract<PrintJob, { kind: 'message' }>;
 type TaxYearJob = Extract<PrintJob, { kind: 'taxYear' }>;
+type LetterJob = Extract<PrintJob, { kind: 'letter' }>;
 
 export function Statement() {
   const { printJob, closePrintJob, toast } = useFints();
@@ -130,7 +132,9 @@ function DocumentSheet({
           ? <TransactionSheet job={job} stamp={stamp} />
           : job.kind === 'taxYear'
             ? <TaxYearSheet job={job} stamp={stamp} />
-            : <MessageSheet job={job} stamp={stamp} />}
+            : job.kind === 'letter'
+              ? <LetterSheet job={job} />
+              : <MessageSheet job={job} stamp={stamp} />}
     </div>
   );
 }
@@ -205,6 +209,8 @@ function marksSettled(root: HTMLElement | null): Promise<void> {
 function suggestedFileName(job: PrintJob, stamp: DocStamp): string {
   const { doc } = msgs().transactions;
   if (job.kind === 'taxYear') return `${msgs().tax.doc.file}_${job.summary.year}_${stamp.docId}.pdf`;
+  // The user's own letter carries no reference of Girovo's.
+  if (job.kind === 'letter') return job.file;
   const base = { statement: doc.statementFile, transaction: doc.receiptFile, message: doc.messageFile }[job.kind];
   return `${base}_${stamp.docId}.pdf`;
 }
@@ -259,6 +265,8 @@ function canonical(job: PrintJob, created: Date): string {
       ]),
     ].join('\n');
   }
+
+  if (job.kind === 'letter') return ['kuendigung', dayKey(created), job.letter.text].join('\n');
 
   if (job.kind === 'message') {
     // When it arrived as the session stored it (ISO), so the seal is the same
@@ -1022,6 +1030,52 @@ function MessageSheet({ job, stamp }: { job: MessageJob; stamp: DocStamp }) {
 
       <EndMarker label={doc.messageEnd} />
       <SheetFooter stamp={stamp} notes={[]} made={doc.generatedFromMessage} />
+    </article>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Kündigungsschreiben
+// ---------------------------------------------------------------------------
+
+/** A line of the letter: a gap to fill in as a dotted line with what goes there. */
+function LetterText({ line }: { line: LetterLine }) {
+  return (
+    <>
+      {line.map((piece, i) => (typeof piece === 'string'
+        ? <Fragment key={i}>{piece}</Fragment>
+        : <span key={i} className="doc-fill">{piece.fill}</span>))}
+    </>
+  );
+}
+
+/**
+ * The user's own letter to a provider (lib/cancel-letter.ts), laid out as a
+ * German business letter: the sender, the recipient where a window envelope
+ * shows it, the date on the right, the subject, the text, room to sign. It is
+ * the user's, not Girovo's: no letterhead, no reference, no seal, no page marks.
+ */
+function LetterSheet({ job }: { job: LetterJob }) {
+  const { letter } = job;
+  return (
+    <article className="doc-letter">
+      <section className="keep">
+        {letter.sender.map((line, i) => <p key={i}><LetterText line={line} /></p>)}
+      </section>
+      <section className="doc-letter-to keep">
+        {letter.recipient.map((line, i) => <p key={i}><LetterText line={line} /></p>)}
+      </section>
+      <p className="doc-letter-date"><LetterText line={letter.date} /></p>
+      <section className="doc-letter-subject keep">
+        <p className="doc-strong">{letter.subject}</p>
+        <p><LetterText line={letter.reference} /></p>
+      </section>
+      <p className="doc-letter-p">{letter.salutation}</p>
+      {letter.paragraphs.map((p, i) => <p key={i} className="doc-letter-p">{p}</p>)}
+      <section className="doc-letter-sign keep">
+        <p>{letter.closing}</p>
+        <p className="doc-letter-line"><LetterText line={letter.signer} /></p>
+      </section>
     </article>
   );
 }

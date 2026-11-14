@@ -84,6 +84,7 @@ import {
   categoryValidator, cleanCategoryName, CUSTOM_LIMITS, nameKey, newCustomId, sanitizeSplit, withoutCategory, type SplitPart,
 } from '@/lib/splits';
 import type { TaxYear } from '@/lib/tax-year';
+import type { CancelLetter } from '@/lib/cancel-letter';
 import type { BackupSummary, RestoreReport } from '@/lib/backup';
 import { addDaysKey, fmtDate, fmtRange, ibanValid, isoDate, parseAmount, presetRange, repairBankText, translateType } from '@/lib/format';
 import {
@@ -2987,6 +2988,10 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     toast(`Vorschau: Hier würde die Jahresübersicht ${summary.year} als PDF erstellt.`, 'info', 6000);
   }, [toast]);
 
+  const printLetter = useCallback((_letter: CancelLetter, file: string) => {
+    toast(`Vorschau: Hier würde das Kündigungsschreiben als ${file} erstellt.`, 'info', 6000);
+  }, [toast]);
+
   // The preview reads the year like any other range: the active account's list.
   const loadRange = useCallback((_account: SerializedAccount, r: DateRange) => applyRange(r), [applyRange]);
 
@@ -3058,7 +3063,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     accountsHidden: vault?.accountsHidden ?? NO_ACCOUNTS, setAccountsHidden,
     setKeepBookings, resetHistory, applySavedRange,
     saveTemplate, deleteTemplate, touchTemplate, dismissRecurring, restoreRecurring, setContractReminder, setContractName, setManualContract, setManualDay, markContractsNoticed,
-    printTaxYear, loadRange,
+    printTaxYear, printLetter, loadRange,
     makeBackup, restoreBackup, inspectBankFile, importBankFile,
     categoryOf, setCategory, setSplit,
     removeCategoryRule,

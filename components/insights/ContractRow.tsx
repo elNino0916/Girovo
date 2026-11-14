@@ -8,7 +8,7 @@
 import { useId, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useFints } from '../FintsProvider';
-import { BellIcon, CategoryIcon, ChevronIcon, ClockIcon, EyeOffIcon, MoreIcon, PencilIcon, ReceiptIcon, UndoIcon } from '../icons';
+import { BellIcon, CategoryIcon, ChevronIcon, ClockIcon, EyeOffIcon, FileIcon, MoreIcon, PencilIcon, ReceiptIcon, UndoIcon } from '../icons';
 import { Money } from '../Money';
 import { Button, IconButton, Menu, MenuItem, Tag, cx } from '../ui';
 import { categoryLabel } from '@/lib/categories';
@@ -20,6 +20,7 @@ import { seriesTitle, type RecurringSeries } from '@/lib/recurring';
 import {
   CounterpartyAvatar, RoundMoney, daysUntil, fmtDayKey, fmtDayKeyShort, focusAfterRemoval, relativeDays, useShowInList,
 } from './shared';
+import { CancelLetterDialog } from './CancelLetter';
 import { ReminderDialog } from './ReminderDialog';
 import { RenameContract } from './RenameContract';
 
@@ -103,6 +104,7 @@ export function ContractRow({
   const [open, setOpen] = useState(false);
   const [reminding, setReminding] = useState(false);
   const [renaming, setRenaming] = useState(false);
+  const [writing, setWriting] = useState(false);
   const rowRef = useRef<HTMLLIElement>(null);
   const detailId = useId();
   const n = name(s);
@@ -231,6 +233,9 @@ export function ContractRow({
                 {reminder ? words.reminder.change : words.reminder.set}
               </MenuItem>
             )}
+            {!credit && (
+              <MenuItem icon={<FileIcon size={18} />} onSelect={() => setWriting(true)}>{words.letter.action}</MenuItem>
+            )}
             <MenuItem
               icon={<EyeOffIcon size={18} />}
               description={s.manual ? words.manual.removeHint : words.dismissHint}
@@ -308,6 +313,8 @@ export function ContractRow({
                   {reminder ? words.reminder.change : words.reminder.set}
                 </Button>
               )}
+              {/* Income is not cancelled: the letter only for what is paid. */}
+              {!credit && <Button size="sm" variant="secondary" onClick={() => setWriting(true)}>{words.letter.action}</Button>}
               <Button size="sm" variant="tertiary" onClick={dismiss}>{s.manual ? words.manual.remove : words.dismiss}</Button>
             </div>
           </>
@@ -315,6 +322,7 @@ export function ContractRow({
       </div>
       {reminding && <ReminderDialog seriesId={s.id} name={n} onClose={() => setReminding(false)} />}
       {renaming && <RenameContract s={s} onClose={() => setRenaming(false)} />}
+      {writing && <CancelLetterDialog s={s} onClose={() => setWriting(false)} />}
     </li>
   );
 }

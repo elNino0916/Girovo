@@ -53,6 +53,7 @@ import { bankAnswerLines, notAboutPin } from '@/lib/bank-answer';
 import { bookingKind, categorize, explainGuess, guessCategory, type CategoryGuess } from '@/lib/categorize';
 import { EXAMPLE_MIN, nameSimilarity } from '@/lib/nano-categories';
 import { sanitizeBudgets, type Budgets } from '@/lib/budgets';
+import type { CancelLetter } from '@/lib/cancel-letter';
 import { withNote } from '@/lib/notes';
 import {
   counterpartyKey, counterpartyName, counterpartyRuleKey, isCategoryId, rawCounterparty, ruleKeyFor, setCustomCategories, txCreditorId, txKey,
@@ -5984,6 +5985,14 @@ function useFintsState() {
     }
   }, [accounts, bankOf, toast]);
 
+  /** A Kündigungsschreiben (lib/cancel-letter.ts) as a PDF: the user's letter, sent by nobody but them. */
+  const printLetter = useCallback((letter: CancelLetter, file: string) => {
+    setPrintJob({ kind: 'letter', letter, file });
+    if (typeof window === 'undefined' || !window.electronPDF) {
+      toast(msgs().provider.printAsPdf, 'info', 6000);
+    }
+  }, [toast]);
+
   const closePrintJob = useCallback(() => setPrintJob(null), []);
 
   return {
@@ -6024,7 +6033,7 @@ function useFintsState() {
     forgetDevice, logout, stayLoggedIn, toast, dismissToast,
     requestLogout, closeLogoutConfirm, setForgetDeviceOpen,
     retryWait, cancelWait, closeWait, submitTan, printStatement, printTransaction, printMessage, closePrintJob,
-    printTaxYear, loadRange,
+    printTaxYear, printLetter, loadRange,
     makeBackup, restoreBackup, inspectBankFile, importBankFile,
     togglePrivacy, setIdleMinutes, setSingleKeyShortcuts, setBalancesAtLogin, setBookingsAtLogin,
     setLogoConsent,

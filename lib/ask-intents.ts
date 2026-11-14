@@ -7,6 +7,7 @@
 // - refresh     "Aktualisiere alle Konten": every balance read again, asked first (it can cost a Freigabe)
 // - balance, balanceAt, monthEnd, contractCost, priceRises, salary, owed, goal: the app's own figures (lib/ask-facts.ts)
 // - fileUnder, createGoal, budget, remindContract, prepareTransfer: things done for you, asked first (lib/ask-actions.ts)
+// - cancelLetter: a contract's Kündigungsschreiben to take away, never sent (lib/ask-actions.ts, lib/cancel-letter.ts)
 //
 // Rules only: the words are few and plain, and a change is never made on a
 // model's guess. Every change waits for the user's "Ja" in the thread.

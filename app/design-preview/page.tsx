@@ -1522,6 +1522,7 @@ const VIEWS: Record<string, ViewDef> = {
   },
   'print-message-short': { label: 'Mitteilung, kurz', group: 'Dokumente', print: 'message-short', script: sheetShown },
   'print-message-long': { label: 'Mitteilung über zwei Seiten', group: 'Dokumente', print: 'message-long', script: sheetShown },
+  'print-letter': { label: 'Kündigungsschreiben', group: 'Dokumente', print: 'letter', script: sheetShown },
 };
 
 /** A document view is ready once its sheet is sealed and on the page. */

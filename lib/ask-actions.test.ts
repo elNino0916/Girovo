@@ -48,6 +48,35 @@ test('a contract reminder', () => {
   assert.deepEqual(read('remind me before my Netflix renews'), { kind: 'remindContract', name: 'netflix', by: null, lead: null });
 });
 
+test('a cancellation letter', () => {
+  const letter = (name: string | null, end: string | null = null) => ({ kind: 'cancelLetter', name, end });
+  assert.deepEqual(read('Kündige mein Fitnessstudio'), letter('fitnessstudio'));
+  assert.deepEqual(read('Schreib eine Kündigung für Netflix'), letter('netflix'));
+  assert.deepEqual(read('Kündigungsschreiben für Spotify'), letter('spotify'));
+  assert.deepEqual(read('Ich möchte meinen Handyvertrag kündigen'), letter('handyvertrag'));
+  assert.deepEqual(read('Kündige meinen Vertrag bei der Telekom'), letter('telekom'));
+  assert.deepEqual(read('Kündigung für McFit'), letter('mcfit'));
+  assert.deepEqual(read('Kannst du Netflix kündigen?'), letter('netflix'));
+  assert.deepEqual(read('Kündige Netflix zum 31.12.'), letter('netflix', '2026-12-31'));
+  assert.deepEqual(read('cancel my Netflix subscription'), letter('netflix'));
+  assert.deepEqual(read('write a cancellation letter for Spotify'), letter('spotify'));
+  assert.deepEqual(read('I want to cancel Disney Plus'), letter('disney plus'));
+  // Asked without a contract: the answer asks which.
+  assert.deepEqual(read('Schreib eine Kündigung'), letter(null));
+  // Questions about cancelling stay questions (lib/ask-contracts.ts answers them).
+  for (const q of ['Bis wann kann ich Netflix kündigen?', 'Wann kann ich Spotify kündigen', 'Was kann ich diesen Monat kündigen?', 'Welche Abos sind bald kündbar?',
+    'Soll ich Netflix kündigen?', 'When can I cancel Netflix?', 'Ich habe Netflix gekündigt', 'Wer hat gekündigt?']) {
+    assert.notEqual(read(q)?.kind, 'cancelLetter', q);
+  }
+  assert.equal(intentOf('Bis wann kann ich Netflix kündigen?', ['Netflix'], TODAY)?.kind, 'renewal');
+  // Orders at the bank are no contract of Verträge & Abos; a reminder stays a reminder.
+  assert.equal(read('Kündige den Dauerauftrag an Lea'), null);
+  assert.equal(read('Erinner mich an die Kündigung von Netflix')?.kind, 'remindContract');
+  // Through intentOf, before the contract facts.
+  assert.deepEqual(intentOf('Schreib eine Kündigung für Netflix', ['Netflix'], TODAY), letter('netflix'));
+  assert.ok(isAction(letter('netflix')));
+});
+
 test('a transfer, prepared and never sent', () => {
   assert.deepEqual(read('Bereite eine Überweisung an Lea über 20 € vor'), { kind: 'prepareTransfer', name: 'Lea', cents: 2000, purpose: null });
   assert.deepEqual(read('Überweis Mama 50 Euro für Pizza'), { kind: 'prepareTransfer', name: 'Mama', cents: 5000, purpose: 'Pizza' });

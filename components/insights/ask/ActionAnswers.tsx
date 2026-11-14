@@ -13,6 +13,9 @@
 // - prepareTransfer  the transfer form, filled in (openTransfer, as "Erneut überweisen" opens it), the IBAN only
 //                    from the newest earlier transfer to that person. Girovo never sends: the form's review and
 //                    the Freigabe stay the user's.
+// - cancelLetter     the contract's Kündigungsschreiben in Verträge & Abos' dialog (CancelLetter.tsx), to copy,
+//                    save as a PDF or open as an e-mail; it changes nothing, so it needs no "Ja, bitte", and
+//                    Girovo never sends it
 //
 // Routed from components/insights/AskThread.tsx IntentAnswer.
 
@@ -27,7 +30,7 @@ import { compactIban, dayKey, fmtAmountInput, fmtMonth } from '@/lib/format';
 import { intlLocale } from '@/lib/i18n/locale';
 import { useT } from '@/lib/i18n/react';
 import { goalsAllowed } from '@/lib/plus';
-import { seriesTitle } from '@/lib/recurring';
+import { seriesTitle, type RecurringSeries } from '@/lib/recurring';
 import { GOAL_LIMITS, monthKey } from '@/lib/savings-goal';
 import { useFints } from '../../FintsProvider';
 import { Money } from '../../Money';
@@ -36,6 +39,7 @@ import { txText } from '../../transactions/model';
 import { recentPayees } from '../../transfer/model';
 import { Button } from '../../ui';
 import { settleOutcome, type Turn } from '../ask-thread-store';
+import { CancelLetterDialog } from '../CancelLetter';
 import { useRecurringModel } from '../recurring-model';
 
 const TEXT = 'text-[16px] leading-6 text-ink sm:text-[14px] sm:leading-[22px] [text-wrap:pretty]';
@@ -110,6 +114,7 @@ export function ActionAnswer({ turn, intent, onShown }: { turn: Turn; intent: Ac
     case 'budget': return <BudgetAnswer turn={turn} intent={intent} onShown={onShown} />;
     case 'remindContract': return <RemindAnswer turn={turn} intent={intent} onShown={onShown} />;
     case 'prepareTransfer': return <TransferAnswer turn={turn} intent={intent} onShown={onShown} />;
+    case 'cancelLetter': return <LetterAnswer intent={intent} />;
   }
 }
 
@@ -240,42 +245,55 @@ function BudgetAnswer({ turn, intent, onShown }: { turn: Turn; intent: Extract<A
 /** Up to this many fitting contracts are offered to pick from; more, and the user names one. */
 const PICK_MAX = 6;
 
-/** "Erinner mich vor der Verlängerung von Spotify": Verträge & Abos' reminder before the day it can be cancelled by. */
-function RemindAnswer({ turn, intent, onShown }: { turn: Turn; intent: Extract<ActionIntent, { kind: 'remindContract' }>; onShown: () => void }) {
-  const t = useT();
-  const words = t.ask.tasks;
+/**
+ * The live contracts a name fits (Verträge & Abos), one per contract, and the
+ * one taken: the only one, or the one the user picked. Never the first of several.
+ */
+function useContractPick(asked: string | null) {
   const model = useRecurringModel();
-  const { vault, setContractReminder, setTab } = useFints();
-  const asked = intent.name;
-  // The contract picked when more than one fits; until then none is taken.
   const [picked, setPicked] = useState<string | null>(null);
   const hits = useMemo(
     () => (asked ? contractsFor(model.expense.filter((s) => !s.ended), asked, (s) => [seriesTitle(s), s.name]) : []),
     [asked, model.expense],
   );
+  const pool = useMemo(() => (asked ? contractChoices(hits, asked, (s) => [seriesTitle(s), s.name], (s) => s.id) : []), [hits, asked]);
+  const chosen = pool.length === 1 ? pool[0] : pool.find((s) => s.id === picked) ?? null;
+  return { hits, pool, chosen, setPicked };
+}
+
+/** Several contracts fit: a button for each, or with too many the names to choose from. */
+function ContractPicker({ pool, prompt, onPick }: { pool: RecurringSeries[]; prompt: string; onPick: (id: string) => void }) {
+  const words = useT().ask.tasks;
+  if (pool.length > PICK_MAX) return <Said lines={[words.remindSeveral([...new Set(pool.map((s) => seriesTitle(s)))].slice(0, 4).join(', '))]} />;
+  return (
+    <>
+      <Said lines={[prompt]} />
+      <div className="mt-3 flex flex-wrap gap-2">
+        {pool.map((s) => (
+          <Button key={s.id} variant="secondary" size="sm" onClick={() => onPick(s.id)}>
+            <span className="inline-flex gap-2">
+              <span>{seriesTitle(s)}</span>
+              <Amount cents={Math.round(Math.abs(s.amount) * 100)} />
+            </span>
+          </Button>
+        ))}
+      </div>
+    </>
+  );
+}
+
+/** "Erinner mich vor der Verlängerung von Spotify": Verträge & Abos' reminder before the day it can be cancelled by. */
+function RemindAnswer({ turn, intent, onShown }: { turn: Turn; intent: Extract<ActionIntent, { kind: 'remindContract' }>; onShown: () => void }) {
+  const t = useT();
+  const words = t.ask.tasks;
+  const { vault, setContractReminder, setTab } = useFints();
+  const asked = intent.name;
+  const { hits, pool, chosen: taken, setPicked } = useContractPick(asked);
   if (!asked) return <Said lines={[words.remindNoName]} />;
   if (!hits.length) return <Said lines={[t.ask.facts.contractNone(nameCase(asked))]} />;
-  const pool = contractChoices(hits, asked, (s) => [seriesTitle(s), s.name], (s) => s.id);
-  let chosen = pool.length === 1 ? pool[0] : pool.find((s) => s.id === picked) ?? null;
+  let chosen = taken;
   if (!chosen && turn.outcome === 'done') chosen = pool.find((s) => vault?.contractReminders?.[s.id]) ?? pool[0];
-  if (!chosen) {
-    if (pool.length > PICK_MAX) return <Said lines={[words.remindSeveral([...new Set(pool.map((s) => seriesTitle(s)))].slice(0, 4).join(', '))]} />;
-    return (
-      <>
-        <Said lines={[words.remindPick]} />
-        <div className="mt-3 flex flex-wrap gap-2">
-          {pool.map((s) => (
-            <Button key={s.id} variant="secondary" size="sm" onClick={() => setPicked(s.id)}>
-              <span className="inline-flex gap-2">
-                <span>{seriesTitle(s)}</span>
-                <Amount cents={Math.round(Math.abs(s.amount) * 100)} />
-              </span>
-            </Button>
-          ))}
-        </div>
-      </>
-    );
-  }
+  if (!chosen) return <ContractPicker pool={pool} prompt={words.remindPick} onPick={setPicked} />;
   const s = chosen;
   const title = seriesTitle(s);
   const current = vault?.contractReminders?.[s.id];
@@ -319,6 +337,28 @@ function RemindAnswer({ turn, intent, onShown }: { turn: Turn; intent: Extract<A
           onShown();
         }}
       />
+    </>
+  );
+}
+
+/**
+ * "Kündige mein Fitnessstudio", "Schreib eine Kündigung für Netflix": the
+ * contract's Kündigungsschreiben, in the dialog Verträge & Abos opens it in.
+ * Writing it changes nothing, so no "Ja, bitte"; sending stays the user's.
+ */
+function LetterAnswer({ intent }: { intent: Extract<ActionIntent, { kind: 'cancelLetter' }> }) {
+  const t = useT();
+  const words = t.ask.tasks;
+  const { hits, pool, chosen, setPicked } = useContractPick(intent.name);
+  const [open, setOpen] = useState(false);
+  if (!intent.name) return <Said lines={[words.letterNoName]} />;
+  if (!hits.length) return <Said lines={[t.ask.facts.contractNone(nameCase(intent.name))]} />;
+  if (!chosen) return <ContractPicker pool={pool} prompt={words.letterPick} onPick={setPicked} />;
+  return (
+    <>
+      <Said lines={[words.letterReady(seriesTitle(chosen))]} />
+      <OpenButton label={words.letterOpen} onClick={() => setOpen(true)} />
+      {open && <CancelLetterDialog s={chosen} end={intent.end} onClose={() => setOpen(false)} />}
     </>
   );
 }

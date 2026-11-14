@@ -11,6 +11,7 @@ import { isGrouping, sanitizeAccountOrder } from '@/lib/account-overview';
 import { isAskLength, isAskTone } from '@/lib/ask-style-fields';
 import { isAvatarChoice, isAvatarImage, OWN_PICTURE } from '@/lib/avatars';
 import { sanitizeBudgets } from '@/lib/budgets';
+import type { CancelLetter } from '@/lib/cancel-letter';
 import { sanitizeContractNames, sanitizeNoticed, sanitizeReminders } from '@/lib/contract-watch';
 import { sanitizeManual, sanitizeManualDays } from '@/lib/manual-contracts';
 import { sanitizeAiNames } from '@/lib/ai-names-store';
@@ -173,6 +174,13 @@ export type PrintJob =
       holder: string;
       /** The accounts in scope, as the sheet lists them. */
       accounts: { accountNumber: string; iban: string; label: string; bank: string }[];
+    }
+  | {
+      /** A Kündigungsschreiben (lib/cancel-letter.ts): the user's own letter, no letterhead, no seal. */
+      kind: 'letter';
+      letter: CancelLetter;
+      /** The save dialog's file name ("Kuendigung_Netflix.pdf"). */
+      file: string;
     };
 
 /** When an account's Vorgemerkt list was fetched, and how it stands against the statement. */

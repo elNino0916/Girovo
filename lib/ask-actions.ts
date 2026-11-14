@@ -1,5 +1,6 @@
 // Girovo AI: five things it does for you, each only after "Ja, bitte" in the
-// thread (components/insights/ask/ActionAnswers.tsx asks and makes them):
+// thread (components/insights/ask/ActionAnswers.tsx asks and makes them), and
+// a letter it writes for you to take away:
 //
 // - fileUnder        "Ordne alle Shell-Buchungen Mobilität zu": a category rule for a payee,
 //                    as "für alle" in a booking's details sets it
@@ -7,6 +8,8 @@
 // - budget           "Leg für Essen ein Budget von 300 € an", "Budget für Essen löschen": a monthly budget
 // - remindContract   "Erinner mich vor der Verlängerung von Spotify": the contract's cancellation reminder
 // - prepareTransfer  "Überweis Mama 50 Euro für Pizza": the transfer form, filled in; never sent from here
+// - cancelLetter     "Kündige mein Fitnessstudio", "Schreib eine Kündigung für Netflix": the contract's
+//                    Kündigungsschreiben (lib/cancel-letter.ts) to copy, save or mail; never sent from here
 //
 // Here the pure part: reading the message by rules (lib/ask-intents.ts
 // intentOf asks actionOf first), and the matching the answers need (a payee
@@ -30,9 +33,11 @@ export type ActionIntent =
   /** name: the contract, folded ("spotify", "handyvertrag"); by: the day it can be cancelled by; lead: days before. */
   | { kind: 'remindContract'; name: string | null; by: string | null; lead: number | null }
   /** name: the person as written ("Lea"); purpose: the Verwendungszweck as written. */
-  | { kind: 'prepareTransfer'; name: string | null; cents: number | null; purpose: string | null };
+  | { kind: 'prepareTransfer'; name: string | null; cents: number | null; purpose: string | null }
+  /** name: the contract, folded ("netflix", "fitnessstudio"); end: the day it is cancelled to ("zum 31.12."), null for the next possible. */
+  | { kind: 'cancelLetter'; name: string | null; end: string | null };
 
-export const ACTION_KINDS = ['fileUnder', 'createGoal', 'budget', 'remindContract', 'prepareTransfer'] as const;
+export const ACTION_KINDS = ['fileUnder', 'createGoal', 'budget', 'remindContract', 'prepareTransfer', 'cancelLetter'] as const;
 
 /** Whether an intent is one of these (and ActionAnswers says it). */
 export function isAction<I extends { kind: string }>(intent: I): intent is Extract<I, ActionIntent> {
@@ -129,8 +134,33 @@ const CONTRACT_KINDS: Array<[RegExp, string[]]> = [
   [/^(?:streaming\w*|tv)$/, ['netflix', 'disney', 'prime video', 'amazon prime', 'dazn', 'sky', 'wow', 'rtl', 'joyn', 'waipu', 'zattoo', 'paramount']],
 ];
 
+// cancelLetter
+/** Cancelling said outright: "Kündige mein Fitnessstudio", "Ich will Netflix kündigen", "cancel my Netflix". */
+const CANCEL_VERB = / (?:kündige|kündigen|kündig|kuendige|kuendigen|kuendig) |^ (?:bitte |please )?cancel | (?:want|like|need|help me) to cancel /;
+/** The letter by its name: "Kündigungsschreiben für Spotify", "cancellation letter for Netflix". */
+const LETTER_NOUN = / (?:kündigungsschreiben|kuendigungsschreiben|kündigungsbrief\w*|kuendigungsbrief\w*|kündigungsmail\w*|kuendigungsmail\w*|cancellation (?:letter|email|e-mail|notice)) /;
+/** "Kündigung" with a verb for writing it: "Schreib eine Kündigung für Netflix", "write a cancellation for Netflix". */
+const LETTER_WORD = / (?:kündigung|kuendigung|cancellation) /;
+const LETTER_WRITE = / (?:schreib\w*|erstell\w*|verfass\w*|formulier\w*|aufsetz\w*|setz\w* (?:\S+ ){0,4}auf|entwirf|entwerfen|mach\w*|brauch\w*|vorbereit\w*|bereite? (?:\S+ ){0,4}vor|write|draft|prepare|create|make|need) /;
+/** The noun first, a contract after it: "Kündigung für Netflix", "Kündigung meines Handyvertrags". */
+const LETTER_START = /^ (?:bitte |please )?(?:eine |die |a )?(?:kündigung|kuendigung|cancellation) (?:für|fuer|von|vom|bei|beim|an|meine[mnrs]?|mein|for|of|to|my) /;
+/** What is cancelled at the bank or elsewhere, no contract of Verträge & Abos. */
+const CANCEL_NOT = / (?:dauerauftr(?:a|ä|ae)g\w*|(?:ü|ue)berweisung\w*|transfers?|standing orders?|orders?|auftrag|auftr(?:ä|ae)ge|termin|termine|appointments?|lastschrift\w*|direct debits?) /;
+/** Asking about it: "Bis wann kann ich Netflix kündigen", "when can I cancel". */
+const CANCEL_ASK = / (?:wann|bis wann|when|by when|until when|kann ich|darf ich|soll ich|sollte ich|lohnt|can i|could i|should i) | k(?:ü|ue)ndbar/;
+const CANCEL_FILLER = new Set((
+  'kündige kündigen kündig kuendige kuendigen kuendig kündigung kuendigung kündigungsschreiben kuendigungsschreiben kündigungsbrief kuendigungsbrief '
+  + 'kündigungsmail kuendigungsmail schreib schreibe schreiben erstell erstelle erstellen verfass verfasse verfassen formulier formuliere formulieren '
+  + 'aufsetzen setz setze auf entwirf entwerfen mach mache machen brauch brauche brauchen vorbereiten bereite bereit vor bitte mir mich für fuer '
+  + 'von vom bei beim an im in mein meine meinen meiner meinem meines den die das der dem des ein eine einen einem einer vertrag vertrags vertrages '
+  + 'verträge vertraege abo abos abonnement mitgliedschaft tarif mit zum zur fristgerecht sofort jetzt gleich ich will möchte moechte würde wuerde '
+  + 'gern gerne muss kannst könntest koenntest du hilf hilfe helfen zu und hey nächstmöglichen naechstmoeglichen nächsten naechsten '
+  + 'please cancel cancellation letter email e-mail notice write draft prepare create make need a an the my for of with to at i want would like '
+  + 'me help subscription contract membership plan can you could as from on next possible date'
+).split(' '));
+
 // prepareTransfer
-const LEAD = '(?:bitte |please |und |and |jetzt |mal |hey |kannst du |könntest du |koenntest du |can you |could you |would you |ich will |ich möchte |ich moechte |möchte |moechte |ich würde gern |ich wuerde gern |ich muss |i want to |i\'d like to |i would like to |i need to )*';
+const LEAD ='(?:bitte |please |und |and |jetzt |mal |hey |kannst du |könntest du |koenntest du |can you |could you |would you |ich will |ich möchte |ich moechte |möchte |moechte |ich würde gern |ich wuerde gern |ich muss |i want to |i\'d like to |i would like to |i need to )*';
 // Only the forms that ask for it: "Überweist Lea mir noch 20 €?" is a question about Lea.
 const SEND = '(?:überweis(?:e|en)?|ueberweis(?:e|en)?|schick(?:e|en)?|send(?:e|en)?|zahl(?:e|en)?|bezahl(?:e|en)?|transfer|pay|wire)';
 const SEND_START = new RegExp(`^ ${LEAD}(${SEND}) (?!ich |i |wir |we |du |you |mir |me |uns |us |sie |they |mal (?:alle|meine|die) )`);
@@ -451,6 +481,18 @@ function remindOf(q: string, today: string): ActionIntent | null {
   return { kind: 'remindContract', name: words.slice(0, 3).join(' ') || null, by, lead };
 }
 
+function cancelOf(question: string, q: string, today: string): ActionIntent | null {
+  // "Kannst du Netflix kündigen?" wants it; "Bis wann kann ich Netflix kündigen?" asks (lib/ask-contracts.ts answers).
+  if (!WANTS_START.test(q) && (QUESTION.test(q) || question.includes('?'))) return null;
+  if (CANCEL_ASK.test(q) || CANCEL_NOT.test(q)) return null;
+  const letter = LETTER_NOUN.test(q) || (LETTER_WORD.test(q) && LETTER_WRITE.test(q)) || LETTER_START.test(q);
+  if (!letter && !CANCEL_VERB.test(q)) return null;
+  // "Kündige Netflix zum 31.12.": the day it ends.
+  const { by, rest } = futureDayOf(q, today);
+  const words = rest.trim().split(/[\s\-–]+/).filter((w) => w && !CANCEL_FILLER.has(w) && nameLike(w));
+  return { kind: 'cancelLetter', name: words.slice(0, 3).join(' ') || null, end: by };
+}
+
 function transferOf(question: string, q: string): ActionIntent | null {
   if (QUESTION.test(q) && !WANTS_START.test(q)) return null;
   // A question with "mir" is money coming to me, never a transfer from me.
@@ -544,6 +586,7 @@ export function actionOf(question: string, own: readonly OwnCategory[] = [], tod
   const q = fold(question);
   return transferOf(question, q)
     ?? remindOf(q, today)
+    ?? cancelOf(question, q, today)
     ?? budgetOf(question, q, own)
     ?? (QUESTION.test(q) || ASKS_ABOUT.test(q) ? null : goalOf(question, q, today) ?? fileOf(question, q, own));
 }

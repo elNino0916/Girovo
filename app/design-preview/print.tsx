@@ -13,6 +13,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useFints, type PrintJob } from '@/components/FintsProvider';
 import { DocumentPreview } from '@/components/Statement';
+import { holderName, sessionHolder } from '@/components/shell/session';
+import { cancelLetter, letterFileName } from '@/lib/cancel-letter';
 import type { InboxMessage, StatementInfo } from '@/lib/app-types';
 import type { SerializedBalance, SerializedTransaction } from '@/lib/fints-types';
 import { isFutureDate, isoDate, translateType } from '@/lib/format';
@@ -36,8 +38,11 @@ import { taxYear } from '@/lib/tax-year';
  *   message-short         the one-paragraph maintenance notice
  *   message-long          the letter grown past a page: a long subject, a link longer than
  *                         the line, an indented list
+ * and the user's own letter:
+ *   letter                a Kündigungsschreiben to a gym paid by direct debit (lib/cancel-letter.ts)
  */
 export type PrintPreviewKind =
+  | 'letter'
   | 'statement' | 'statement-no-opening' | 'statement-difference'
   | 'receipt' | 'credit' | 'card' | 'ahead' | 'pending'
   | 'message' | 'message-short' | 'message-long'
@@ -121,6 +126,19 @@ export function PrintPreview({ kind }: { kind: PrintPreviewKind }) {
 
   // Built once per change of the data it reads: the sheet seals every new job.
   const job = useMemo((): PrintJob | null => {
+    if (kind === 'letter') {
+      // The holder as the mock's bank names them; the rest as a gym's direct debit carries it.
+      const letter = cancelLetter({
+        holder: holderName(sessionHolder(accounts)),
+        contract: 'FitX',
+        today: isoDate(new Date()),
+        noticeBy: null,
+        creditorId: 'DE98ZZZ09999999999',
+        mandateReference: 'FITX-000421',
+        directDebit: true,
+      });
+      return { kind: 'letter', letter, file: letterFileName('FitX') };
+    }
     if (kind === 'tax-year') {
       // The running year of the mock's loaded accounts, in every spending
       // category the personal set uses, an own category and a split included.
