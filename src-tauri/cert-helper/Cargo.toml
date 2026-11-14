@@ -1,0 +1,35 @@
+[package]
+name = "girovo-cert"
+version = "1.0.0"
+edition = "2024"
+description = "Puts the MT-Media code-signing certificate into the machine's trust stores or takes it out (docs/mt-media-code-signing.md)"
+publish = false
+
+# Its own crate, like update-helper/: no Tauri, no window, a few hundred
+# kilobytes, started elevated by Girovo. src-tauri/build.rs builds it and
+# hands it to the bundle (tauri.windows.conf.json externalBin).
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "girovo-cert"
+path = "src/main.rs"
+# Runs elevated by its manifest; the tests are the library's.
+test = false
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  "Win32_Security_Cryptography",
+] }
+
+[dev-dependencies]
+sha2 = "0.10"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

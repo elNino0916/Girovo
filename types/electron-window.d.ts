@@ -1,5 +1,25 @@
 export {};
 
+/** What src-tauri/src/publisher_cert.rs reads from the machine's trust stores. */
+export type PublisherCertStatus = {
+  available: boolean;
+  state: 'notInstalled' | 'trusted' | 'invalid' | 'expired' | 'mismatch';
+  publisher: string;
+  subject: string;
+  thumbprint: string;
+  sha256: string;
+  /** "2028-11-14" (UTC). */
+  validUntil: string;
+  inRoot: boolean;
+  inTrustedPublisher: boolean;
+};
+
+export type PublisherCertAnswer = {
+  result: 'done' | 'canceled' | 'refused' | 'failed' | 'unavailable';
+  status: PublisherCertStatus;
+  code?: number;
+};
+
 declare global {
   /** The desktop app's updater as src-tauri/src/updater reports it. */
   type ElectronUpdatePhase = 'idle' | 'checking' | 'current' | 'available' | 'downloading' | 'ready' | 'installing';
@@ -337,6 +357,13 @@ declare global {
       /** `exclude`: the login's keys already set up. Two touches. */
       register: (salt: string, exclude: string[]) => Promise<{ result: 'registered' | 'canceled' | 'exists' | 'unsupported' | 'unavailable' | 'busy' | 'failed'; credential?: string; key?: string; code?: string }>;
       open: (salt: string, credentials: string[]) => Promise<{ result: 'opened' | 'canceled' | 'wrong' | 'unsupported' | 'unavailable' | 'busy' | 'failed'; credential?: string; key?: string; code?: string }>;
+    };
+    /** MT-Media as the publisher (src-tauri/src/publisher_cert.rs), Windows only. */
+    electronPublisherCert?: {
+      status: () => Promise<PublisherCertStatus>;
+      /** Starts girovo-cert.exe elevated (UAC asks); 'done' only once Windows shows the change. */
+      install: () => Promise<PublisherCertAnswer>;
+      remove: () => Promise<PublisherCertAnswer>;
     };
     electronHello?: {
       available: () => Promise<boolean>;

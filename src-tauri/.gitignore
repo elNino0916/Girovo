@@ -2,6 +2,7 @@
 /gen/schemas/
 # ONNX Runtime for the category model, staged by scripts/build-desktop.mjs
 /onnxruntime/
-# girovo-update.exe, built by build.rs from update-helper/
+# girovo-update.exe and girovo-cert.exe, built by build.rs from update-helper/ and cert-helper/
 /binaries/
 /update-helper/target/
+/cert-helper/target/

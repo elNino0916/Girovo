@@ -30,7 +30,7 @@ export type DashboardTab = 'overview' | 'analysis' | 'contracts' | 'settings';
 /** A setting the search can bring the user to on the Einstellungen page (components/settings). */
 export type SettingsTarget =
   | 'language' | 'theme' | 'black' | 'idle' | 'categories' | 'logos' | 'usage' | 'device' | 'data' | 'keep' | 'backup' | 'updates'
-  | 'channel' | 'early' | 'fromFile' | 'loginBalances' | 'loginBookings' | 'keepBalances' | 'alerts' | 'ask';
+  | 'channel' | 'early' | 'fromFile' | 'loginBalances' | 'loginBookings' | 'keepBalances' | 'alerts' | 'ask' | 'publisher';
 
 /** A date range as `<input type="date">` speaks it: local yyyy-mm-dd. */
 export type DateRange = { from: string; to: string };

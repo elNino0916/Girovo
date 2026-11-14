@@ -30,6 +30,7 @@ mod model;
 mod paths;
 mod pdf;
 mod prefs;
+mod publisher_cert;
 mod reset;
 mod save;
 mod secret;
@@ -270,6 +271,9 @@ pub fn run() {
       hello::hello_available,
       hello::hello_enroll,
       hello::hello_unlock,
+      publisher_cert::publisher_cert_status,
+      publisher_cert::publisher_cert_install,
+      publisher_cert::publisher_cert_remove,
       security_key::security_key_available,
       security_key::security_key_register,
       security_key::security_key_open,

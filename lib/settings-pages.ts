@@ -56,6 +56,7 @@ export const PAGE_ORDER: readonly SettingsPage[] = PAGE_CLUSTERS.flat();
 export const PAGE_OF: Record<SettingsTarget, SettingsPage> = {
   idle: 'security',
   device: 'security',
+  publisher: 'security',
   logos: 'security',
   usage: 'security',
   alerts: 'notifications',

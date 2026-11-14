@@ -26,6 +26,12 @@ name: Nightly desktop build
 # nightly key, so only copies on the Next channel take it. The schedule
 # builds the nightly alone.
 #
+# Windows builds started by hand from a branch with scripts/sign-windows.mjs
+# are signed with the MT-Media certificate (docs/mt-media-code-signing.md on
+# the branch): the windows job builds the programs, windows-signed packs and
+# signs them in the `signing` environment, which waits for the owner's
+# approval. The schedule builds unsigned, so a night never waits for a click.
+#
 # GitHub runs scheduled workflows from the default branch, so this file lives
 # on main and checks out the branch it builds. It must stay the same file on
 # main, nightly and girovo-next: a release made from a commit whose copy
@@ -102,6 +108,8 @@ jobs:
     needs: plan
     if: needs.plan.outputs.build == 'true'
     runs-on: windows-latest
+    outputs:
+      sign: ${{ steps.build.outputs.sign }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -126,13 +134,81 @@ jobs:
         with:
           workspaces: src-tauri
       - name: Build installer
+        id: build
         shell: bash
         run: |
-          if [ -f scripts/dist-desktop.mjs ]; then
+          if [ -f scripts/sign-windows.mjs ] && [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            node scripts/dist-desktop.mjs --platform win32 --no-bundle
+            echo "sign=true" >> "$GITHUB_OUTPUT"
+          elif [ -f scripts/dist-desktop.mjs ]; then
             node scripts/dist-desktop.mjs --platform win32
           else
             npm run electron:dist
           fi
+      - uses: actions/upload-artifact@v4
+        if: steps.build.outputs.sign != 'true'
+        with:
+          name: windows
+          path: |
+            dist/*-Setup.exe
+            dist/*-Setup.exe.blockmap
+          if-no-files-found: error
+          retention-days: 3
+      # The programs for windows-signed, which packs and signs them.
+      - uses: actions/upload-artifact@v4
+        if: steps.build.outputs.sign == 'true'
+        with:
+          name: windows-programs
+          path: |
+            package.json
+            src-tauri/target/release/Girovo.exe
+            src-tauri/binaries/
+            src-tauri/onnxruntime/
+            models/category-model/
+          if-no-files-found: error
+          retention-days: 1
+
+  # The installer signed with the MT-Media certificate (docs/mt-media-code-signing.md).
+  # The key lives in the `signing` environment, which waits for the owner's
+  # approval and allows main only. This job runs no npm ci and no cargo build,
+  # so no package from either can reach the key: it takes the programs the job
+  # before built, installs the Tauri CLI alone, and lets Tauri sign Girovo.exe,
+  # its helpers and the uninstaller before NSIS packs them, then the installer.
+  windows-signed:
+    name: Windows installer, signed
+    needs: [plan, windows]
+    if: needs.windows.outputs.sign == 'true'
+    runs-on: windows-latest
+    environment: signing
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-programs
+          path: .
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: The Tauri CLI alone
+        shell: bash
+        run: |
+          v=$(node -p "require('./package.json').devDependencies['@tauri-apps/cli']")
+          npm install --prefix "$RUNNER_TEMP/tauri-cli" --ignore-scripts --no-audit --no-fund "@tauri-apps/cli@$v"
+          echo "GIROVO_TAURI_CLI=$RUNNER_TEMP/tauri-cli/node_modules/.bin/tauri.cmd" >> "$GITHUB_ENV"
+      - name: Signing certificate
+        shell: pwsh
+        env:
+          MT_MEDIA_PFX_BASE64: ${{ secrets.MT_MEDIA_PFX_BASE64 }}
+          MT_MEDIA_PFX_PASSWORD: ${{ secrets.MT_MEDIA_PFX_PASSWORD }}
+        run: ./scripts/ci-signing-cert.ps1 import
+      - name: Installer, signed and checked
+        run: node scripts/dist-desktop.mjs --platform win32 --bundle-only --sign
+      - name: Forget the certificate
+        if: always()
+        shell: pwsh
+        run: ./scripts/ci-signing-cert.ps1 forget
       - uses: actions/upload-artifact@v4
         with:
           name: windows
@@ -141,6 +217,12 @@ jobs:
             dist/*-Setup.exe.blockmap
           if-no-files-found: error
           retention-days: 3
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-signing-log
+          path: dist/signing-log.jsonl
+          if-no-files-found: error
+          retention-days: 30
 
   linux:
     name: Linux AppImage and deb
@@ -217,15 +299,21 @@ jobs:
 
   publish:
     name: Publish the pre-release
-    needs: [plan, windows, linux]
+    needs: [plan, windows, windows-signed, linux]
+    # windows-signed is skipped for unsigned builds; it must not be failed or cancelled.
+    if: >-
+      !cancelled() && needs.windows.result == 'success' && needs.linux.result == 'success'
+      && (needs.windows-signed.result == 'success' || needs.windows-signed.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.plan.outputs.sha }}
           fetch-depth: 0
+      # The installers only: not the signing job's programs or its log.
       - uses: actions/download-artifact@v4
         with:
+          pattern: '{windows,linux}'
           path: out
           merge-multiple: true
       - name: Notes

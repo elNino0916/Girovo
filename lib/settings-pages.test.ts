@@ -8,7 +8,7 @@ import { PAGE_CLUSTERS, PAGE_OF, PAGE_ORDER, hasUpdateRows, isSettingsPage, page
 // out: a new target without a page fails to compile in PAGE_OF, one missing here fails below.
 const TARGETS: readonly SettingsTarget[] = [
   'language', 'theme', 'black', 'idle', 'categories', 'logos', 'usage', 'device', 'data', 'keep', 'backup', 'updates',
-  'channel', 'early', 'fromFile', 'loginBalances', 'loginBookings', 'keepBalances', 'alerts', 'ask',
+  'channel', 'early', 'fromFile', 'loginBalances', 'loginBookings', 'keepBalances', 'alerts', 'ask', 'publisher',
 ];
 
 test('every setting the search opens lives on a page that exists', () => {

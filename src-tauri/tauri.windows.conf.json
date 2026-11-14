@@ -1,6 +1,6 @@
 {
   "bundle": {
-    "externalBin": ["binaries/girovo-update"],
+    "externalBin": ["binaries/girovo-update", "binaries/girovo-cert"],
     "fileAssociations": [
       {
         "ext": ["girovoupdate"],

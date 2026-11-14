@@ -69,6 +69,7 @@ import { BackupRows } from './BackupDialogs';
 import { ImportRow } from './ImportDialog';
 import { CategorySettings } from './CategorySettings';
 import { LinkedUnlockSwitch } from './LinkedUnlock';
+import { PublisherCertGroup } from './PublisherCert';
 import { SecurityKeysRow } from './SecurityKeys';
 import { WindowsHelloSwitch } from './WindowsHello';
 import { BackgroundSwitch } from './BackgroundChecks';
@@ -365,6 +366,9 @@ function SecurityPage() {
           />
         )}
       </SettingsGroup>
+
+      {/* The Windows desktop app only: MT-Media as the publisher (docs/mt-media-code-signing.md). */}
+      <PublisherCertGroup />
 
       <LeavesDeviceGroup />
     </>

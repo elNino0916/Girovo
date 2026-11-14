@@ -124,6 +124,15 @@
     open: function (salt, credentials) { return invoke('security_key_open', { salt: salt, credentials: credentials }); },
   });
 
+  // MT-Media as the publisher (src/publisher_cert.rs, Windows only): the
+  // certificate's state in the machine's trust stores, and putting it in or
+  // taking it out through girovo-cert.exe (UAC asks). Each answers with the state.
+  define('electronPublisherCert', {
+    status: function () { return invoke('publisher_cert_status'); },
+    install: function () { return invoke('publisher_cert_install'); },
+    remove: function () { return invoke('publisher_cert_remove'); },
+  });
+
   // In-app updates (src/updater). Every call answers with the updater's
   // state; onState hears every change, download progress included, and
   // returns its own unsubscribe.

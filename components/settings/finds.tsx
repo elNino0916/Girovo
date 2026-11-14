@@ -50,6 +50,7 @@ export function useSettingFinds(): SettingFind[] {
   const usage = useUsageConsent();
   const { state: update } = useUpdates();
   const logos = !!meta?.merchantLogos;
+  const publisher = typeof window !== 'undefined' && !!window.electronPublisherCert;
   const fromFile = update?.kind === 'nsis' && typeof window !== 'undefined' && !!window.electronUpdater?.chooseFile;
   return useMemo(() => {
     const s = (target: SettingsTarget, words: WordsId, name: (m: Messages) => string, icon: SettingFind['icon']): SettingFind =>
@@ -65,6 +66,8 @@ export function useSettingFinds(): SettingFind[] {
       logos && s('logos', 'logos', (m) => m.session.logos, (p) => <ImageIcon {...p} />),
       !!usage && s('usage', 'usage', (m) => m.session.usage, (p) => <ChartIcon {...p} />),
       s('device', 'device', (m) => m.settings.find.device, (p) => <ShieldIcon {...p} />),
+      // Windows desktop only, as on the page (components/settings/PublisherCert.tsx).
+      publisher && s('publisher', 'publisher', (m) => m.settings.publisherCert.row, (p) => <ShieldIcon check {...p} />),
       (ready || vaultStatus === 'error') && s('data', 'data', (m) => m.session.vault, (p) => <LockIcon {...p} />),
       ready && s('keep', 'keep', (m) => m.history.keep, (p) => <CalendarIcon {...p} />),
       ready && s('backup', 'backup', (m) => m.backup.row.title, (p) => <ArchiveIcon {...p} />),
@@ -77,5 +80,5 @@ export function useSettingFinds(): SettingFind[] {
       fromFile && s('fromFile', 'fromFile', (m) => m.settings.fromFile.title, (p) => <FileIcon {...p} />),
     ];
     return list.filter((x): x is SettingFind => !!x);
-  }, [logos, usage, vaultStatus, backgroundChecks, update, fromFile]);
+  }, [logos, usage, vaultStatus, backgroundChecks, update, fromFile, publisher]);
 }

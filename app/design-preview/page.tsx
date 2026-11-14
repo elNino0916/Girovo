@@ -20,6 +20,7 @@
 //                  &unclear=1                 this session's log holds a "Status unklar" transfer
 //                  &second=linked|loggedOut|remembered   a second bank in the view (Weitere Bank anmelden)
 //                  &update=available|ready|…  a fake desktop updater (./updater.ts)
+//                  &publisher=notInstalled|trusted|invalid|expired|mismatch  MT-Media als Herausgeber (./publisher.ts)
 //                  &terms=ask                 the login before the terms of use are agreed to (lib/terms.ts)
 //                  &nano=working|unsupported|…  Android: a fake Gemini Nano (./nano.ts)
 //                  &integrity=modified|unknown|kept  Android: the integrity check's answer (./nano.ts)
@@ -67,6 +68,7 @@ import {
 } from './nano';
 import type { PlusState } from '@/lib/plus';
 import { installFakeUpdater, isUpdateScenario, type UpdateScenario } from './updater';
+import { installFakePublisherCert, isPublisherState, type PublisherState } from './publisher';
 import { USAGE_SCENARIOS, installFakeTelemetry } from './telemetry';
 import { setTermsPreview } from '@/lib/terms';
 
@@ -1626,6 +1628,14 @@ function prepareUpdater(key: string, scenario: UpdateScenario | null, dialog: bo
   installFakeUpdater(scenario, { dialog, kind });
 }
 
+/** Likewise the fake MT-Media certificate state (?publisher=…). */
+let publisherKey: string | null = null;
+function preparePublisher(key: string, state: PublisherState | null) {
+  if (publisherKey === key) return;
+  publisherKey = key;
+  installFakePublisherCert(state);
+}
+
 /** Likewise the fake Gemini Nano and integrity check (?nano=…, ?integrity=…, Android preview only). */
 let nanoKey: string | null = null;
 function prepareNano(key: string, scenario: NanoScenario | null, integrity: IntegrityScenario | null, plus: PlusState | null) {
@@ -1662,6 +1672,8 @@ export default function DesignPreview({ searchParams }: { searchParams: Promise<
     def.update?.dialog || one(params.updateDialog) === '1',
     def.update?.kind,
   );
+  const publisherParam = one(params.publisher);
+  preparePublisher(JSON.stringify(params), isPublisherState(publisherParam) ? publisherParam : null);
   const nanoParam = one(params.nano);
   const integrityParam = one(params.integrity);
   const plusParam = one(params.plus);
