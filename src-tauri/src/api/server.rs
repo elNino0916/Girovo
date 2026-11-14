@@ -39,6 +39,15 @@ pub struct Limits {
   /// How long the page may take to answer: long enough for a consent dialog
   /// the user reads, then `timeout`.
   pub call_timeout: Duration,
+  /// The same for the methods in LONG_CALLS, which may take longer by their
+  /// nature: a bank's Freigabe, several banks one after another. A client
+  /// told `timeout` while Girovo carries on might start the same again.
+  pub long_call_timeout: Duration,
+  /// How long a new connection may stay silent before its first request:
+  /// one that never asks anything would hold one of `max_connections` for good.
+  pub first_request_timeout: Duration,
+  /// Connections one process may have open at once, so one program can't take them all.
+  pub max_per_client: usize,
   pub per_second: f64,
   pub burst: f64,
   /// Calls one connection may have waiting for the page at once.
@@ -63,6 +72,9 @@ impl Default for Limits {
       hold_timeout: Duration::from_secs(120),
       max_held: 64,
       call_timeout: Duration::from_secs(150),
+      long_call_timeout: Duration::from_secs(10 * 60),
+      first_request_timeout: Duration::from_secs(30),
+      max_per_client: 4,
       per_second: 20.0,
       burst: 40.0,
       max_pending: 32,
@@ -71,6 +83,9 @@ impl Default for Limits {
     }
   }
 }
+
+/// The methods that get `long_call_timeout` instead of `call_timeout`.
+const LONG_CALLS: &[&str] = &["girovo.bank.refresh"];
 
 /// One request on its way to the page: the `api:call` event's payload.
 #[derive(Debug, Clone, Serialize)]
@@ -180,6 +195,8 @@ struct Shared {
   pending: Mutex<HashMap<String, Pending>>,
   outboxes: Mutex<HashMap<String, Outbox>>,
   connections: AtomicUsize,
+  /// Open connections by client process.
+  per_client: Mutex<HashMap<u32, usize>>,
   /// Whether the page can answer, and the calls held until it can. Router
   /// calls on behalf of the hold are made under its lock, so the page gets
   /// calls in the order they came and hears the newest list of who waits last.
@@ -232,6 +249,7 @@ impl Server {
       pending: Mutex::new(HashMap::new()),
       outboxes: Mutex::new(HashMap::new()),
       connections: AtomicUsize::new(0),
+      per_client: Mutex::new(HashMap::new()),
       hold: Mutex::new(Hold::default()),
     });
     let (stop, stopped) = watch::channel(false);
@@ -406,6 +424,37 @@ impl Drop for Counted {
   }
 }
 
+/// Counts a process's connections while they live.
+struct PerClient {
+  shared: Arc<Shared>,
+  pid: u32,
+}
+
+impl PerClient {
+  /// None when the process has as many open as it may.
+  fn take(shared: &Arc<Shared>, pid: u32) -> Option<PerClient> {
+    let mut counts = shared.per_client.lock().unwrap();
+    let open = counts.entry(pid).or_insert(0);
+    if *open >= shared.limits.max_per_client {
+      return None;
+    }
+    *open += 1;
+    Some(PerClient { shared: shared.clone(), pid })
+  }
+}
+
+impl Drop for PerClient {
+  fn drop(&mut self) {
+    let mut counts = self.shared.per_client.lock().unwrap();
+    if let Some(open) = counts.get_mut(&self.pid) {
+      *open -= 1;
+      if *open == 0 {
+        counts.remove(&self.pid);
+      }
+    }
+  }
+}
+
 /// At the end of an identified connection: its calls nobody will read the
 /// answer to are dropped, and the page hears that it ended.
 struct Announced {
@@ -439,6 +488,17 @@ where
     let _ = write.shutdown().await;
     return;
   }
+  let _per_client = match pid {
+    Some(pid) => match PerClient::take(&shared, pid) {
+      Some(counted) => Some(counted),
+      None => {
+        let _ = write.write_all(&refuse("busy", "Too many connections from this program")).await;
+        let _ = write.shutdown().await;
+        return;
+      }
+    },
+    None => None,
+  };
   let identify = shared.identify;
   let client = match pid {
     Some(pid) => tokio::task::spawn_blocking(move || identify(pid)).await.ok().flatten(),
@@ -477,10 +537,16 @@ where
   let mut bucket = rpc::Bucket::new(shared.limits.per_second, shared.limits.burst, Instant::now());
   // Dropped for not reading, the connection ends at once, even while a line
   // of its own waits for room in its full queue.
+  let silent_until = tokio::time::Instant::now() + shared.limits.first_request_timeout;
   let reading = async {
+    let mut asked = false;
     loop {
       let line = tokio::select! {
         _ = stopped.changed() => break,
+        _ = tokio::time::sleep_until(silent_until), if !asked => {
+          out.send(refuse("timeout", "No request came in time")).await;
+          break;
+        }
         line = rpc::read_line(&mut reader, shared.limits.max_message) => line,
       };
       let line = match line {
@@ -505,6 +571,7 @@ where
         }
         Message::Notification | Message::Response => continue,
       };
+      asked = true;
       if !allowed {
         out.send(rpc::error_line(&request_id, &WireError::from_reason("rate_limited", "Too many requests", None))).await;
         continue;
@@ -515,6 +582,7 @@ where
         continue;
       }
 
+      let limit = if LONG_CALLS.contains(&method.as_str()) { shared.limits.long_call_timeout } else { shared.limits.call_timeout };
       let call = Call { id: uuid::Uuid::new_v4().to_string(), connection: id.clone(), client: client.clone(), method, params };
       let (answer, answered) = oneshot::channel();
       // Waiting before the page hears of it, so even an instant answer finds its call.
@@ -528,7 +596,7 @@ where
           continue;
         }
       };
-      let (shared, out, call_id, limit) = (shared.clone(), out.clone(), call.id, shared.limits.call_timeout);
+      let (shared, out, call_id) = (shared.clone(), out.clone(), call.id);
       calls.spawn(async move {
         // Held: first the wait for the page, as long as the user may take to log in.
         if let Some(mut released) = held {
