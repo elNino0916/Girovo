@@ -49,11 +49,11 @@ function TrustBadge({ size, ring }: { size: 'sm' | 'lg'; ring: string }) {
       aria-hidden
       className={cx(
         'absolute grid place-items-center rounded-full bg-green text-white',
-        size === 'lg' ? '-right-0.5 -bottom-0.5 size-[26px] border-[3px]' : '-right-[3px] -bottom-[3px] size-[18px] border-2',
+        size === 'lg' ? '-right-0.5 -bottom-0.5 size-[26px] border-[3px]' : '-right-2 -bottom-2.5 size-[15px] border-2',
       )}
       style={{ borderColor: ring }}
     >
-      <svg viewBox="0 0 24 24" width={size === 'lg' ? 14 : 10} height={size === 'lg' ? 14 : 10} fill="none" stroke="currentColor" strokeWidth={3.4} strokeLinecap="round" strokeLinejoin="round">
+      <svg viewBox="0 0 24 24" width={size === 'lg' ? 14 : 9} height={size === 'lg' ? 14 : 9} fill="none" stroke="currentColor" strokeWidth={3.4} strokeLinecap="round" strokeLinejoin="round">
         <path d="M5 12.5l4.5 4.5L19 7.5" />
       </svg>
     </span>
@@ -133,9 +133,11 @@ export function PublisherCertGroup() {
     <SettingsGroup title={words.group}>
       <ActionItem
         setting="publisher"
+        // The row's icon slot is 24px (rows.tsx Glyph): the mark alone, as wide as a glyph
+        // and a little more, since it is twice as wide as it is tall.
         icon={
-          <span className="relative grid size-10 shrink-0 place-items-center rounded-full bg-[var(--md-surface-container-highest,var(--inset))]">
-            <Logo part="mark" className="h-auto w-[26px]" />
+          <span className="relative block w-7 shrink-0">
+            <Logo part="mark" className="h-auto w-full" />
             {trusted && <TrustBadge size="sm" ring="var(--md-surface-container,var(--surface))" />}
           </span>
         }
