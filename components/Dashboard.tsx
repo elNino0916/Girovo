@@ -161,8 +161,9 @@ function FramedDashboard() {
       data-frame
       data-side-open={sidebarOpen || undefined}
       className="flex h-dvh flex-col bg-[var(--frame-canvas)]"
-      // Folded, the rail is 96px, room for a label as long as "Einstellungen" (as the classic rail).
-      style={{ '--frame-side': sidebarOpen ? '272px' : '96px' } as CSSProperties}
+      // Folded, the rail is 96px, room for a label as long as "Einstellungen" (as the classic rail). Open on
+      // Einstellungen it is 320px: each page's row carries a line of what is on it (owner's pick B, 2026-11-14).
+      style={{ '--frame-side': sidebarOpen ? (tab === 'settings' ? '320px' : '272px') : '96px' } as CSSProperties}
     >
       <header className="shrink-0">
         <TitleBar sidebarOpen={sidebarOpen} onMenu={toggleSidebar} />

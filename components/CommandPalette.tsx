@@ -56,6 +56,7 @@ import { setThemePref } from '@/lib/theme';
 import type { DashboardTab, SettingsTarget } from '@/lib/app-types';
 import type { SerializedAccount, SerializedTransaction } from '@/lib/fints-types';
 import { useFints } from './FintsProvider';
+import { findWords, useSettingFinds, type WordsId } from './settings/finds';
 import { canReportBalance, isCardAccount } from '@/lib/balances';
 import { Money } from './Money';
 import { useThemePref } from './ThemeToggle';
@@ -98,8 +99,6 @@ type Item = {
   run: () => void;
 };
 
-/** A command's own search words in lib/i18n/messages/shell.ts. */
-type WordsId = keyof Messages['shell']['palette']['words'];
 
 const GROUP_ORDER: readonly Group[] = ['actions', 'accounts', 'transactions', 'session'];
 
@@ -148,7 +147,7 @@ export function usePalette({ onClose, steerFromStart = !IS_ANDROID }: { onClose:
   // Android with Gemini Nano (and, in the Play build, Plus), or the desktop: a question can be asked.
   const canAsk = useCanAsk();
   const { state: update } = useUpdates();
-  const usage = useUsageConsent();
+  const finds = useSettingFinds();
   const frame = useDesktopFrame();
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
@@ -180,12 +179,7 @@ export function usePalette({ onClose, steerFromStart = !IS_ANDROID }: { onClose:
      * well, so a German query finds it whatever the app speaks.
      * `extra`: words of this one entry (a theme's own name).
      */
-    const named = (name: (m: Messages) => string, words: WordsId, extra: string[] = []) => ({
-      label: name(tr),
-      keywords: locale === 'de'
-        ? [...p.words[words], ...extra]
-        : [...p.words[words], ...extra, name(de), ...de.shell.palette.words[words]],
-    });
+    const named = (name: (m: Messages) => string, words: WordsId, extra: string[] = []) => findWords(tr, locale, name, words, extra);
     // A one-key hint only while those keys work (they can be switched off).
     const single = (keys: string[]) => (f.singleKeyShortcuts ? <KeyHint keys={keys} /> : undefined);
     // The places are one press away in the navigation (the rail, the phone's
@@ -256,25 +250,7 @@ export function usePalette({ onClose, steerFromStart = !IS_ANDROID }: { onClose:
         description: f.tab === 'settings' ? p.youAreHere : undefined,
         run: () => f.openSettings(),
       },
-      setting('language', 'language', (m) => m.session.language, <GlobeIcon />),
-      setting('black', 'black', (m) => m.common.theme.black, <MoonIcon filled />),
-      setting('idle', 'idle', (m) => m.settings.find.idle, <ClockIcon />),
-      setting('loginBalances', 'loginBalances', (m) => m.settings.balances.atLogin, <RefreshIcon />),
-      setting('loginBookings', 'loginBookings', (m) => m.settings.bookingsAtLogin.title, <RefreshIcon />),
-      setting('categories', 'categories', (m) => m.transactions.custom.section, <TagIcon />),
-      !!f.meta?.merchantLogos && setting('logos', 'logos', (m) => m.session.logos, <ImageIcon />),
-      !!usage && setting('usage', 'usage', (m) => m.session.usage, <ChartIcon />),
-      setting('device', 'device', (m) => m.settings.find.device, <ShieldIcon />),
-      (f.vaultStatus === 'ready' || f.vaultStatus === 'error') && setting('data', 'data', (m) => m.session.vault, <LockIcon />),
-      f.vaultStatus === 'ready' && setting('keep', 'keep', (m) => m.history.keep, <CalendarIcon />),
-      f.vaultStatus === 'ready' && setting('backup', 'backup', (m) => m.backup.row.title, <ArchiveIcon />),
-      f.vaultStatus === 'ready' && setting('keepBalances', 'keepBalances', (m) => m.settings.balances.keep, <WalletIcon />),
-      // What "Neue Umsätze melden" reports: only while it is on, as on the page.
-      f.backgroundChecks === true && setting('alerts', 'alerts', (m) => m.background.alerts.title, <BellIcon />),
-      // With the updater only (the desktop app, the GitHub APK), as on the page.
-      !!update && setting('channel', 'channel', (m) => m.settings.channel.title, <SplitIcon />),
-      update?.early !== undefined && setting('early', 'early', (m) => m.settings.early.title, <BoltIcon />),
-      update?.kind === 'nsis' && !!window.electronUpdater?.chooseFile && setting('fromFile', 'fromFile', (m) => m.settings.fromFile.title, <FileIcon />),
+      ...finds.map((x) => setting(x.target, x.words, x.name, x.icon({}))),
       // The bank's own list, at the end of Verträge & Abos — where an account has one.
       f.accounts.some(listsOrders) && {
         id: 'bank-orders', group: 'actions', icon: <CalendarIcon />,
@@ -329,7 +305,7 @@ export function usePalette({ onClose, steerFromStart = !IS_ANDROID }: { onClose:
       },
     ];
     return list.filter((x): x is Item => !!x);
-  }, [a, f, themePref, update, usage, tr, locale, showBankOrders]);
+  }, [a, f, themePref, update, finds, tr, locale, showBankOrders]);
 
   const accounts = useMemo<Item[]>(() => f.accounts.map((acct, i) => {
     const balance = f.balances[acct.accountNumber];

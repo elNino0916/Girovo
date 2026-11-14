@@ -156,15 +156,16 @@ export function useSettingsPages(): PageEntry[] {
     const summary: Record<SettingsPage, string> = {
       ask: askOff ? words.summary.askOff : words.summary.askOn,
       api: words.summary.apiSoon,
-      security: line([
-        IS_ANDROID ? words.summary.fingerprint : windowsHello !== null && words.summary.windowsHello,
-        words.summary.idle,
-      ]),
+      // After Windows Hello the short word: the desktop sidebar's row has one short line.
+      security: IS_ANDROID
+        ? line([words.summary.fingerprint, words.summary.idle])
+        : windowsHello !== null ? line([words.summary.windowsHello, words.summary.idleShort]) : line([words.summary.idle]),
       notifications: backgroundChecks ? words.summary.alertsOn : words.summary.alertsOff,
       accounts: words.summary.accounts,
       devices: vaultStatus === 'error'
         ? t.session.vaultUnreadable
-        : line([sync && words.summary.sync, vaultStatus === 'ready' && words.summary.backup, words.summary.kept]),
+        // The saved data only when there is no Abgleich and no Sicherung to name: one short line.
+        : line([sync && words.summary.sync, vaultStatus === 'ready' && words.summary.backup]) || line([words.summary.kept]),
       appearance: IS_ANDROID ? LOCALE_NAMES[locale] : `${LOCALE_NAMES[locale]} · ${t.common.theme[theme]}`,
       updates: newer
         ? t.shell.updates.available(newer.version)

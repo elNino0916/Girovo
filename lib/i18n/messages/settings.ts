@@ -35,9 +35,11 @@ export const de = {
     fingerprint: 'Fingerabdruck',
     windowsHello: 'Windows Hello',
     idle: 'automatisches Abmelden',
+    /** After Windows Hello on the desktop's sidebar row, where the line is short. */
+    idleShort: 'Abmelden',
     alertsOn: 'Neue Umsätze werden gemeldet',
     alertsOff: 'Aus',
-    accounts: 'Kategorien, Umsätze und Salden behalten',
+    accounts: 'Salden, Umsätze, Kategorien',
     sync: 'Abgleich',
     backup: 'Sicherung',
     kept: 'gespeicherte Daten',
@@ -85,6 +87,13 @@ export const de = {
   find: {
     idle: 'Automatisch abmelden',
     device: 'Gerät merken',
+  },
+  /** The desktop sidebar's search over Einstellungen alone (components/shell/Sidebar.tsx). */
+  sideSearch: {
+    placeholder: 'In Einstellungen suchen',
+    clear: 'Suche leeren',
+    none: 'Keine Einstellung gefunden',
+    results: 'Gefundene Einstellungen',
   },
   /** 6.0: balances read after the login (a device's choice), and the last ones kept in the vault (lib/kept-balances.ts). */
   balances: {
@@ -342,9 +351,10 @@ export const en: typeof de = {
     fingerprint: 'Fingerprint',
     windowsHello: 'Windows Hello',
     idle: 'automatic logout',
+    idleShort: 'logout',
     alertsOn: 'New transactions are reported',
     alertsOff: 'Off',
-    accounts: 'Categories, keeping transactions and balances',
+    accounts: 'Balances, transactions, categories',
     sync: 'Sync',
     backup: 'Backup',
     kept: 'saved data',
@@ -382,6 +392,12 @@ export const en: typeof de = {
   find: {
     idle: 'Automatic logout',
     device: 'Remember this device',
+  },
+  sideSearch: {
+    placeholder: 'Search settings',
+    clear: 'Clear search',
+    none: 'No setting found',
+    results: 'Settings found',
   },
   balances: {
     atLogin: 'Load balances when logging in',

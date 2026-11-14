@@ -13,18 +13,21 @@
 import { M3eFab } from '@m3e/react/fab';
 import { M3eNavItem } from '@m3e/react/nav-bar';
 import { M3eNavMenu, M3eNavMenuItem } from '@m3e/react/nav-menu';
-import { createElement, useEffect, useMemo, useState } from 'react';
+import { createElement, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { DashboardTab } from '@/lib/app-types';
 import { dayKey, isoDate } from '@/lib/format';
-import { useT } from '@/lib/i18n/react';
+import { useLocale, useT } from '@/lib/i18n/react';
+import { scoreEntry } from '@/lib/palette';
+import { PAGE_CLUSTERS, PAGE_OF, type SettingsPage } from '@/lib/settings-pages';
 import { useFints } from '../FintsProvider';
 import { useRecurringModel, useUpcoming } from '../insights/recurring-model';
 import { AccountLayers } from '../overview/AccountLayers';
 import { ArrangeSheet } from '../overview/ArrangeSheet';
 import { useLayers } from '../overview/layers';
-import { useSettingsPages } from '../settings/Settings';
-import { BackIcon, ChartIcon, GearIcon, HistoryIcon, HomeIcon, TransferIcon, TrashIcon } from '../icons';
+import { useSettingsPages, type PageEntry } from '../settings/Settings';
+import { findWords, useSettingFinds } from '../settings/finds';
+import { BackIcon, ChartIcon, CloseIcon, GearIcon, HistoryIcon, HomeIcon, SearchIcon, TransferIcon, TrashIcon } from '../icons';
 import { IconButton, cx } from '../ui';
 import type { ShellActions } from './actions';
 import { PLACE_ROOT_EVENT } from './frame';
@@ -104,14 +107,14 @@ export function Sidebar({ open, actions }: { open: boolean; actions: ShellAction
           {open && <Conversations />}
         </>
       )}
-      {open ? (
-        // On Einstellungen the sidebar's head already says where you are: the foot stays quiet there.
+      {settings ? null : open ? (
+        // On Einstellungen the sidebar's head says where you are and leads back: no Einstellungen at its foot.
         <M3eNavMenu className="mt-auto block pt-3">
           <MenuPlace icon={<GearIcon size={24} />} label={t.common.nav.settings} current={false} onClick={() => openSettings()} />
         </M3eNavMenu>
       ) : (
         <div className="mt-auto flex flex-col pt-3">
-          <Place icon={<GearIcon size={24} />} label={t.common.nav.settings} current={tab === 'settings'} onClick={() => openSettings()} />
+          <Place icon={<GearIcon size={24} />} label={t.common.nav.settings} onClick={() => openSettings()} />
         </div>
       )}
       {arranging && <ArrangeSheet flat onClose={() => setArranging(false)} />}
@@ -217,16 +220,45 @@ function PlaceMonth() {
 }
 
 /**
- * Einstellungen in the sidebar: the way back, its name and its pages
- * (components/settings/Settings.tsx useSettingsPages), listed as the places
- * are — a glyph and a name, the page on the sheet in the secondary container
- * with its glyph filled. A click shows that page.
+ * Einstellungen in the sidebar (owner's pick B, 2026-11-14,
+ * .impeccable/mocks/decision/settings-nav/): the way back and its name, a
+ * search over Einstellungen alone, then its pages
+ * (components/settings/Settings.tsx useSettingsPages) in the clusters a phone
+ * draws apart, each a block of rows on the sheet's tone. A row is a disc with
+ * the page's glyph, its name and one line of what is on it, as the phone's
+ * list; the page on the sheet in the primary container, its disc in the
+ * primary. Girovo AI's and Girovo API's marks keep their colours on a tinted
+ * disc. While something is typed the blocks give way to what it finds: pages
+ * and single settings (components/settings/finds.tsx), a setting opened on its
+ * page with its control focused.
  */
 function SettingsSections({ open }: { open: boolean }) {
-  const { leaveSettings, settingsPage, setSettingsPage, vaultStatus } = useFints();
+  const { leaveSettings, settingsPage, setSettingsPage, openSettings } = useFints();
   const t = useT();
+  const { locale } = useLocale();
   const pages = useSettingsPages();
+  const finds = useSettingFinds();
   const current = (pages.find((p) => p.id === settingsPage) ?? pages[0])?.id;
+  const [query, setQuery] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const results = useMemo<SideResult[]>(() => {
+    const q = query.trim();
+    if (!q) return [];
+    const scored: (SideResult & { score: number })[] = [];
+    for (const p of pages) {
+      const score = scoreEntry({ label: p.title, keywords: [p.short, p.summary] }, q);
+      if (score > 0) scored.push({ key: `page-${p.id}`, score, title: p.title, summary: p.summary, page: p, run: () => setSettingsPage(p.id) });
+    }
+    for (const f of finds) {
+      const page = pages.find((p) => p.id === PAGE_OF[f.target]);
+      if (!page) continue;
+      const entry = findWords(t, locale, f.name, f.words);
+      const score = scoreEntry(entry, q);
+      if (score > 0) scored.push({ key: `setting-${f.target}`, score, title: entry.label, summary: page.title, glyph: f.icon, run: () => openSettings(f.target) });
+    }
+    return scored.sort((a, b) => b.score - a.score).slice(0, 8);
+  }, [query, pages, finds, t, locale, setSettingsPage, openSettings]);
 
   // Folded, the rail: the way back, then each page as a rail item, its glyph
   // over a word, its full name as the tooltip.
@@ -241,7 +273,7 @@ function SettingsSections({ open }: { open: boolean }) {
             key={p.id}
             icon={(
               <span className="relative inline-flex">
-                {createElement(p.Icon, { size: 24, filled: current === p.id })}
+                {createElement(p.Icon, MARK_DISC[p.id] ? { size: 24 } : { size: 24, filled: current === p.id })}
                 {p.alert && <span aria-hidden className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-red" />}
               </span>
             )}
@@ -255,42 +287,160 @@ function SettingsSections({ open }: { open: boolean }) {
     );
   }
 
+  const choose = (r: SideResult) => {
+    setQuery('');
+    r.run();
+  };
+  const clusters = PAGE_CLUSTERS
+    .map((ids) => pages.filter((p) => ids.includes(p.id)))
+    .filter((c) => c.length);
+  const searching = query.trim() !== '';
+
   return (
-    <>
-      <div className="flex items-center gap-2 pt-1 pr-4 pb-3 pl-3">
+    <div className="flex flex-col px-4">
+      <div className="-ml-1.5 flex items-center gap-2 pt-1 pb-2">
         <IconButton size="md" aria-label={t.common.back} onClick={leaveSettings}>
           <BackIcon size={22} />
         </IconButton>
         <span className="truncate text-[22px] leading-7 font-medium">{t.common.nav.settings}</span>
       </div>
-      <ul aria-label={t.shell.frame.sections} className="flex flex-col gap-0.5 px-3">
-        {pages.map((p) => {
-          const on = current === p.id;
-          return (
-            <li key={p.id}>
-              <button
-                type="button"
-                aria-current={on ? 'page' : undefined}
-                onClick={() => setSettingsPage(p.id)}
-                className={cx(
-                  'row-focus flex h-10 w-full items-center gap-3 rounded-full px-4 text-left text-[14px] leading-5 font-medium transition-colors duration-150',
-                  on ? 'bg-[var(--md-secondary-container)] text-[var(--md-on-secondary-container)]' : 'text-ink hover:bg-[var(--md-surface-container)]',
-                )}
-              >
-                {createElement(p.Icon, { size: 22, filled: on, className: cx('shrink-0', !on && 'text-ink-2') })}
-                <span className="min-w-0 flex-1 truncate">{p.title}</span>
-                {p.alert && (
-                  <>
-                    <span aria-hidden className="size-2 shrink-0 rounded-full bg-red" />
-                    <span className="sr-only">{`, ${t.session.vaultUnreadable}`}</span>
-                  </>
-                )}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    </>
+      <div
+        className="mb-3.5 flex h-10 shrink-0 items-center gap-2.5 rounded-full bg-[var(--md-surface-container-high)] pr-1 pl-3.5 text-ink-2 transition-colors duration-150 hover:bg-[var(--md-surface-container-highest)]"
+        onMouseDown={(e) => {
+          // A press beside the text (the glyph, the padding) still means the field.
+          if (e.target !== inputRef.current && !(e.target as HTMLElement).closest('button')) {
+            e.preventDefault();
+            inputRef.current?.focus();
+          }
+        }}
+      >
+        <SearchIcon size={20} className="shrink-0" />
+        <input
+          ref={inputRef}
+          type="search"
+          data-bare
+          value={query}
+          aria-label={t.settings.sideSearch.placeholder}
+          placeholder={t.settings.sideSearch.placeholder}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && results[0]) {
+              e.preventDefault();
+              choose(results[0]);
+            } else if (e.key === 'Escape' && query) {
+              // Esc empties the field first; only an empty field lets it go on.
+              e.preventDefault();
+              e.stopPropagation();
+              setQuery('');
+            }
+          }}
+          className="h-full min-w-0 flex-1 bg-transparent text-[14px] leading-5 text-ink outline-none placeholder:text-ink-2 [&::-webkit-search-cancel-button]:hidden"
+        />
+        {query && (
+          <IconButton size="sm" aria-label={t.settings.sideSearch.clear} onClick={() => { setQuery(''); inputRef.current?.focus(); }}>
+            <CloseIcon size={18} />
+          </IconButton>
+        )}
+      </div>
+      {searching ? (
+        results.length ? (
+          <ul aria-label={t.settings.sideSearch.results} className="flex flex-col gap-0.5 overflow-hidden rounded-[16px]">
+            {results.map((r) => (
+              <li key={r.key}>
+                <SideRow page={r.page} glyph={r.glyph} title={r.title} summary={r.summary} onClick={() => choose(r)} />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p role="status" className="px-1 text-[14px] leading-5 text-ink-2">{t.settings.sideSearch.none}</p>
+        )
+      ) : (
+        <div role="group" aria-label={t.shell.frame.sections} className="flex flex-col gap-2.5">
+          {clusters.map((cluster) => (
+            <ul key={cluster[0].id} className="flex flex-col gap-0.5 overflow-hidden rounded-[16px]">
+              {cluster.map((p) => (
+                <li key={p.id}>
+                  <SideRow
+                    page={p}
+                    title={p.title}
+                    summary={p.summary}
+                    on={current === p.id}
+                    alert={p.alert ? t.session.vaultUnreadable : undefined}
+                    onClick={() => setSettingsPage(p.id)}
+                  />
+                </li>
+              ))}
+            </ul>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** What the sidebar's search found: a page, or one setting on its page. */
+type SideResult = {
+  key: string;
+  title: string;
+  summary: string;
+  page?: PageEntry;
+  glyph?: (p: { size?: number; className?: string }) => ReactNode;
+  run: () => void;
+};
+
+/** Girovo AI's and Girovo API's marks keep their colour, on a disc of it. */
+const MARK_DISC: Partial<Record<SettingsPage, string>> = {
+  ask: 'bg-[color-mix(in_srgb,var(--ai-mark)_18%,transparent)]',
+  api: 'bg-[color-mix(in_srgb,var(--api-mark)_18%,transparent)]',
+};
+
+/** A row of Einstellungen in the sidebar: a disc with the glyph, the name, one line under it. */
+function SideRow({ page, glyph, title, summary, on, alert, onClick }: {
+  page?: PageEntry;
+  glyph?: SideResult['glyph'];
+  title: string;
+  summary: string;
+  on?: boolean;
+  /** Something on the page needs a look: said after its name. */
+  alert?: string;
+  onClick: () => void;
+}) {
+  const mark = page ? MARK_DISC[page.id] : undefined;
+  const ink = on ? 'text-[var(--md-on-primary)]' : 'text-ink-2';
+  return (
+    <button
+      type="button"
+      aria-current={on ? 'page' : undefined}
+      onClick={onClick}
+      className={cx(
+        'row-focus flex h-14 w-full items-center gap-3 px-3 text-left transition-colors duration-150',
+        on
+          ? 'bg-[var(--md-primary-container)] text-[var(--md-on-primary-container)]'
+          : 'bg-[var(--frame-sheet)] text-ink hover:bg-[color-mix(in_srgb,var(--md-on-surface)_6%,var(--frame-sheet))]',
+      )}
+    >
+      <span
+        className={cx(
+          'grid size-9 shrink-0 place-items-center rounded-full',
+          mark ?? (on ? 'bg-[var(--md-primary)]' : 'bg-[var(--md-surface-container-high)]'),
+        )}
+      >
+        {page
+          // The marks are pictures with no filled form: only the glyphs take one.
+          ? createElement(page.Icon, mark ? { size: 20 } : { size: 20, filled: on, className: ink })
+          : glyph?.({ size: 20, className: 'text-ink-2' })}
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate text-[14px] leading-5 font-medium">{title}</span>
+        <span className={cx('truncate text-[12px] leading-4', on ? 'text-[var(--md-on-primary-container)]' : 'text-ink-2')}>{summary}</span>
+      </span>
+      {alert && (
+        <>
+          <span aria-hidden className="size-2 shrink-0 rounded-full bg-red" />
+          <span className="sr-only">{`, ${alert}`}</span>
+        </>
+      )}
+    </button>
   );
 }
 
