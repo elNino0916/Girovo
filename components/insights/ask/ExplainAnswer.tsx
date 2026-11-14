@@ -1,7 +1,8 @@
 'use client';
 
 // Girovo Next, Girovo AI: "Was ist das für eine Zahlung?" answered in the
-// conversation (the turn carries the booking: ask-thread-store.ts `booking`).
+// conversation (the turn carries the booking: ask-thread-store.ts `booking`,
+// or only its key in a conversation brought back from the vault).
 //
 // One to three short lines worked out by the rules (lib/ask-explain.ts): who
 // it is, as the lists name it, and what kind of booking; what the purpose
@@ -28,11 +29,24 @@ const TEXT = 'text-[16px] leading-6 text-ink sm:text-[14px] sm:leading-[22px] [t
 /**
  * The booking as it is loaded now: the very one, or the same booking read
  * again since (a refresh makes new objects), booked or vorgemerkt, with the
- * account it is on. As asked when it is no longer loaded.
+ * account it is on. As asked when it is no longer loaded. Known by its key
+ * alone (a conversation from the vault): found among the loaded bookings, or
+ * 'missing'.
  */
-function useLoaded(booking: SerializedTransaction | undefined) {
+function useLoaded(booking: SerializedTransaction | undefined, bookingKey: string | undefined) {
   const { txByAccount, pendingCache } = useFints();
   return useMemo(() => {
+    if (!booking && bookingKey) {
+      for (const [owner, list] of Object.entries(txByAccount)) {
+        const tx = list?.find((t) => txKey(t) === bookingKey);
+        if (tx) return { tx, owner, pending: false };
+      }
+      for (const [owner, list] of Object.entries(pendingCache)) {
+        const tx = list?.find((t) => txKey(t) === bookingKey);
+        if (tx) return { tx, owner, pending: true };
+      }
+      return 'missing' as const;
+    }
     if (!booking) return null;
     for (const [owner, list] of Object.entries(txByAccount)) if (list?.includes(booking)) return { tx: booking, owner, pending: false };
     for (const [owner, list] of Object.entries(pendingCache)) if (list?.includes(booking)) return { tx: booking, owner, pending: true };
@@ -42,7 +56,7 @@ function useLoaded(booking: SerializedTransaction | undefined) {
       if (again) return { tx: again, owner, pending: false };
     }
     return { tx: booking, owner: null, pending: false };
-  }, [booking, txByAccount, pendingCache]);
+  }, [booking, bookingKey, txByAccount, pendingCache]);
 }
 
 export function ExplainAnswer({ turn, onShown }: { turn: Turn; onShown: () => void }) {
@@ -50,13 +64,16 @@ export function ExplainAnswer({ turn, onShown }: { turn: Turn; onShown: () => vo
   const words = t.ask.explain;
   const { accounts, setTab } = useFints();
   const model = useRecurringModel();
-  const loaded = useLoaded(turn.booking);
+  const found = useLoaded(turn.booking, turn.bookingKey);
+  const loaded = found === 'missing' ? null : found;
   const tx = loaded?.tx;
   // The live contract in Verträge & Abos that holds it, if one does.
   const series: RecurringSeries | null = useMemo(
     () => (tx ? [...model.expense, ...model.income].find((s) => s.transactions.includes(tx)) ?? null : null),
     [tx, model.expense, model.income],
   );
+  // Asked about a booking that is not loaded now: said as an answer says it.
+  if (found === 'missing') return <p className={TEXT}>{t.ask.outside}</p>;
   if (!loaded || !tx) return <p className={TEXT}>{words.noBooking}</p>;
 
   const explained = explainBooking(tx, { name: txText(tx).name, contract: series ? { cadence: series.cadenceLabel } : null });

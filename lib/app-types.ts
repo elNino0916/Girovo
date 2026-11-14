@@ -22,6 +22,7 @@ import type { SplitPart } from './splits';
 import type { ContractReminder } from './contract-watch';
 import type { ManualContract, ManualDay } from './manual-contracts';
 import type { AiNamesCache } from './ai-names-store';
+import type { SavedConversation } from './ask-saved';
 
 export type { CategoryId };
 
@@ -274,6 +275,13 @@ export type VaultData = {
   askLength?: AskLength;
   /** Girovo AI does not call the user by the first name the bank gives. Synced. */
   askNameOff?: true;
+  /**
+   * Girovo AI's finished conversations (lib/ask-saved.ts): the questions, how
+   * each was read and Gemma's sentences, never a booking or its figures. The
+   * newest within the caps; kept while Girovo AI is switched off. This
+   * device's own, never synced. Absent while there are none.
+   */
+  askConversations?: SavedConversation[];
   /** Girovo Next on the desktop: "Namen mit Girovo AI aufräumen" switched on. This device's own, never synced. */
   aiNamesOn?: true;
   /** Girovo AI's cleaned counterparty names (lib/ai-names-store.ts), kept while switched off. This device's own, never synced. */

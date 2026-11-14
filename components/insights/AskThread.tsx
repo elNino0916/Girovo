@@ -21,6 +21,7 @@ import type { CSSProperties } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { monthBefore } from '@/lib/ask-followup';
 import { checkPlan, plannerInput, plannerSystem } from '@/lib/ask-planner';
+import { answerHash } from '@/lib/ask-saved';
 import { readAsked } from '@/lib/ask-read';
 import { intentOf, type ActionIntent, type AskIntent, type FactIntent } from '@/lib/ask-intents';
 import { isAction } from '@/lib/ask-actions';
@@ -64,6 +65,7 @@ import {
 } from './ask-thread-store';
 import { ReadingChips } from './ask/ReadingChips';
 import { useAskStyle } from './ask/useAskStyle';
+import { useKeptConversations } from './ask/useKeptConversations';
 import { gemmaPrompt, gemmaUsable, useGemma } from './gemma';
 import { useThemePref } from '../ThemeToggle';
 import { useRecurringModel } from './recurring-model';
@@ -109,10 +111,12 @@ async function builtInReading(
 
 /**
  * Reads every question waiting in the thread, once each, and forgets the
- * conversations when the app logs out or asking is switched off. Mounted
- * once in each shell (components/Dashboard.tsx).
+ * conversations in memory when the app logs out or asking is switched off;
+ * the vault keeps them (ask/useKeptConversations.ts). Mounted once in each
+ * shell (components/Dashboard.tsx).
  */
 export function AskReader() {
+  useKeptConversations();
   const s = useAskThread();
   const data = useAskScope();
   const { askCategory, vault } = useFints();
@@ -474,8 +478,8 @@ function useWriter(
 ): { pending: boolean; text?: string } {
   const gemma = useGemma();
   const ready = gemmaUsable(gemma);
-  // The style too: another tone, length or name is written again.
-  const key = answer ? `${answerKey(answer)}|${style.tone}|${style.length}|${address ?? ''}|${details?.before?.cents ?? ''}|${details?.top ? `${details.top.amount}@${bookingDay(details.top)}` : ''}` : '';
+  // The style too: another tone, length or name is written again. Kept as a hash: the vault holds no figure.
+  const key = answer ? answerHash(`${answerKey(answer)}|${style.tone}|${style.length}|${address ?? ''}|${details?.before?.cents ?? ''}|${details?.top ? `${details.top.amount}@${bookingDay(details.top)}` : ''}`) : '';
   const current = turn.writtenFor === key;
   useEffect(() => {
     // Only the newest turn is written: older ones keep what they had, so a new question never waits behind them.
