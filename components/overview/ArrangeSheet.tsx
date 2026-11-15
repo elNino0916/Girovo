@@ -11,8 +11,8 @@ import type { SerializedAccount } from '@/lib/fints-types';
 import { useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
 import { Money } from '../Money';
-import { DragIcon } from '../icons';
-import { Button, cx, Overlay, Segmented, Sheet } from '../ui';
+import { DragIcon, EyeIcon, EyeOffIcon } from '../icons';
+import { Button, cx, IconButton, Overlay, Segmented, Sheet } from '../ui';
 import { accountIdent } from './AccountIdentity';
 import { AccountDisc } from './AccountMarks';
 
@@ -41,7 +41,7 @@ type Drag = {
  * has no groups — every account in one list, and no grouping to pick.
  */
 export function ArrangeSheet({ onClose, flat = false }: { onClose: () => void; flat?: boolean }) {
-  const { accounts, vault, arrangeAccounts, bankOf, banks, accountLabel, logoFiles } = useFints();
+  const { accounts, vault, arrangeAccounts, bankOf, banks, accountLabel, logoFiles, accountsHidden, setAccountsHidden } = useFints();
   const t = useT();
   const words = t.insights.accounts;
   const id = useId();
@@ -155,6 +155,21 @@ export function ArrangeSheet({ onClose, flat = false }: { onClose: () => void; f
     if (dragRef.current) drop();
   };
 
+  // The eye (not in the desktop sidebar's list, whose tick boxes do this):
+  // an account out of the overview and the Gesamtsaldo, kept on this device.
+  // The last one shown can't go.
+  const hidden = new Set(accountsHidden);
+  const shownLeft = accounts.filter((a) => !hidden.has(a.accountNumber)).length;
+  const toggleHidden = (a: SerializedAccount) => {
+    const key = a.accountNumber;
+    const hide = !hidden.has(key);
+    setAccountsHidden((current) => {
+      const rest = current.filter((x) => x !== key);
+      return hide ? [...rest, key] : rest;
+    });
+    setSaid(hide ? words.hide(accountLabel(a)) : words.show(accountLabel(a)));
+  };
+
   const onGripKey = (e: KeyboardEvent<HTMLButtonElement>, key: string, members: string[]) => {
     const from = members.indexOf(key);
     const to = e.key === 'ArrowUp' ? from - 1 : e.key === 'ArrowDown' ? from + 1 : -1;
@@ -174,6 +189,7 @@ export function ArrangeSheet({ onClose, flat = false }: { onClose: () => void; f
           <h2 id={`${id}-title`} className="text-[22px] leading-7 font-medium text-ink">{words.arrange}</h2>
           <p id={`${id}-hint`} className="mt-1 text-[14px] leading-5 text-ink-2">
             {words.arrangeHint}
+            {!flat && ` ${words.hideHint}`}
             <span className="sr-only"> {words.arrangeKeys}</span>
           </p>
 
@@ -214,6 +230,7 @@ export function ArrangeSheet({ onClose, flat = false }: { onClose: () => void; f
                       }
                       const entryOf = bankOf(a);
                       const ident = accountIdent(a);
+                      const off = !flat && hidden.has(key);
                       return (
                         <li
                           key={key}
@@ -230,7 +247,8 @@ export function ArrangeSheet({ onClose, flat = false }: { onClose: () => void; f
                             transition: lifted && !isLifted ? 'transform var(--m3e-spatial-fast-ms) var(--m3e-spatial-fast)' : undefined,
                           }}
                           className={cx(
-                            'relative grid min-h-16 grid-cols-[24px_40px_minmax(0,1fr)_auto] items-center gap-x-3 py-2 pr-4 pl-3 sm:pr-6 sm:pl-5',
+                            'relative grid min-h-16 items-center gap-x-3 py-2 pr-4 pl-3 sm:pr-6 sm:pl-5',
+                            flat ? 'grid-cols-[24px_40px_minmax(0,1fr)_auto]' : 'grid-cols-[24px_40px_minmax(0,1fr)_auto_auto] pr-2 sm:pr-4',
                             isLifted && 'z-10 mx-2 rounded-[16px] bg-paper pr-2 pl-1 shadow-[var(--shadow-pop)] sm:pr-4 sm:pl-3',
                           )}
                         >
@@ -245,6 +263,7 @@ export function ArrangeSheet({ onClose, flat = false }: { onClose: () => void; f
                           >
                             <DragIcon size={24} />
                           </button>
+                          <span className={cx('contents', off && '[&>*]:opacity-50')}>
                           <AccountDisc account={a} entry={severalBanks ? entryOf : null} logoFile={entryOf ? logoFiles[entryOf.bank.brand] : undefined} />
                           <span className="min-w-0">
                             <span className="block truncate text-[16px] leading-[22px] font-medium text-ink">{accountLabel(a)}</span>
@@ -256,6 +275,18 @@ export function ArrangeSheet({ onClose, flat = false }: { onClose: () => void; f
                             </span>
                           </span>
                           <ArrangeFigure account={a} />
+                          </span>
+                          {!flat && (
+                            <IconButton
+                              size="md"
+                              aria-label={off ? words.show(accountLabel(a)) : words.hide(accountLabel(a))}
+                              title={off ? words.show(accountLabel(a)) : words.hide(accountLabel(a))}
+                              disabled={!off && shownLeft <= 1}
+                              onClick={() => toggleHidden(a)}
+                            >
+                              {off ? <EyeOffIcon size={20} /> : <EyeIcon size={20} />}
+                            </IconButton>
+                          )}
                         </li>
                       );
                     })}

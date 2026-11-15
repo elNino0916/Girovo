@@ -622,11 +622,14 @@ export function Credentials({
         {/* The one hard requirement, said before the PIN goes anywhere:
             approval in the bank's app. Named by brand where one app holds for
             the whole brand (lib/brands.ts), so it holds for banks found by
-            search too. */}
-        <p className="mt-3 flex items-start gap-2 text-[13px] leading-snug text-ink-3">
-          <PhoneIcon size={16} className="mt-px shrink-0" />
-          <span>{words.approvalHint(APPROVAL_APP[bank.brand])}</span>
-        </p>
+            search too. A remembered device says the opposite below (usually
+            no approval), so the two never show together. */}
+        {!(remembered && !shownError) && (
+          <p className="mt-3 flex items-start gap-2 text-[13px] leading-snug text-ink-3">
+            <PhoneIcon size={16} className="mt-px shrink-0" />
+            <span>{words.approvalHint(APPROVAL_APP[bank.brand])}</span>
+          </p>
+        )}
 
         {remembered && !shownError && (
           <Alert tone="info" title={words.rememberedTitle} icon={<ShieldIcon size={18} check />} className="mt-4" role="status">

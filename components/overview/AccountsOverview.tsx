@@ -12,6 +12,7 @@ import { netWorthPoints } from '@/lib/kept-balances';
 import type { SerializedAccount, SerializedTransaction } from '@/lib/fints-types';
 import { intlLocale, msgs } from '@/lib/i18n';
 import { useT } from '@/lib/i18n/react';
+import { IS_ANDROID } from '@/lib/platform';
 import { bankAllowed } from '@/lib/plus';
 import { BankLogo } from '../BankLogo';
 import { useFints, type BankEntry } from '../FintsProvider';
@@ -58,7 +59,7 @@ export function AccountsOverview({ pane = false }: {
   pane?: boolean;
 } = {}) {
   const {
-    accounts, balances, balanceAt, portfolios, portfolioLoading, portfolioErrors, txByAccount,
+    accounts: every, accountsHidden, balances, balanceAt, portfolios, portfolioLoading, portfolioErrors, txByAccount,
     banks, bankOf, logoFiles, accountLabel, privacy, busy, wait,
     loadAllBalances, loadingAllBalances, loadBalance, selectAccount, isLoadedForAppliedRange,
     txErrors, balanceErrors, loadingAccount, balanceLoading, vault, vaultStatus, openAddBank, arrangeAccounts,
@@ -66,6 +67,13 @@ export function AccountsOverview({ pane = false }: {
   } = useFints();
   const t = useT();
   const words = t.insights.accounts;
+  // The accounts the user hid (the eye in "Konten anordnen", the desktop's
+  // layers) stay out of the list and the Gesamtsaldo. Never every one: with
+  // all of them hidden the overview shows them all rather than nothing.
+  const hiddenSet = new Set(accountsHidden);
+  const shownAccounts = every.filter((a) => !hiddenSet.has(a.accountNumber));
+  const accounts = shownAccounts.length ? shownAccounts : every;
+  const hiddenCount = every.length - accounts.length;
   const titleId = useId();
   const noteId = useId();
   const figureRef = useRef<HTMLDivElement>(null);
@@ -184,7 +192,9 @@ export function AccountsOverview({ pane = false }: {
 
   // The banks that are not logged in, one row each with the way in. Grouped
   // by bank, a bank logged out during the session says so on its band.
-  const outside = banks.filter((b) => b.state === 'remembered' || (b.state === 'loggedOut' && grouping !== 'bank'));
+  // A logged-out bank whose accounts are all hidden has no band: its row stays.
+  const banded = new Set(grouping === 'bank' ? groups.map((g) => g.key) : []);
+  const outside = banks.filter((b) => b.state === 'remembered' || (b.state === 'loggedOut' && !banded.has(b.key)));
 
   return (
     <section aria-labelledby={titleId} className="min-w-0">
@@ -213,6 +223,20 @@ export function AccountsOverview({ pane = false }: {
           >
             {words.arrangeShort}
           </Button>
+          {/* Figures from an earlier read, in the Android app on a phone: a pull on the page reads
+              them again; this is the same for whoever does not pull (a screen reader, a keyboard). */}
+          {IS_ANDROID && !pane && figures.total != null && fetchable.length > 0 && (
+            <IconButton
+              size="md"
+              className="sm:hidden"
+              aria-label={words.loadAll}
+              title={busyTitle ?? `${words.loadAll} – ${t.common.mayNeedApproval}`}
+              disabled={busy}
+              onClick={loadAll}
+            >
+              <RefreshIcon size={22} />
+            </IconButton>
+          )}
           <PrivacyToggle />
         </div>
       </div>
@@ -275,13 +299,15 @@ export function AccountsOverview({ pane = false }: {
           )}
           <p className="tnum mt-1 text-[14px] leading-5 text-ink-2">
             {words.count(accounts.length, bankCount)}
+            {hiddenCount > 0 && ` · ${words.hiddenCount(hiddenCount)}`}
             {stand && ` · ${stand}`}
           </p>
           {figures.total != null && excluded && (
             <p className="text-[14px] leading-5 text-ink-2" title={words.excludedHint}>{t.insights.without(excluded)}</p>
           )}
-          {/* Figures from an earlier read: the way to today's, on a phone (wider, the refresh at the chip row's end). */}
-          {figures.total != null && fetchable.length > 0 && (
+          {/* Figures from an earlier read: the way to today's, on a phone (wider, the refresh at the chip row's end).
+              In the Android app a pull reads them again (PullToRefresh), with a refresh icon in the title row. */}
+          {figures.total != null && fetchable.length > 0 && (pane || !IS_ANDROID) && (
             <div className={cx('mt-1 flex flex-wrap items-center gap-x-3', !pane && 'sm:hidden')}>
               <Button
                 variant="tertiary"

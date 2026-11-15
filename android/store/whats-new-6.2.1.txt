@@ -1,0 +1,14 @@
+<en-US>
+• Hide accounts with the eye in Arrange accounts. Hidden accounts don't count toward the total
+• Pull down on the overview to load every balance again
+• Joint accounts show the right name and initials
+• Remove for a bank now sits in a menu next to Log in
+• Logging in on a remembered phone no longer shows two hints that contradict each other
+</en-US>
+<de-DE>
+• Konten lassen sich ausblenden, mit dem Auge unter Konten anordnen. Sie zählen dann nicht zum Gesamtsaldo
+• Nach unten ziehen in der Übersicht lädt alle Salden neu
+• Gemeinschaftskonten zeigen den richtigen Namen und die richtigen Initialen
+• Entfernen für eine Bank liegt jetzt in einem Menü neben Anmelden
+• Die Anmeldung auf einem gemerkten Telefon zeigt keine zwei Hinweise mehr, die sich widersprechen
+</de-DE>

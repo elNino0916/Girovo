@@ -548,6 +548,12 @@ export const de = {
     /** The grip's name, and what a screen reader hears after a move. */
     move: (name: string) => `${name} verschieben`,
     moved: (name: string, place: number, of: number) => `${name}: Platz ${place} von ${of}`,
+    /** The eye on a row of the sheet: an account out of the overview and the Gesamtsaldo, and back. */
+    hide: (name: string) => `${name} ausblenden`,
+    show: (name: string) => `${name} wieder zeigen`,
+    hideHint: 'Ausgeblendete Konten zählen nicht zum Gesamtsaldo.',
+    /** After the count under the Gesamtsaldo: "6 Konten · 2 ausgeblendet". */
+    hiddenCount: (n: number) => `${n} ausgeblendet`,
     done: 'Fertig',
   },
 
@@ -1059,6 +1065,10 @@ export const en: typeof de = {
     groupings: { type: 'By type', bank: 'By bank', none: 'None' },
     move: (name) => `Move ${name}`,
     moved: (name, place, of) => `${name}: position ${place} of ${of}`,
+    hide: (name) => `Hide ${name}`,
+    show: (name) => `Show ${name} again`,
+    hideHint: 'Hidden accounts don\'t count toward the total.',
+    hiddenCount: (n) => `${n} hidden`,
     done: 'Done',
   },
 

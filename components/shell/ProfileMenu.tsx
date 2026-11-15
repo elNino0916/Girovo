@@ -41,11 +41,11 @@ import { useFints, type BankEntry } from '../FintsProvider';
 import { Money } from '../Money';
 import { MachineRow, ROW } from '../settings/rows';
 import {
-  AvatarGlyph, BellIcon, ChevronIcon, GearIcon, LandmarkIcon, LogoutIcon, PencilIcon, PlusIcon, ShieldIcon,
+  AvatarGlyph, BellIcon, ChevronIcon, GearIcon, LandmarkIcon, LogoutIcon, MoreIcon, PencilIcon, PlusIcon, ShieldIcon, TrashIcon,
 } from '../icons';
 import { unseenUpdate, useUpdates } from '../updates/store';
 import { usePhone } from './usePhone';
-import { Button, Checkbox, Dialog, Dot, IconButton, Overlay, Popover, Sheet, cx, type TriggerProps } from '../ui';
+import { Button, Checkbox, Dialog, Dot, IconButton, Menu, MenuItem, Overlay, Popover, Sheet, cx, type TriggerProps } from '../ui';
 import { fmtCountdown, fmtSince, holderName, nameInitials, sessionHolder, useCountdown } from './session';
 import { useLookAtUnclear } from './actions';
 import { AvatarImageError, avatarFromFile } from './avatar-image';
@@ -283,7 +283,8 @@ function SessionPanel({
         </button>
         <div className="min-w-0">
           <p className="truncate text-[17px] leading-snug font-bold text-headline">{holder || t.session.panel}</p>
-          <p className="truncate text-[13px] leading-snug text-ink-3">{bank?.name ?? t.session.loggedIn}</p>
+          {/* With several banks the list below names them all: the first one under the name would read as the profile's bank. */}
+          <p className="truncate text-[13px] leading-snug text-ink-3">{banks.length > 1 ? t.session.loggedIn : (bank?.name ?? t.session.loggedIn)}</p>
         </div>
       </div>
 
@@ -321,8 +322,10 @@ function SessionPanel({
               )}
               title={b.bank.name}
               hint={bankHint(b, t)}
+              // Anmelden stays a button; Entfernen sits behind the ⋮, away from it,
+              // so a tap meant for one never hits the other.
               action={b.state !== 'primary' && (
-                <span className="-mr-2 flex shrink-0 flex-col items-end">
+                <span className="-mr-2 flex shrink-0 items-center gap-1">
                   {(b.state === 'remembered' || b.state === 'loggedOut') && (
                     <Button
                       variant="tertiary"
@@ -334,15 +337,22 @@ function SessionPanel({
                       {b.state === 'loggedOut' ? t.banks.loginAgain : t.banks.login}
                     </Button>
                   )}
-                  <Button
-                    variant="tertiary"
-                    size="xs"
-                    aria-haspopup="dialog"
-                    aria-label={t.banks.removeNamed(b.bank.name)}
-                    onClick={() => onRemoveBank(b)}
+                  <Menu
+                    placement="bottom-end"
+                    minWidth={180}
+                    label={t.banks.moreFor(b.bank.name)}
+                    trigger={(p) => (
+                      <IconButton {...p} aria-label={t.banks.moreFor(b.bank.name)}>
+                        <MoreIcon size={18} />
+                      </IconButton>
+                    )}
                   >
-                    {t.banks.remove}
-                  </Button>
+                    {/* keepOpen: closing the panel takes the menu with it, and focus goes back to
+                        the chip; the menu's own close would hand it to the ⋯ that is about to go. */}
+                    <MenuItem icon={<TrashIcon size={18} />} tone="danger" keepOpen onSelect={() => onRemoveBank(b)}>
+                      {t.banks.remove}
+                    </MenuItem>
+                  </Menu>
                 </span>
               )}
             />

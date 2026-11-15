@@ -1417,17 +1417,21 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   }, [data, setBusy, startWait, statementDoc, toast]);
 
   // As the provider's loadAllBalances: one after the other, one toast for what failed.
-  const loadAllBalances = useCallback((only?: readonly string[]): boolean => {
+  const loadAllBalances = useCallback((only?: readonly string[], opts: { again?: boolean } = {}): boolean => {
     if (busyRef.current) {
       if (!only) toast(BUSY_MESSAGE, 'info');
       return false;
     }
     const gen = sessionGen.current;
-    const reachable = accounts.filter((a) => !loggedOutBank(a.accountNumber) && (!only || only.includes(a.accountNumber)));
+    // As the provider: on the phone a hidden account's balance is not asked for, unless every one is hidden.
+    let hidden = new Set(IS_ANDROID ? vault?.accountsHidden ?? [] : []);
+    if (hidden.size && accounts.every((a) => hidden.has(a.accountNumber))) hidden = new Set();
+    const reachable = accounts.filter((a) => !loggedOutBank(a.accountNumber) && !hidden.has(a.accountNumber)
+      && (!only || only.includes(a.accountNumber)));
     // As the provider: every Depot not read yet as well.
     const queue: Array<{ account: SerializedAccount; via: 'balance' | 'statement' | 'portfolio' }> = [
-      ...balanceQueue(reachable, balances, rangeRef.current.to >= today),
-      ...reachable.filter((a) => isDepot(a) && !portfolios[a.accountNumber]).map((account) => ({ account, via: 'portfolio' as const })),
+      ...balanceQueue(reachable, opts.again ? {} : balances, rangeRef.current.to >= today),
+      ...reachable.filter((a) => isDepot(a) && (opts.again || !portfolios[a.accountNumber])).map((account) => ({ account, via: 'portfolio' as const })),
     ];
     if (!queue.length) {
       if (accounts.some((a) => a.canStatements && !balances[a.accountNumber])) {
@@ -1458,7 +1462,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     };
     next();
     return true;
-  }, [accounts, balances, portfolios, today, toast, loadBalance, loadPortfolio]);
+  }, [accounts, balances, portfolios, vault, today, toast, loadBalance, loadPortfolio]);
 
   // The mock's range never rolls over at midnight; the cache key is the whole answer.
   const isLoadedForAppliedRange = useCallback((accountNumber: string) => {

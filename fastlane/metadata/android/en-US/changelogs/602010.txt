@@ -1,0 +1,1 @@
+Hide accounts with the eye in Arrange accounts; hidden accounts don't count toward the total. Pull down on the overview to load every balance again. Joint accounts show the right name. Remove for a bank now sits in a menu. Logging in on a remembered phone no longer contradicts itself.
