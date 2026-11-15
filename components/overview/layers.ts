@@ -61,11 +61,11 @@ export function useLayers(): { layers: Layer[]; shown: SerializedAccount[]; setS
     (a: SerializedAccount) => showAlone({ accounts, accountsHidden, setAccountsHidden, selectAccount }, a),
     [accounts, accountsHidden, setAccountsHidden, selectAccount],
   );
-  // Every account on screen ticked; a further bank not logged in keeps its ticks.
+  // Every account ticked, a further bank's not logged in too: an unticked
+  // one of those has no layer to tick again, and would keep the total open.
   const all = useCallback(() => {
-    const here = new Set(accounts.map((x) => x.accountNumber));
-    setAccountsHidden((current) => current.filter((x) => !here.has(x)));
-  }, [accounts, setAccountsHidden]);
+    setAccountsHidden([]);
+  }, [setAccountsHidden]);
   return { layers, shown, setShown, only, all };
 }
 
@@ -80,7 +80,10 @@ export function useAccountValue(): (a: SerializedAccount) => AccountValue {
   return useCallback((a: SerializedAccount): AccountValue => {
     const live = liveValue(a, balances[a.accountNumber], portfolios[a.accountNumber]);
     const k = kept?.[a.accountNumber];
-    if (live.state === 'known' || live.state === 'never' || !k) return live;
+    // An account the bank never reads (a Bausparvertrag whose figure came
+    // with the account list once) still shows the figure kept from then;
+    // a Depot whose holdings came this session without a total does not.
+    if (live.state === 'known' || !k || (live.state === 'never' && portfolios[a.accountNumber] !== undefined)) return live;
     return { state: 'known', cents: k.cents, currency: k.currency, kept: true };
   }, [balances, portfolios, kept]);
 }

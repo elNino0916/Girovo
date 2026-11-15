@@ -533,7 +533,7 @@ const keyOk = (k: unknown): k is string =>
 
 type TextField = Exclude<{
   [K in keyof SerializedTransaction]-?: SerializedTransaction[K] extends string | undefined ? K : never;
-}[keyof SerializedTransaction], 'currency' | 'fromPurpose'>;
+}[keyof SerializedTransaction], 'currency' | 'fromPurpose' | 'rawPurpose'>;
 
 /** Every text field of a booking, and how long it may be. */
 const TEXT_FIELDS: ReadonlyArray<[TextField, number]> = [
@@ -600,6 +600,8 @@ export function sanitizeBooking(v: unknown): SerializedTransaction | null {
   // Only where set: the mark of a booking read out of its purpose lines (lib/purpose-party.ts).
   const marked = bankText(v.fromPurpose, HISTORY_LIMITS.short);
   if (marked) tx.fromPurpose = marked;
+  const raw = bankText(v.rawPurpose, HISTORY_LIMITS.text);
+  if (marked && raw) tx.rawPurpose = raw;
   // Kept before the payee was read out of the purpose lines: read out now,
   // as a fresh answer would be (lib/purpose-party.ts).
   return bookingDay(tx) ? withPartyFromPurpose(tx) : null;

@@ -15,7 +15,7 @@
 import { useCallback, useId, useMemo, useState } from 'react';
 import { calendarMonths, filterTransactions, periodTotals, type SearchContext } from '@/lib/analytics';
 import { isDepot, namesList } from '@/lib/balances';
-import { keptStandIns, overviewFigures } from '@/lib/account-overview';
+import { keptStandIns, onScreenKeys, overviewFigures } from '@/lib/account-overview';
 import type { DateRange, StatementInfo } from '@/lib/app-types';
 import type { SerializedAccount, SerializedTransaction } from '@/lib/fints-types';
 import { isoDate } from '@/lib/format';
@@ -55,16 +55,18 @@ export function Ledger() {
   // A bank not logged in counts with its last kept balances where there are
   // any (keptStandIns), its unticked accounts left out as on screen.
   const kept = vault?.keepBalances === false ? undefined : vault?.keptBalances;
-  const { standIns: kepts, stillAbsent: absent, banks: standInBanks } = keptStandIns(
+  const { standIns: kepts, stillAbsent: absent, banks: standInBanks, hidden: keptUnticked } = keptStandIns(
     banks.filter((b) => b.state === 'remembered').map((b) => ({ name: b.bank.name, blz: b.ref?.blz ?? b.bank.blz, accounts: b.ref?.accounts })),
     kept,
-    new Set(accounts.map((a) => a.accountNumber)),
+    onScreenKeys(accounts),
     new Set(accountsHidden),
   );
   // Only while every layer is ticked: the sum of what is ticked can't hold a
   // bank whose accounts have no layer to untick. With one unticked, a bank
   // not logged in keeps it open, as before.
-  const allTicked = shown.length === layers.length;
+  // An unticked account of a bank not logged in has no layer on screen to
+  // show it is left out: the bank keeps the total open then too.
+  const allTicked = shown.length === layers.length && keptUnticked === 0;
   const standIns = allTicked ? kepts : [];
   const absentNow = allTicked ? absent : [...absent, ...standInBanks.map((b) => b.name)];
   const figures = overviewFigures(shown, valueOf, absentNow.length, standIns);

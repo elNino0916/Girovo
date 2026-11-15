@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  groupAccounts, groupKindOf, groupSum, hasOverview, keepAbsentPlaces, keptStandIns, moveAccount, orderAccounts, overviewFigures, sanitizeAccountOrder,
+  groupAccounts, groupKindOf, groupSum, hasOverview, keepAbsentPlaces, keptStandIns, moveAccount, onScreenKeys, orderAccounts, overviewFigures, sanitizeAccountOrder,
   type AccountValue,
 } from './account-overview.ts';
 
@@ -178,6 +178,30 @@ test('keptStandIns: nothing kept keeps the bank absent; all hidden keeps nothing
   assert.deepEqual(keptStandIns([{ name: 'B', blz: '2' }], {}, new Set()).stillAbsent, ['B']);
   assert.deepEqual(keptStandIns([{ name: 'C', blz: '3', accounts: ['7'] }], {}, new Set(), new Set(['7'])).stillAbsent, []);
   assert.deepEqual(keptStandIns([{ name: 'C', blz: '3', accounts: ['7'] }], undefined, new Set()).stillAbsent, ['C']);
+});
+
+test('keptStandIns: an account a login on screen shows already is counted there, not again', () => {
+  const kept = { 123: { cents: 7000, currency: 'EUR', readAt: '2026-11-14T10:00:00.000Z' } };
+  // The same Sparkasse logged in again under another login name: its account is on screen as 123@BLZ.
+  const again = keptStandIns([{ name: 'S', blz: '10050000', accounts: ['123'] }], kept, onScreenKeys([{ accountNumber: '123@10050000' }]));
+  assert.deepEqual([again.standIns, again.stillAbsent, again.banks], [[], [], []]);
+  // A joint account the primary login shows (plain key, its IBAN names the BLZ): neither counted nor "ohne Saldo".
+  const joint = keptStandIns(
+    [{ name: 'S', blz: '10050000', accounts: ['123', '456'] }],
+    { ...kept, 456: { cents: 100, currency: 'EUR', readAt: '2026-11-14T10:00:00.000Z' } },
+    onScreenKeys([{ accountNumber: '123', iban: 'DE89100500000000000123' }]),
+  );
+  assert.deepEqual([joint.standIns.map((s) => s.key), joint.banks], [['456'], [{ name: 'S', unkept: 0, foreign: [] }]]);
+  // The same number at another bank is another account: it still stands in.
+  const other = keptStandIns([{ name: 'S', blz: '10050000', accounts: ['9'] }], { '9@10050000': kept[123] }, onScreenKeys([{ accountNumber: '9', iban: 'DE02120300000000000009' }]));
+  assert.deepEqual(other.standIns.map((s) => s.key), ['9@10050000']);
+});
+
+test('keptStandIns: hidden accounts of a bank not logged in are counted as hidden', () => {
+  const kept = { 1: { cents: 100, currency: 'EUR', readAt: '2026-11-14T10:00:00.000Z' } };
+  const r = keptStandIns([{ name: 'S', blz: '10050000', accounts: ['1', '2'] }], kept, new Set(), new Set(['2']));
+  assert.deepEqual([r.standIns.length, r.hidden], [1, 1]);
+  assert.equal(keptStandIns([{ name: 'S', blz: '10050000', accounts: ['1'] }], kept, new Set()).hidden, 0);
 });
 
 test('keptStandIns: a number the bank on screen holds is never taken for the absent bank', () => {

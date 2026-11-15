@@ -295,6 +295,8 @@ export type SerializedTransaction = {
    * (lib/purpose-party.ts): "purpose" and the fields filled from them.
    */
   fromPurpose?: string;
+  /** With `fromPurpose`: the purpose as the bank sent it, so later rules can read it again. */
+  rawPurpose?: string;
   e2eReference: string;
   mandateReference: string;
   customerReference: string;

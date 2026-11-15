@@ -193,7 +193,10 @@ export function joinQualified<A extends Identified>(
   if (claimed.size) {
     incoming = incoming.map((a) => {
       const owner = claimed.get(a.accountNumber);
-      return owner && (owner !== blz || ibanKey(a.iban)) ? { ...a, accountNumber: qualifiedKey(a.accountNumber, blz) } : a;
+      // Only another bank's: at the same bank the same number is the same
+      // account (a joint one two logins see, or one login under a new name),
+      // and qualified it would join beside itself and count twice.
+      return owner && owner !== blz ? { ...a, accountNumber: qualifiedKey(a.accountNumber, blz) } : a;
     });
   }
   const first = joinAccounts(shown, incoming);

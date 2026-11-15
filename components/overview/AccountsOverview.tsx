@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
-  GROUP_KINDS, GROUPINGS, groupAccounts, groupKindOf, groupSum, keptStandIns, liveValue, orderAccounts, overviewFigures,
+  GROUP_KINDS, GROUPINGS, groupAccounts, groupKindOf, groupSum, keptStandIns, liveValue, onScreenKeys, orderAccounts, overviewFigures,
   type AccountGroup, type AccountGroupKind, type AccountGrouping, type AccountValue,
 } from '@/lib/account-overview';
 import { isCardAccount, isDepot, namesList } from '@/lib/balances';
@@ -113,7 +113,10 @@ export function AccountsOverview({ pane = false }: {
   const valueOf = (a: SerializedAccount): AccountValue => {
     const live = liveValue(a, balances[a.accountNumber], portfolios[a.accountNumber]);
     const k = kept?.[a.accountNumber];
-    if (live.state === 'known' || live.state === 'never' || !k) return live;
+    // An account the bank never reads (a Bausparvertrag whose figure came
+    // with the account list once) still shows the figure kept from then;
+    // a Depot whose holdings came this session without a total does not.
+    if (live.state === 'known' || !k || (live.state === 'never' && portfolios[a.accountNumber] !== undefined)) return live;
     return { state: 'known', cents: k.cents, currency: k.currency, kept: true };
   };
   const isKept = (a: SerializedAccount) => {
@@ -125,10 +128,10 @@ export function AccountsOverview({ pane = false }: {
   // session, where there are any (keptStandIns); only one with none keeps
   // the Gesamtsaldo open.
   const remembered = banks.filter((b) => b.state === 'remembered');
-  const { standIns, stillAbsent: absent, banks: standInBanks } = keptStandIns(
+  const { standIns, stillAbsent: absent, banks: standInBanks, hidden: standInHidden } = keptStandIns(
     remembered.map((b) => ({ name: b.bank.name, blz: b.ref?.blz ?? b.bank.blz, accounts: b.ref?.accounts })),
     kept,
-    new Set(every.map((a) => a.accountNumber)),
+    onScreenKeys(every),
     hiddenSet,
   );
   const standInUnkept = standInBanks.reduce((n, b) => n + b.unkept, 0);
@@ -312,7 +315,8 @@ export function AccountsOverview({ pane = false }: {
           )}
           <p className="tnum mt-1 text-[14px] leading-5 text-ink-2">
             {words.count(accounts.length, bankCount)}
-            {hiddenCount > 0 && ` · ${words.hiddenCount(hiddenCount)}`}
+            {/* Hidden accounts of a bank not logged in count too: they are left out of the total as well. */}
+            {hiddenCount + standInHidden > 0 && ` · ${words.hiddenCount(hiddenCount + standInHidden)}`}
             {stand && ` · ${stand}`}
           </p>
           {figures.total != null && standInBanks.length > 0 && (

@@ -89,6 +89,18 @@ test('joinQualified: another IBAN, or another bank, joins under "number@BLZ"; on
   assert.deepEqual(shared.shared.map((a) => a.accountNumber), ['1']);
 });
 
+test('joinQualified: a number an earlier login at the same bank holds is the same account, never qualified', () => {
+  const blzOf = () => '12030000';
+  const claimed = new Map([['1', '12030000'], ['2', '50010517']]);
+  // Not on screen now: the joint account joins plain, so the earlier login's return finds it shared.
+  const j = joinQualified([], [account('1', { iban: 'DE02120300000000202051' }), account('2', { iban: 'DE02120300000000000002' })], '12030000', blzOf, claimed);
+  assert.deepEqual(j.added.map((a) => a.accountNumber), ['1', '2@12030000']);
+  // On screen with the same IBAN: shown once.
+  const shown = [account('1', { iban: 'DE02120300000000202051' })];
+  const s = joinQualified(shown, [account('1', { iban: 'DE02120300000000202051' })], '12030000', blzOf, claimed);
+  assert.deepEqual([s.added, s.shared.map((a) => a.accountNumber)], [[], ['1']]);
+});
+
 test('a number the bank lists twice is taken once', () => {
   const j = joinAccounts([], [account('7'), account('7', { product: 'again' })]);
   assert.equal(j.added.length, 1);
