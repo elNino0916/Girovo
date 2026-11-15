@@ -151,6 +151,8 @@ export type MockOptions = {
   method?: MockTanKind;
   /** The bank lists a Depot too (data.ts MOCK_DEPOT): its holdings in place of Umsätze. */
   depot?: boolean;
+  /** The Girokonto holds bookings shaped as Targobank's camt sends them (data.ts targobankBookings). */
+  targobank?: boolean;
   /** A receipt is attached to a booking from the start (the drawer's "Belege"), and two of the bank's statements are kept. */
   docs?: boolean;
   // First-frame navigation. Part of the initial state rather than set from an
@@ -498,7 +500,7 @@ function mockList(
   acct: string,
   span: DateRange,
   kept: HistoryData | null,
-  o: { broken?: boolean; empty?: boolean } = {},
+  o: { broken?: boolean; empty?: boolean; targobank?: boolean } = {},
 ): { fetchFrom: string | null; statement: MockStatement | null; txs: SerializedTransaction[]; info: Omit<StatementInfo, 'loadedAt'> } {
   const plan = planFetch(span, kept?.accounts[acct]?.coverage, data.today);
   const fetchFrom = plan ? plan.from : null;
@@ -564,7 +566,7 @@ function initialState(data: MockData, preset: MockPreset, opts: MockOptions) {
 
   const load = (acct: string, r: DateRange) => {
     const span = spanOf(acct, r);
-    const l = mockList(data, acct, span, kept, { broken: broken && acct === ACCT.giro, empty });
+    const l = mockList(data, acct, span, kept, { broken: broken && acct === ACCT.giro, empty, targobank: opts.targobank });
     txCache[acct] = { key: `${span.from}|${span.to}`, txs: l.txs };
     statementInfo[acct] = { ...l.info, loadedAt: now - 60_000 };
     if (l.statement?.balance) balances[acct] = l.statement.balance;
@@ -1189,7 +1191,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     };
     const apply = () => {
       const now = keptOf();
-      const l = mockList(data, acct, span, now, { broken: preset === 'unverified' && acct === ACCT.giro, empty: preset === 'empty' });
+      const l = mockList(data, acct, span, now, { broken: preset === 'unverified' && acct === ACCT.giro, empty: preset === 'empty', targobank: opts.targobank });
       const s = l.statement;
       // As the provider: a balance up to today, never one older than the known one.
       if (s?.balance && span.to >= today) {

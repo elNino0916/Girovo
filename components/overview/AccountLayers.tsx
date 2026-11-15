@@ -58,7 +58,9 @@ export function AccountLayers({ onArrange }: { onArrange: () => void }) {
             <li
               key={a.accountNumber}
               data-layer={a.accountNumber}
-              className={cx('mx-3 flex h-9 items-center gap-2 rounded-full pr-3 pl-2', current && 'bg-[var(--md-surface-container)]')}
+              // min-h, not h: a name too long beside its balance takes a second line
+              // ("ONLINE-KREDIT" beside "−14.395,13 €" was cut to "ONLINE-…").
+              className={cx('mx-3 flex min-h-9 items-center gap-2 rounded-[18px] pr-3 pl-2', current && 'bg-[var(--md-surface-container)]')}
             >
               <M3eCheckbox
                 checked={on}
@@ -77,9 +79,9 @@ export function AccountLayers({ onArrange }: { onArrange: () => void }) {
                 type="button"
                 title={words.showOnly(name)}
                 onClick={() => only(a)}
-                className={cx('row-focus flex h-full min-w-0 flex-1 items-center gap-2 rounded-full text-left', !on && 'text-ink-2')}
+                className={cx('row-focus flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-[18px] py-1 text-left', !on && 'text-ink-2')}
               >
-                <span className="min-w-0 flex-1 truncate text-[14px] leading-5">{name}</span>
+                <span className="line-clamp-2 min-w-0 flex-1 text-[14px] leading-5 break-words">{name}</span>
                 <span className={cx('shrink-0 text-[14px] leading-5 font-medium', on ? 'text-ink' : 'text-ink-2', v.state === 'known' && v.kept && 'text-ink-2')}>
                   {v.state === 'known'
                     ? <Money value={v.cents / 100} currency={v.currency} tone="plain" />

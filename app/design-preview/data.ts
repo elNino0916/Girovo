@@ -34,6 +34,7 @@ import type {
   SerializedTransaction, StandingRules, StatementBlock,
 } from '@/lib/fints-types';
 import { counterpartyKey, txKey } from '@/lib/categories';
+import { withPartyFromPurpose } from '@/lib/purpose-party';
 import { addDaysKey, dayNumber, isTargetBusinessDay, isoDate, nextTargetBusinessDay } from '@/lib/format';
 
 // ---------------------------------------------------------------------------
@@ -905,7 +906,7 @@ export type MockData = {
   userId: string;
   accounts: SerializedAccount[];
   /** What a statement request for `range` would answer. `broken` falsifies one block's closing. */
-  statement(accountNumber: string, range: DateRange, opts?: { broken?: boolean; empty?: boolean }): MockStatement;
+  statement(accountNumber: string, range: DateRange, opts?: { broken?: boolean; empty?: boolean; targobank?: boolean }): MockStatement;
   /** Today's balance of an account. */
   balance(accountNumber: string, opts?: { empty?: boolean }): SerializedBalance;
   pending: Record<string, SerializedTransaction[]>;
@@ -979,6 +980,35 @@ function mockBankOrders(today: string, acct: string): Record<BankOrderKind, Seri
   };
 }
 
+/**
+ * Bookings as Targobank's camt sends them: no payee in its field, every
+ * line in the purpose behind the booking text again, read out as
+ * lib/serialize.ts does. Their amounts add up to nothing, so the day's
+ * statement still balances.
+ */
+function targobankBookings(day: string): SerializedTransaction[] {
+  const at = camtDate(day);
+  const tb = (bookingText: string, amount: number, ref: string, ...lines: string[]) => withPartyFromPurpose<SerializedTransaction>({
+    valueDate: at, entryDate: at, bankDay: day, amount, currency: 'EUR', purpose: lines.join('\n'), bookingText,
+    remoteName: '', remoteIban: '', remoteBic: '', e2eReference: 'NOTPROVIDED', mandateReference: '', customerReference: '',
+    bankReference: ref, transactionCode: 'PMNT-RCDT-ESCT', primeNotesNr: '', textKeyExtension: '', additionalInformation: bookingText,
+    statementNumber: `${day.slice(0, 4)}${day.slice(5, 7)}`,
+  });
+  return [
+    tb('SEPA Lastschrift', -52.5, 'TB0001', 'SEPA LASTSCHRIFT', 'PayPal Europe S.a.r.l. et Cie S.C.A',
+      '1053918153621/PP.1405.PP/. ZOEVA GmbH, Ihr Einkauf bei', 'ZOEVA GmbH', 'Kundenreferenz: 1053918153621',
+      'Gläubiger-ID : LU96ZZZ0000000000000000058', 'Mandat: 5TWJ2252J7QQE', 'IBAN: LU89751000135104200E'),
+    tb('Gutschrift', 210.48, 'TB0002', 'GUTSCHRIFT', 'Bundesagentur für Arbeit - Familienkasse',
+      'KG527006FK978520 1126 115012743624/3000164059286', 'KundenRef: 115012743624'),
+    tb('Echtzeitüberweisung Inland', -75, 'TB0003', 'ECHTZEITÜBERWEISUNG INLAND', 'TBOL', 'NINO BECKER', 'DEUTSCHLANDTICKET',
+      'IBAN DE02120300000000202051 BIC BYLADEM1001', `AM ${deDate(day)} UM 15.48.36`),
+    tb('NFC Kartenzahlung', -82.98, 'TB0004', 'NFC KARTENZAHLUNG', 'OIL 120', '/Urbar', '// 74003818',
+      `AM ${deDate(day)} AUTORISIERUNGSNR. 693421`, 'KARTENNUMMER 439556XXXXXX801X GÜLTIG BIS 08/27'),
+    tb('Reserv. Betrag POS', 0, 'TB0005', 'RESERV. BETRAG POS', 'EUR', '78,01', 'AUTORISIERUNGSNR', '765455',
+      'KARTENNUMMER(439556XXXXXX801X)', 'OIL 120', 'Urbar', 'DE'),
+  ];
+}
+
 function buildMockData(today: string): MockData {
   const gen = generate(today);
 
@@ -1008,7 +1038,7 @@ function buildMockData(today: string): MockData {
     };
   };
 
-  const statement = (acct: string, range: DateRange, opts: { broken?: boolean; empty?: boolean } = {}): MockStatement => {
+  const statement = (acct: string, range: DateRange, opts: { broken?: boolean; empty?: boolean; targobank?: boolean } = {}): MockStatement => {
     const { from, to } = range;
     const toDate = dateOf(acct);
     if (opts.empty) {
@@ -1055,6 +1085,12 @@ function buildMockData(today: string): MockData {
 
     // Newest first, the way serializeTransactions hands them over.
     const txs = rows.map((b) => b.tx).reverse();
+    // MockOptions `targobank`: the Girokonto's last business day also holds
+    // bookings in the shape Targobank's camt sends them (lib/purpose-party.ts).
+    if (opts.targobank && acct === ACCT.giro) {
+      const day = isoDate(nextTargetBusinessDay(addDaysKey(today, -4)));
+      if (day >= from && day <= to) txs.unshift(...targobankBookings(day));
+    }
     return { txs, blocks, balance: reachesToday ? balance(acct) : null };
   };
 

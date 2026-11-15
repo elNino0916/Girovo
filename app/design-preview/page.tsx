@@ -496,6 +496,10 @@ const VIEWS: Record<string, ViewDef> = {
     label: 'Zweite Bank nicht angemeldet, mit letztem Stand', group: 'Dashboard', options: { kept: true, depot: true, secondBank: 'remembered' },
   },
   'overview-balances': { label: 'Alle Salden abgerufen', group: 'Dashboard', script: fetchAllBalances },
+  // 6.3: Targobank's bookings, named from their purpose lines; a reservation booked as 0,00.
+  'transactions-targobank': {
+    label: 'Umsätze im Targobank-Format', group: 'Dashboard', options: { targobank: true, account: ACCT.giro },
+  },
   'overview-balances-error': {
     label: 'Saldenabruf fehlgeschlagen', group: 'Dashboard', options: { fail: true }, script: fetchAllBalances,
   },

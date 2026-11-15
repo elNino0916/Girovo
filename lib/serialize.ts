@@ -9,6 +9,7 @@ import { nearestEntryYear } from './entry-date';
 import { repairBankText, statedDay } from './format';
 import { camtDay } from './camt-day';
 import { parsePurpose } from './sepa-purpose';
+import { withPartyFromPurpose } from './purpose-party';
 import { balanceFromUpdExtension } from './upd-extension';
 import { INSTANT_SEG, TRANSFER_SEG } from './fints-sepa';
 import { PENDING_SEG } from './fints-pending';
@@ -274,7 +275,9 @@ export function serializeTransactions(statements: Statement[] | undefined, curre
       // read off the parser's Date here, in the time it was built in — the
       // JSON of that Date no longer says which day was meant.
       const bankDay = camtDay(entryDate || t.valueDate) || statedDay(entryDate || t.valueDate);
-      txs.push({
+      // A bank that writes the payee into the purpose lines (Targobank):
+      // read out into the fields (lib/purpose-party.ts).
+      txs.push(withPartyFromPurpose({
         valueDate: t.valueDate,
         entryDate,
         ...(bankDay ? { bankDay } : {}),
@@ -302,7 +305,7 @@ export function serializeTransactions(statements: Statement[] | undefined, curre
         textKeyExtension: t.textKeyExtension || '',
         additionalInformation: t.additionalInformation || '',
         statementNumber: st.number || '',
-      });
+      }));
     }
   }
   // newest first

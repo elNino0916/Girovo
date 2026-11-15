@@ -38,6 +38,7 @@ import type { SerializedTransaction, StatementBlock } from './fints-types';
 import { buildBalanceHistory, fail, type BalanceHistory, type BalancePoint } from './balance-history.ts';
 import { addDaysKey, dayFromNumber, dayKey, dayNumber, toLocalDate } from './format.ts';
 import { isRecord } from './guards.ts';
+import { withPartyFromPurpose } from './purpose-party.ts';
 
 // ---------------------------------------------------------------------------
 // Shapes
@@ -532,7 +533,7 @@ const keyOk = (k: unknown): k is string =>
 
 type TextField = Exclude<{
   [K in keyof SerializedTransaction]-?: SerializedTransaction[K] extends string | undefined ? K : never;
-}[keyof SerializedTransaction], 'currency'>;
+}[keyof SerializedTransaction], 'currency' | 'fromPurpose'>;
 
 /** Every text field of a booking, and how long it may be. */
 const TEXT_FIELDS: ReadonlyArray<[TextField, number]> = [
@@ -596,7 +597,12 @@ export function sanitizeBooking(v: unknown): SerializedTransaction | null {
   // bankDay): kept beside the moment, which says it only on German time.
   if (isDay(v.bankDay)) tx.bankDay = v.bankDay;
   for (const [field, max] of TEXT_FIELDS) tx[field] = bankText(v[field], max);
-  return bookingDay(tx) ? tx : null;
+  // Only where set: the mark of a booking read out of its purpose lines (lib/purpose-party.ts).
+  const marked = bankText(v.fromPurpose, HISTORY_LIMITS.short);
+  if (marked) tx.fromPurpose = marked;
+  // Kept before the payee was read out of the purpose lines: read out now,
+  // as a fresh answer would be (lib/purpose-party.ts).
+  return bookingDay(tx) ? withPartyFromPurpose(tx) : null;
 }
 
 /** A booking for disk and wire: empty texts left out (sanitizeBooking puts them back). */

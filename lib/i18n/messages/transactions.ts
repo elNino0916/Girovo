@@ -195,6 +195,8 @@ export const de = {
     creditCard: 'Kreditkarte',
     debitCard: 'Debitkarte',
     payment: 'Kartenzahlung',
+    /** A card reservation the bank books as 0,00: the sum it holds, not yet taken. */
+    reserved: 'Reserviert',
     credit: 'Kartengutschrift',
     /** A card payment refunded: "Gutschrift · Visa Debit". */
     creditVia: (card: string) => `Gutschrift · ${card}`,
@@ -715,6 +717,7 @@ export const en: typeof de = {
     creditCard: 'Credit card',
     debitCard: 'Debit card',
     payment: 'Card payment',
+    reserved: 'Reserved',
     credit: 'Card credit',
     creditVia: (card) => `Credit · ${card}`,
     foreignCurrency: (currency) => `Foreign currency ${currency}`,

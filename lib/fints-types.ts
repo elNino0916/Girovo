@@ -290,6 +290,11 @@ export type SerializedTransaction = {
    * through counterpartyName() in lib/categories.ts.
    */
   ultimateName?: string;
+  /**
+   * Set when the payee and identifiers were read out of the purpose lines
+   * (lib/purpose-party.ts): "purpose" and the fields filled from them.
+   */
+  fromPurpose?: string;
   e2eReference: string;
   mandateReference: string;
   customerReference: string;
