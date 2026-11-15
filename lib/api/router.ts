@@ -358,9 +358,13 @@ export class ApiRouter {
     return record;
   }
 
-  /** Every request still waiting ends as refused (the logout, the API switched off). */
-  settlePending(): void {
-    for (const r of this.transfers.pending()) this.settleTransfer(r.id, 'refused');
+  /**
+   * Every request still waiting ends as refused (the logout, the API switched
+   * off), except the one whose sheet is open: the sheet reports how it ended
+   * as it closes (a bank's refusal with its words, say), and that report counts.
+   */
+  settlePending(open: string | null = null): void {
+    for (const r of this.transfers.pending()) if (r.id !== open) this.settleTransfer(r.id, 'refused');
   }
 
   // -------------------------------------------------------------------------

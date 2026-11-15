@@ -126,6 +126,7 @@ import type { BackupSummary, RestoreReport } from '@/lib/backup';
 import type { AlertsChange, AlertsView, Watch } from '@/lib/payment-alerts';
 import type { PopularBank } from '@/lib/banks';
 import { clearAsk } from './insights/ask-thread-store';
+import { runBeforeLogout } from './provider/before-logout';
 
 import {
   ACTIVITY_EVENTS, anchorOf, categoryNameTaken, closingBalanceOf, CONFIRMED_LINGER_MS, countsAsActivity,
@@ -4285,6 +4286,9 @@ function useFintsState() {
       return;
     }
 
+    // What still has to go into the vault (Girovo API's grants, Verlauf and
+    // ended requests) goes in now, while the vault takes changes.
+    runBeforeLogout();
     // Captured before the reset below empties the vault. An expired session
     // cannot take a save any more, so that one is not attempted.
     const saved = reason === 'expired' ? Promise.resolve() : flushVault();

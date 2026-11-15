@@ -475,6 +475,21 @@ test('router: requests still waiting end as refused at the logout; a hung up app
   assert.equal(busy.error.data.reason, 'busy');
 });
 
+test('router: at the logout the request whose sheet is open is left to the sheet', async () => {
+  const h = harness(['transfers.request']);
+  await h.hello();
+  const open = (await h.call(app, 'girovo.transfers.request', { iban: IBAN, name: 'A', cents: 1 })).result.request;
+  const queued = (await h.call(app, 'girovo.transfers.request', { iban: IBAN, name: 'B', cents: 2 })).result.request;
+  h.router.settlePending(open);
+  assert.equal(h.router.transfers.get(queued, clientKey(app))!.state, 'refused');
+  assert.equal(h.router.transfers.get(open, clientKey(app))!.state, 'pending', 'the sheet still decides');
+  h.router.reset();
+  // The sheet closes after the logout with the bank's refusal: that is what the app hears.
+  h.router.settleTransfer(open, 'failed', { text: 'Konto gesperrt' });
+  assert.equal(h.router.transfers.get(open, clientKey(app))!.state, 'failed');
+  assert.ok(h.notes.some((n) => n.params.state === 'failed'), 'the app that asked is told');
+});
+
 test('the Verlauf keeps a transfer\'s outcome and a setting\'s key', () => {
   const line: ApiLogEntry = { at: '2026-11-14T12:00:00.000Z', app: 'a', name: 'A', method: 'transfers.request', ok: true, request: 'r_1', outcome: 'pending' };
   const updated = withLogOutcome([line], 'r_1', 'failed');

@@ -46,7 +46,8 @@ import { pageReadyFor, publisherLabel, vaultSwitchMove } from '@/lib/api/host-st
 import { bringForward, hasApiBridge, setApiOn, setPageReady, useApiOn } from './bridge';
 import { askConsent, dropConsents } from './consent-store';
 import { refreshing, useApiWrites } from './host-actions';
-import { dropTransfers, onTransferEnd, queueTransfer, takeTransfer, useQueuedTransfers } from './transfer-requests';
+import { onBeforeLogout } from '../provider/before-logout';
+import { dropTransfers, onTransferEnd, openTransferId, queueTransfer, takeTransfer, useQueuedTransfers } from './transfer-requests';
 
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '';
 const FLUSH_MS = 1200;
@@ -100,6 +101,18 @@ function flush() {
 const schedule = () => {
   flushTimer ??= setTimeout(flush, FLUSH_MS);
 };
+
+/**
+ * Waiting requests end as refused (the open sheet's one ends with the sheet)
+ * and everything not yet saved goes into the vault: at the logout, before
+ * the vault closes (FintsProvider runs this first), and when the API is
+ * switched off.
+ */
+function settleAndFlush() {
+  dropTransfers();
+  apiRouter.settlePending(openTransferId());
+  flush();
+}
 
 const host: RouterHost = {
   vaultOpen: () => !!live.current?.open,
@@ -217,18 +230,20 @@ function ApiLive() {
       void apiRouter.handle(call).then((payload) => (on ? bridge.reply(call.id, payload) : undefined)).catch(() => {});
     });
     const offClosed = bridge.onClosed(({ connection }) => apiRouter.closed(connection));
+    // Kept after this unmounts: an open sheet reports its end as it closes,
+    // after the logout too, and the app hears it then (the router outlives this).
     onTransferEnd((id, end) => apiRouter.settleTransfer(id, end.state, { text: end.text, changed: end.changed }));
+    const offLogout = onBeforeLogout(settleAndFlush);
+    // An end that came in while logged out waits to be saved with this login.
+    if (pendingGrants.length || pendingLog.length || pendingOutcomes.length) schedule();
     return () => {
       on = false;
       offCall();
       offClosed();
-      // Requests whose sheet never opened end as refused; an open sheet reports its own end as it closes.
-      dropTransfers();
-      apiRouter.settlePending();
-      onTransferEnd(null);
+      offLogout();
+      settleAndFlush();
       apiRouter.reset();
       dropConsents();
-      flush();
       live.current = null;
     };
   }, []);

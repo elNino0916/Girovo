@@ -19,6 +19,8 @@ export type QueuedTransfer = { label: RequestLabel; ask: TransferAsk };
 export type TransferEnd = { state: Exclude<TransferState, 'pending'>; text?: string; changed?: boolean };
 
 let queue: readonly QueuedTransfer[] = [];
+/** The request whose sheet is open: it reports its own end when the sheet closes. */
+let openId: string | null = null;
 const listeners = new Set<() => void>();
 let onEnd: ((id: string, end: TransferEnd) => void) | null = null;
 
@@ -37,6 +39,7 @@ export function takeTransfer(): QueuedTransfer | null {
   const [first, ...rest] = queue;
   if (!first) return null;
   set(rest);
+  openId = first.label.id;
   return first;
 }
 
@@ -54,7 +57,13 @@ export function onTransferEnd(fn: ((id: string, end: TransferEnd) => void) | nul
 
 /** The sheet reports how a request ended (once; the router keeps the first). */
 export function endTransfer(id: string, end: TransferEnd): void {
+  if (openId === id) openId = null;
   onEnd?.(id, end);
+}
+
+/** The request whose sheet is open, if any (the logout leaves it to the sheet). */
+export function openTransferId(): string | null {
+  return openId;
 }
 
 const subscribe = (fn: () => void) => {
