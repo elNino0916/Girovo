@@ -7,7 +7,7 @@ import { Unlock } from './auth/Unlock';
 import { TermsStep } from './auth/TermsStep';
 import { useFints } from './FintsProvider';
 import { store } from '@/lib/client-api';
-import { IS_ANDROID } from '@/lib/platform';
+import { IS_DESKTOP_APP } from '@/lib/platform';
 import { useTermsAccepted } from '@/lib/terms';
 import { useDemo } from './demo/demo-mode';
 import { Button, Skeleton } from './ui';
@@ -45,7 +45,11 @@ export function Login() {
   // (lib/profile.ts), and says which bank logs in after it. Until the app
   // knows whether there is one, neither form shows: the bank's would ask for
   // Windows Hello behind the profile's back.
-  const asksProfile = !IS_ANDROID && !demo && typeof window !== 'undefined' && !!window.electronLinkedUnlock;
+  // By the build, never by window: the page is prerendered without one, and
+  // a first render that differs from that HTML makes React render the whole
+  // document again, which drops what the head's script set on <html> (the
+  // caption buttons' room, data-caption).
+  const asksProfile = IS_DESKTOP_APP && !demo;
   if (asksProfile && !profile.served && !profile.checked) return <AuthCard compact><LoginSkeleton /></AuthCard>;
   if (profile.exists && (!profile.open || profileSigningIn)) return <AuthCard compact><Unlock /></AuthCard>;
   return (

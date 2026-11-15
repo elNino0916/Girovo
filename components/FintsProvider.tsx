@@ -3583,11 +3583,17 @@ function useFintsState() {
 
   /** Whether there is a profile and how it stands; only where the desktop shell can keep one. */
   const refreshProfile = useCallback(async () => {
-    if (IS_ANDROID || typeof window === 'undefined' || !window.electronLinkedUnlock) return;
+    if (IS_ANDROID || typeof window === 'undefined') return;
+    // No shell to keep one: asked, and none (the login waits for this answer, Login.tsx).
+    if (!window.electronLinkedUnlock) {
+      setProfileBoth(() => ({ ...NO_PROFILE, checked: true }));
+      return;
+    }
     try {
-      const r = await post<{ exists: boolean; name?: string; hello?: boolean; open?: boolean; damaged?: boolean }>('/api/profile', { op: 'status' });
+      const r = await post<{ exists: boolean; name?: string; hello?: boolean; open?: boolean; damaged?: boolean; face?: ProfileInfo['face'] }>('/api/profile', { op: 'status' });
       setProfileBoth(() => ({
         served: true, checked: true, exists: r.exists, name: r.name ?? '', hello: r.hello === true, open: r.open === true, damaged: r.damaged === true,
+        ...(r.face ? { face: r.face } : {}),
       }));
     } catch {
       // Not to be asked: the bank's login as before for this run, and no
@@ -5584,6 +5590,24 @@ function useFintsState() {
       return next ? withLinkedBanks(v, next) : v;
     });
   }, [profile.open, vaultStatus, bank, userId, updateVault]);
+
+  // The picture chosen in the Sitzung panel goes beside the profile's name
+  // too, so the unlock screen shows it (lib/profile.ts setProfileFace).
+  const chosenAvatar = vault?.avatar;
+  const chosenImage = vault?.avatarImage;
+  useEffect(() => {
+    if (!profile.open || vaultStatus !== 'ready') return;
+    const face = chosenAvatar ? { avatar: chosenAvatar, ...(chosenAvatar === 'own' && chosenImage ? { image: chosenImage } : {}) } : null;
+    if (JSON.stringify(face) === JSON.stringify(profileRef.current.face ?? null)) return;
+    void post<{ face: ProfileInfo['face'] | null }>('/api/profile', { op: 'face', face })
+      .then((r) => setProfileBoth((p) => {
+        const next = { ...p };
+        if (r.face) next.face = r.face;
+        else delete next.face;
+        return next;
+      }))
+      .catch(() => { /* the unlock screen keeps what it had */ });
+  }, [profile.open, vaultStatus, chosenAvatar, chosenImage, setProfileBoth]);
 
   // A bank whose PIN waited for its bank's word (keepInProfile) is asked
   // again after each read: by then a remembered device's PIN has been taken.

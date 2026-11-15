@@ -10,7 +10,11 @@ export const PROFILE_PASSWORD_MIN = 8;
 
 /** How the profile stands, as the page knows it. `served`: this app keeps a profile at all (the desktop). */
 /** `checked`: the app has asked (served or not); until then the login waits. */
-export type ProfileInfo = { served: boolean; exists: boolean; name: string; hello: boolean; open: boolean; damaged?: boolean; checked?: boolean };
+export type ProfileInfo = {
+  served: boolean; exists: boolean; name: string; hello: boolean; open: boolean; damaged?: boolean; checked?: boolean;
+  /** The picture the unlock screen shows (lib/profile.ts ProfileFace). */
+  face?: { avatar: string; image?: string };
+};
 
 /** Before the page asked: nothing is shown for a profile. */
 export const NO_PROFILE: ProfileInfo = { served: false, exists: false, name: '', hello: false, open: false };

@@ -25,8 +25,9 @@
 // server is the app's own process, and closing the window drops them.
 // lockProfile drops them sooner (Abmelden, the automatic logout).
 //
-// The profile name is the one thing kept outside the seal: the unlock screen
-// shows it before anything opens, as fints.lastBank shows a bank today.
+// The profile name and its picture (the one chosen in the Sitzung panel) are
+// kept outside the seal: the unlock screen shows them before anything opens,
+// as fints.lastBank shows a bank today. Nothing else is.
 //
 // No 'server-only' marker, like vault.ts: `node --test` runs the real file
 // round trip (lib/profile.test.ts). Never log the content, a PIN, the password
@@ -36,6 +37,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { boxSalt, deriveKey, newSalt, openBox, parseBox, sealBox, type SealedBox } from './crypto-box.ts';
+import { isAvatarChoice, isAvatarImage, OWN_PICTURE, type AvatarChoice } from './avatars.ts';
 import { isRecord } from './guards.ts';
 import { LINKED_BANK_LIMITS, sameLogin, sanitizeLinkedBanks, type LinkedBankRef } from './linked-banks.ts';
 import { sanitizeLogins } from './linked-unlock.ts';
@@ -53,7 +55,12 @@ export type ProfileWay = { password: string } | { helloKey: Buffer };
 export type ProfileContent = { name: string; banks: ProfileBank[]; vault: unknown };
 
 /** What anyone may know before it opens: whether there is one, its name, the ways in. */
-export type ProfileStatus = { exists: false } | { exists: true; name: string; hello: boolean; open: boolean; damaged?: true };
+/** The picture the unlock screen shows: a glyph, or the own picture with its image. */
+export type ProfileFace = { avatar: AvatarChoice; image?: string };
+
+export type ProfileStatus =
+  | { exists: false }
+  | { exists: true; name: string; hello: boolean; open: boolean; damaged?: true; face?: ProfileFace };
 
 export const PROFILE_LIMITS = {
   /** Characters of the profile's name. */
@@ -141,7 +148,14 @@ export function sanitizeBanks(v: unknown): ProfileBank[] {
 // ---------------------------------------------------------------------------
 
 type Locks = { password: SealedBox; hello?: SealedBox };
-type ProfileFileShape = { v: 1; name: string; locks: Locks; box: SealedBox };
+type ProfileFileShape = { v: 1; name: string; face?: ProfileFace; locks: Locks; box: SealedBox };
+
+/** A picture as the unlock screen may show it: a known glyph, or the own picture with an image that is one. */
+export function profileFace(v: unknown): ProfileFace | undefined {
+  if (!isRecord(v) || !isAvatarChoice(v.avatar)) return undefined;
+  if (v.avatar !== OWN_PICTURE) return { avatar: v.avatar };
+  return isAvatarImage(v.image) ? { avatar: OWN_PICTURE, image: v.image } : undefined;
+}
 
 function parseFile(raw: string): ProfileFileShape | null {
   let parsed: unknown;
@@ -155,7 +169,8 @@ function parseFile(raw: string): ProfileFileShape | null {
   const hello = parsed.locks.hello === undefined ? undefined : parseBox(parsed.locks.hello);
   const box = parseBox(parsed.box);
   if (!password || hello === null || !box) return null;
-  return { v: 1, name: profileName(parsed.name), locks: { password, ...(hello ? { hello } : {}) }, box };
+  const face = profileFace(parsed.face);
+  return { v: 1, name: profileName(parsed.name), ...(face ? { face } : {}), locks: { password, ...(hello ? { hello } : {}) }, box };
 }
 
 type Read = { kind: 'missing' } | { kind: 'damaged' } | { kind: 'file'; file: ProfileFileShape };
@@ -268,7 +283,9 @@ export async function profileStatus(): Promise<ProfileStatus> {
   if (r.kind === 'missing') return { exists: false };
   // A damaged file is still a profile: never offered a new one over it unasked.
   if (r.kind === 'damaged') return { exists: true, name: '', hello: false, open: false, damaged: true };
-  return { exists: true, name: r.file.name, hello: !!r.file.locks.hello, open: opened !== null };
+  return {
+    exists: true, name: r.file.name, hello: !!r.file.locks.hello, open: opened !== null, ...(r.file.face ? { face: r.file.face } : {}),
+  };
 }
 
 /**
@@ -395,6 +412,16 @@ export function orderBanks(order: readonly { blz: string; userId: string }[]): P
     const banks = [...new Set([...named, ...o.content.banks])];
     const next = contentChange(o, { ...o.content, banks });
     return { next, result: handOut(next).banks };
+  });
+}
+
+/** The picture the unlock screen shows from now on (null: the initials). Unchanged, nothing is written. */
+export function setProfileFace(input: unknown): Promise<ProfileFace | null> {
+  const face = profileFace(input) ?? null;
+  return change(async (o) => {
+    if (JSON.stringify(face ?? null) === JSON.stringify(o.file.face ?? null)) return { next: o, result: face };
+    const { face: _old, ...rest } = o.file;
+    return { next: { ...o, file: face ? { ...rest, face } : rest }, result: face };
   });
 }
 

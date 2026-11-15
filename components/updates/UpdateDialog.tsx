@@ -119,7 +119,7 @@ function UpdateDialogView({ state, open }: { state: UpdateState; open: boolean }
         disabled={holding || savingFile || state.phase === 'installing'}
         onClick={() => void updates.restartToUpdate()}
       >
-        {release.back ? u.restartToGoBack(release.version) : u.restartToInstall}
+        {release.back ? u.restartToGoBack : u.restartToInstall}
       </Button>
     );
     actions = unclear > 0 ? (

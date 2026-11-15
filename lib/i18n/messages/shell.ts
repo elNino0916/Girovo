@@ -437,7 +437,8 @@ export const de = {
     /** The installed Windows app: updates only through the start window (src-tauri/src/updater/start.rs). */
     detailsAndRestart: 'Details und Neustart …',
     restartToInstall: 'Jetzt neu starten und installieren',
-    restartToGoBack: (v: string) => `Neu starten und zu Version ${v} zurück`,
+    /** Short: a nightly's version is too long for a button, and the dialog names it already. */
+    restartToGoBack: 'Neu starten und zurückwechseln',
     restartLogsOut: 'Beim Neustart wirst du abgemeldet.',
     orAtNextStart: 'Ohne Neustart wird das Update beim nächsten Start installiert.',
     atStartNote: (current: ReactNode) => ['Du nutzt Version ', current, '. Installiert wird beim nächsten Start oder gleich mit einem Neustart.'],
@@ -789,7 +790,7 @@ export const en: typeof de = {
     detailsAndDownload: 'Details and download…',
     detailsAndRestart: 'Details and restart…',
     restartToInstall: 'Restart and install now',
-    restartToGoBack: (v) => `Restart and go back to version ${v}`,
+    restartToGoBack: 'Restart and switch back',
     restartLogsOut: 'Restarting logs you out.',
     orAtNextStart: 'Without a restart, it’s installed the next time you open Girovo.',
     atStartNote: (current) => ['You’re using version ', current, '. It’s installed at the next start or right away with a restart.'],

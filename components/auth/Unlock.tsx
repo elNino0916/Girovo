@@ -14,7 +14,8 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { useT } from '@/lib/i18n/react';
 import { startDemo } from '../demo/demo-mode';
 import { useFints } from '../FintsProvider';
-import { FingerprintIcon } from '../icons';
+import { isAvatarId, OWN_PICTURE } from '@/lib/avatars';
+import { AvatarGlyph, FingerprintIcon } from '../icons';
 import { useIntroPlaying } from '../shell/Intro';
 import { useWindowInFront } from '../shell/useWindowInFront';
 import { Alert, Button, Dialog, Field, PasswordInput, Spinner } from '../ui';
@@ -99,9 +100,16 @@ export function Unlock() {
       <div className="flex items-center gap-4">
         <span
           aria-hidden
-          className="grid size-14 shrink-0 place-items-center rounded-full bg-accent-soft text-[20px] font-semibold text-accent-ink"
+          className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-full bg-accent-soft text-[20px] font-semibold text-accent-ink"
         >
-          {initials(profile.name) || <FingerprintIcon size={24} />}
+          {profile.face?.avatar === OWN_PICTURE && profile.face.image ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={profile.face.image} alt="" draggable={false} className="size-full object-cover" />
+          ) : profile.face && isAvatarId(profile.face.avatar) ? (
+            <AvatarGlyph id={profile.face.avatar} size={26} />
+          ) : (
+            initials(profile.name) || <FingerprintIcon size={24} />
+          )}
         </span>
         <h1 className="min-w-0 text-[22px] leading-7 font-semibold text-balance break-words text-ink">{name}</h1>
       </div>

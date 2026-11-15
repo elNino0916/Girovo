@@ -211,3 +211,18 @@ test('a content box swapped in from another profile does not open', async () => 
   p.lockProfile();
   await assert.rejects(p.unlockProfile({ password: 'richtig gutes Passwort' }, secret), (e: Error) => (e as InstanceType<typeof p.ProfileError>).code === 'damaged');
 });
+
+test('the picture beside the name: shown before the unlock, a glyph or the own picture, cleared with null', async () => {
+  await make();
+  assert.equal((await p.profileStatus() as { face?: unknown }).face, undefined);
+  assert.deepEqual(await p.setProfileFace({ avatar: 'piggy' }), { avatar: 'piggy' });
+  p.lockProfile();
+  assert.deepEqual((await p.profileStatus() as { face?: unknown }).face, { avatar: 'piggy' });
+  await p.unlockProfile({ password: 'richtig gutes Passwort' }, secret);
+  // The own picture needs an image that is one; anything else is the initials.
+  assert.equal(await p.setProfileFace({ avatar: 'own', image: 'kein Bild' }), null);
+  assert.equal((await p.profileStatus() as { face?: unknown }).face, undefined);
+  assert.equal(await p.setProfileFace({ avatar: 'nope' }), null);
+  // Never readable without the password beside it: the PINs stay sealed.
+  assert.ok(!fs.readFileSync(p.profileFile(), 'utf8').includes('12345'));
+});

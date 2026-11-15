@@ -10,6 +10,7 @@
 //   keep    {sessionId, name, accounts?}     → { pin }   the session's bank joins (or stays), its PIN once the bank took it
 //   forgetPin {login}  remove {login}  order {logins}   → { banks }   (no PINs)
 //   name    {name}                           → { name }
+//   face    {face: {avatar, image?} | null}   → { face }   the picture the unlock screen shows (kept unsealed, like the name)
 //   password {current, next, secret}         → { ok }
 //   hello   {key | null, secret}             → { hello }
 //   aside                                    → { exists: false }   "Passwort vergessen": set aside as .bak
@@ -30,7 +31,7 @@ import { sanitizeLinkedBanks, sameLogin } from '@/lib/linked-banks';
 import { linkedUnlockServed, loginOfSession, openLogins, parseSecret, removeLinkedUnlock } from '@/lib/linked-unlock';
 import {
   PROFILE_BASE, PROFILE_LIMITS, ProfileError, changePassword, checkProfilePassword, createProfile, deleteProfile, forgetBankPin, keepBank,
-  lockProfile, openProfile, orderBanks, profileStatus, removeBank, renameProfile, setHello, setProfileAside, unlockProfile,
+  lockProfile, openProfile, orderBanks, profileStatus, removeBank, renameProfile, setHello, setProfileAside, setProfileFace, unlockProfile,
   type ProfileBank, type ProfileContent,
 } from '@/lib/profile';
 import { getSession, type Session } from '@/lib/session';
@@ -63,6 +64,7 @@ type ProfileBody = {
   secret?: unknown;
   login?: unknown;
   logins?: unknown;
+  face?: unknown;
 };
 
 const REQUEST_MAX_BYTES = 16 * 1024;
@@ -180,6 +182,9 @@ export const POST = wrap(async (req: Request) => {
 
       case 'name':
         return json({ name: await renameProfile(b.name) });
+
+      case 'face':
+        return json({ face: await setProfileFace(b.face) });
 
       case 'password': {
         const secret = parseSecret(b.secret);
