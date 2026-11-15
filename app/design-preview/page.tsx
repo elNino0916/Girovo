@@ -498,6 +498,10 @@ const VIEWS: Record<string, ViewDef> = {
   'overview-kept': {
     label: 'Alle Konten mit gespeicherten Salden', group: 'Dashboard', options: { kept: true, depot: true, secondBank: 'linked' },
   },
+  // 6.3: the Sparkasse not logged in counts with yesterday's kept balances.
+  'overview-remembered-kept': {
+    label: 'Zweite Bank nicht angemeldet, mit letztem Stand', group: 'Dashboard', options: { kept: true, depot: true, secondBank: 'remembered' },
+  },
   'overview-balances': { label: 'Alle Salden abgerufen', group: 'Dashboard', script: fetchAllBalances },
   'overview-balances-error': {
     label: 'Saldenabruf fehlgeschlagen', group: 'Dashboard', options: { fail: true }, script: fetchAllBalances,

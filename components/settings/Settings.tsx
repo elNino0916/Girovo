@@ -52,12 +52,13 @@ import { IDLE_MINUTE_CHOICES, useFints, type IdleMinutes } from '../FintsProvide
 import { LanguageSegmented } from '../LanguageToggle';
 import { useBlackBackground, useThemePref } from '../ThemeToggle';
 import { channelInfo, channelName } from '../updates/channels';
+import { setLastBookingShown, useLastBookingShown } from '../overview/row-prefs';
 import { hasNewer, isReady, updates, useUpdates } from '../updates/store';
 import { usageComesWithChannel } from '../telemetry/NightlyUsage';
 import { setUsageConsent, useUsageConsent } from '../telemetry/usage';
 import {
   BellIcon, BuildingIcon, ChartIcon, CheckCircleIcon, ClockIcon, CodeIcon, DownloadIcon, FileIcon, AiMarkIcon, ApiMarkIcon, GlobeIcon, ImageIcon, InfoIcon, KeyboardIcon,
-  LockIcon, MailIcon, MonitorIcon, MoonIcon, PhoneIcon, RefreshIcon, ShieldIcon, SunIcon, WalletIcon,
+  LockIcon, MailIcon, MonitorIcon, MoonIcon, PhoneIcon, ReceiptIcon, RefreshIcon, ShieldIcon, SunIcon, WalletIcon,
 } from '../icons';
 import { AiWordmark, ApiWordmark, BrandName, BrandPlate } from '../shell/BrandMark';
 import { PAGE_TITLE_ID } from '../shell/ids';
@@ -564,6 +565,7 @@ function AppearancePage() {
   const { singleKeyShortcuts, setShortcutsOpen } = useFints();
   const pref = useThemePref();
   const black = useBlackBackground();
+  const lastBooking = useLastBookingShown();
   return (
     <SettingsGroup>
       <SegmentedItem icon={<GlobeIcon />} title={t.session.language} setting="language">
@@ -596,6 +598,16 @@ function AppearancePage() {
         disabled={pref === 'light'}
         title={t.common.theme.black}
         summary={t.common.theme.blackHint}
+      />
+
+      {/* The newest booking under each account in the overview (components/overview/row-prefs.ts). */}
+      <SwitchItem
+        icon={<ReceiptIcon />}
+        setting="lastBooking"
+        checked={lastBooking}
+        onChange={setLastBookingShown}
+        title={t.insights.accounts.lastBookingSetting}
+        summary={t.insights.accounts.lastBookingHint}
       />
 
       {/* Shortcuts need a keyboard; a phone has none worth listing them for. */}

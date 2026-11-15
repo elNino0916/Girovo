@@ -554,6 +554,9 @@ export const de = {
     hideHint: 'Ausgeblendete Konten zählen nicht zum Gesamtsaldo.',
     /** After the count under the Gesamtsaldo: "6 Konten · 2 ausgeblendet". */
     hiddenCount: (n: number) => `${n} ausgeblendet`,
+    /** Einstellungen → Sprache & Darstellung: the newest booking under each account in the overview. */
+    lastBookingSetting: 'Letzte Buchung zeigen',
+    lastBookingHint: 'In der Übersicht unter jedem Konto',
     done: 'Fertig',
   },
 
@@ -1069,6 +1072,8 @@ export const en: typeof de = {
     show: (name) => `Show ${name} again`,
     hideHint: 'Hidden accounts don\'t count toward the total.',
     hiddenCount: (n) => `${n} hidden`,
+    lastBookingSetting: 'Show latest transaction',
+    lastBookingHint: 'On the overview, under each account',
     done: 'Done',
   },
 

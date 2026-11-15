@@ -14,7 +14,7 @@ import type { Locale } from '@/lib/i18n/locale';
 import { useFints } from '../FintsProvider';
 import {
   ArchiveIcon, BellIcon, BoltIcon, CalendarIcon, ChartIcon, ClockIcon, FileIcon, GlobeIcon, ImageIcon, LockIcon, MoonIcon,
-  NoteIcon, ExpandIcon, UserIcon, RefreshIcon, ShieldIcon, SplitIcon, TagIcon, WalletIcon,
+  NoteIcon, ExpandIcon, UserIcon, ReceiptIcon, RefreshIcon, ShieldIcon, SplitIcon, TagIcon, WalletIcon,
 } from '../icons';
 import { useAskPage } from './AskSettings';
 import { useUsageConsent } from '../telemetry/usage';
@@ -62,6 +62,7 @@ export function useSettingFinds(): SettingFind[] {
     const list: (SettingFind | false)[] = [
       s('language', 'language', (m) => m.session.language, (p) => <GlobeIcon {...p} />),
       s('black', 'black', (m) => m.common.theme.black, (p) => <MoonIcon filled {...p} />),
+      s('lastBooking', 'lastBooking', (m) => m.insights.accounts.lastBookingSetting, (p) => <ReceiptIcon {...p} />),
       s('idle', 'idle', (m) => m.settings.find.idle, (p) => <ClockIcon {...p} />),
       s('loginBalances', 'loginBalances', (m) => m.settings.balances.atLogin, (p) => <RefreshIcon {...p} />),
       s('loginBookings', 'loginBookings', (m) => m.settings.bookingsAtLogin.title, (p) => <RefreshIcon {...p} />),

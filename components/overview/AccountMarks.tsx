@@ -43,6 +43,36 @@ export function AccountDisc({ account, entry, logoFile, selected = false, classN
 }
 
 /**
+ * The bank's mark as an account row's own disc, at the disc's 40px (issue
+ * #22: with accounts at several banks, the bank tells the rows apart better
+ * than the kind, which the group's head already names). The compact logo on
+ * its white plate, else the brand's chip.
+ */
+export function BankDisc({ entry, logoFile, className }: { entry: BankEntry; logoFile?: string; className?: string }) {
+  const brand = entry.bank.brand;
+  const logo = compactMark(brand, logoFile);
+  return (
+    <span
+      aria-hidden
+      data-invert={logo?.invert}
+      data-on-dark={logo?.onDark}
+      className={cx(
+        'grid size-10 shrink-0 place-items-center overflow-hidden rounded-full',
+        logo ? 'logo-img p-[7px] shadow-[0_0_0_1px_var(--line)]' : '',
+        className,
+      )}
+    >
+      {logo ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={`/logos/${logo.file}`} alt="" draggable={false} className="size-full object-contain" />
+      ) : (
+        <BankChip brand={brand} className="size-full" />
+      )}
+    </span>
+  );
+}
+
+/**
  * A bank's mark at a few pixels: its compact logo on the white plate (the
  * file itself, or the mark cut from a wordmark's file), else the brand's chip
  * — a wordmark would be unreadable this small (lib/brands.ts compactMark).

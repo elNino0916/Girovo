@@ -15,7 +15,7 @@
 import { useCallback, useId, useMemo, useState } from 'react';
 import { calendarMonths, filterTransactions, periodTotals, type SearchContext } from '@/lib/analytics';
 import { isDepot, namesList } from '@/lib/balances';
-import { overviewFigures } from '@/lib/account-overview';
+import { keptStandIns, overviewFigures } from '@/lib/account-overview';
 import type { DateRange, StatementInfo } from '@/lib/app-types';
 import type { SerializedAccount, SerializedTransaction } from '@/lib/fints-types';
 import { isoDate } from '@/lib/format';
@@ -40,7 +40,7 @@ import { hasBookings, useAccountValue, useLayers } from './layers';
 export function Ledger() {
   const {
     txByAccount, statementInfo, categoryOf, merchants, noteOf, receiptKeys, brandNames, accountLabel,
-    loadTransactions, loadAllBalances, loadingAllBalances, loadingAccount, busy, banks,
+    loadTransactions, loadAllBalances, loadingAllBalances, loadingAccount, busy, banks, accounts, accountsHidden,
     txFilter, setTxFilter, range, applyRange, savedRange, applySavedRange, balanceAt, portfolios, vault, pendingCache,
   } = useFints();
   const [pendingOpen, setPendingOpen] = useState(false);
@@ -53,22 +53,39 @@ export function Ledger() {
   const valueOf = useAccountValue();
 
   // ---- the sum of what is ticked ------------------------------------------
-  const absent = banks.filter((b) => b.state === 'remembered').map((b) => b.bank.name);
-  const figures = overviewFigures(shown, valueOf, absent.length);
+  // A bank not logged in counts with its last kept balances where there are
+  // any (keptStandIns), its unticked accounts left out as on screen.
+  const kept = vault?.keepBalances === false ? undefined : vault?.keptBalances;
+  const { standIns: kepts, stillAbsent: absent, banks: standInBanks } = keptStandIns(
+    banks.filter((b) => b.state === 'remembered').map((b) => ({ name: b.bank.name, blz: b.ref?.blz ?? b.bank.blz, accounts: b.ref?.accounts })),
+    kept,
+    new Set(accounts.map((a) => a.accountNumber)),
+    new Set(accountsHidden),
+  );
+  // Only while every layer is ticked: the sum of what is ticked can't hold a
+  // bank whose accounts have no layer to untick. With one unticked, a bank
+  // not logged in keeps it open, as before.
+  const allTicked = shown.length === layers.length;
+  const standIns = allTicked ? kepts : [];
+  const absentNow = allTicked ? absent : [...absent, ...standInBanks.map((b) => b.name)];
+  const figures = overviewFigures(shown, valueOf, absentNow.length, standIns);
   const hidden = layers.filter((l) => !l.shown).map((l) => accountLabel(l.account));
   const missing = namesList(figures.missing.map(accountLabel));
   // What the total leaves out, named under it as the overview of every account does.
-  const excluded = namesList(figures.excluded.map(({ account, reason, currency }) => (
-    reason === 'currency' ? `${accountLabel(account)} (${currency})` : accountLabel(account)
-  )));
+  const excluded = namesList([
+    ...figures.excluded.map(({ account, reason, currency }) => (
+      reason === 'currency' ? `${accountLabel(account)} (${currency})` : accountLabel(account)
+    )),
+    // A bank not logged in: its kept balances in another currency, by the bank's name.
+    ...(standIns.length ? standInBanks.flatMap((b) => b.foreign.map((c) => `${b.name} (${c})`)) : []),
+  ]);
   // "Stand": as fresh as the oldest figure the total is made of, a kept one's included.
-  const kept = vault?.keepBalances === false ? undefined : vault?.keptBalances;
   const readTimes = figures.counted.map((a) => {
     const v = valueOf(a);
     if (v.state === 'known' && v.kept) return Date.parse(kept?.[a.accountNumber]?.readAt ?? '');
     if (isDepot(a)) return portfolios[a.accountNumber] ? Date.parse(portfolios[a.accountNumber].readAt) : NaN;
     return balanceAt[a.accountNumber] ?? NaN;
-  }).filter(Number.isFinite);
+  }).concat(standIns.map((s) => Date.parse(s.readAt))).filter(Number.isFinite);
   const stand = figures.total != null && readTimes.length ? t.transactions.pending.asOf(sinceShort(Math.min(...readTimes))) : null;
 
   // ---- the bookings, through the account page's filter --------------------
@@ -195,6 +212,12 @@ export function Ledger() {
                 <Money value={figures.total / 100} currency="EUR" tone="plain" split centsClassName="text-[0.58em]" />
               </p>
               {stand && <p className="tnum text-[14px] leading-5 text-ink-2">{stand}</p>}
+              {standIns.length > 0 && (
+                <p className="text-[14px] leading-5 text-ink-2">
+                  {t.banks.standIn(namesList(standInBanks.map((b) => b.name)))}
+                  {standInBanks.some((b) => b.unkept > 0) && `, ${t.banks.standInUnkept(standInBanks.reduce((n, b) => n + b.unkept, 0))}`}
+                </p>
+              )}
               {excluded && <p className="text-[14px] leading-5 text-ink-2" title={totalWords.excludedHint}>{t.insights.without(excluded)}</p>}
             </>
           ) : (
@@ -203,7 +226,7 @@ export function Ledger() {
               <h2 id={titleId} className="text-[22px] leading-7 font-medium">{words.totalPending}</h2>
               {missing && <p className="mt-0.5 text-[14px] leading-5 text-ink-2">{totalWords.notYet(missing)}</p>}
               {/* A further bank not logged in keeps the total open: named, since no read here completes it. */}
-              {absent.length > 0 && <p className="text-[14px] leading-5 text-ink-2">{t.banks.notLoggedIn(namesList(absent))}</p>}
+              {absentNow.length > 0 && <p className="text-[14px] leading-5 text-ink-2">{t.banks.notLoggedIn(namesList(absentNow))}</p>}
               <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
                 <Button size="sm" variant="secondary" onClick={() => loadAllBalances()} disabled={busy || loadingAllBalances}>
                   {totalWords.loadAll}

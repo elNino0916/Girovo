@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  groupAccounts, groupKindOf, groupSum, hasOverview, keepAbsentPlaces, moveAccount, orderAccounts, overviewFigures, sanitizeAccountOrder,
+  groupAccounts, groupKindOf, groupSum, hasOverview, keepAbsentPlaces, keptStandIns, moveAccount, orderAccounts, overviewFigures, sanitizeAccountOrder,
   type AccountValue,
 } from './account-overview.ts';
 
@@ -147,4 +147,54 @@ test('a new order keeps the places of accounts of a bank not logged in', () => {
   assert.deepEqual(keepAbsentPlaces(saved, ['tg', 'giro']), ['tg', 'b1', 'giro', 'b2']);
   assert.deepEqual(keepAbsentPlaces(saved, ['tg', 'giro', 'new']), ['tg', 'b1', 'giro', 'b2', 'new']);
   assert.deepEqual(keepAbsentPlaces(undefined, ['a', 'b']), ['a', 'b']);
+});
+
+test('keptStandIns: a bank not logged in counts with its kept balances, dated', () => {
+  const kept = {
+    '111': { cents: 50000, currency: 'EUR', readAt: '2026-11-14T10:00:00.000Z' },
+    '222': { cents: -2500, currency: 'EUR', readAt: '2026-11-13T09:00:00.000Z' },
+    '333': { cents: 900, currency: 'USD', readAt: '2026-11-14T10:00:00.000Z' },
+  };
+  const { standIns, stillAbsent } = keptStandIns(
+    [{ name: 'Sparkasse', blz: '10050000', accounts: ['111', '222', '333', '444'] }],
+    kept,
+    new Set(['999']),
+  );
+  assert.deepEqual(standIns.map((s) => [s.key, s.cents]), [['111', 50000], ['222', -2500]]);
+  assert.deepEqual(stillAbsent, []);
+  // 444 has no kept balance, 333 is in dollars: both said, neither counted.
+  assert.deepEqual(keptStandIns([{ name: 'Sparkasse', blz: '10050000', accounts: ['111', '222', '333', '444'] }], kept, new Set(['999'])).banks,
+    [{ name: 'Sparkasse', unkept: 1, foreign: ['USD'] }]);
+  // Only dollars kept: nothing stands in, the bank keeps the total open.
+  assert.deepEqual(keptStandIns([{ name: 'S', blz: '1', accounts: ['333'] }], kept, new Set()).stillAbsent, ['S']);
+  const f = overviewFigures([] as string[], () => ({ state: 'never' }) as AccountValue, stillAbsent.length, standIns);
+  assert.equal(f.total, 47500);
+  assert.equal(f.assets, 50000);
+  assert.equal(f.liabilities, -2500);
+});
+
+test('keptStandIns: nothing kept keeps the bank absent; all hidden keeps nothing open', () => {
+  assert.deepEqual(keptStandIns([{ name: 'A', blz: '1', accounts: ['1'] }], {}, new Set()).stillAbsent, ['A']);
+  assert.deepEqual(keptStandIns([{ name: 'B', blz: '2' }], {}, new Set()).stillAbsent, ['B']);
+  assert.deepEqual(keptStandIns([{ name: 'C', blz: '3', accounts: ['7'] }], {}, new Set(), new Set(['7'])).stillAbsent, []);
+  assert.deepEqual(keptStandIns([{ name: 'C', blz: '3', accounts: ['7'] }], undefined, new Set()).stillAbsent, ['C']);
+});
+
+test('keptStandIns: a number the bank on screen holds is never taken for the absent bank', () => {
+  const kept = {
+    '123': { cents: 100, currency: 'EUR', readAt: '2026-11-14T10:00:00.000Z' },
+    '123@10050000': { cents: 7000, currency: 'EUR', readAt: '2026-11-14T10:00:00.000Z' },
+  };
+  const { standIns } = keptStandIns([{ name: 'S', blz: '10050000', accounts: ['123'] }], kept, new Set(['123']));
+  assert.deepEqual(standIns.map((s) => [s.key, s.cents]), [['123@10050000', 7000]]);
+  // Without its qualified figure the plain one is the other bank's: nothing counts, the bank stays absent.
+  const none = keptStandIns([{ name: 'S', blz: '10050000', accounts: ['123'] }], { '123': kept['123'] }, new Set(['123']));
+  assert.deepEqual([none.standIns, none.stillAbsent], [[], ['S']]);
+  // Two absent banks never count the same figure twice.
+  const two = keptStandIns(
+    [{ name: 'A', blz: '1', accounts: ['5'] }, { name: 'B', blz: '2', accounts: ['5'] }],
+    { 5: kept['123'] },
+    new Set(),
+  );
+  assert.deepEqual([two.standIns.length, two.stillAbsent], [1, ['B']]);
 });

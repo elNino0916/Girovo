@@ -9,6 +9,7 @@ import { nearestEntryYear } from './entry-date';
 import { repairBankText, statedDay } from './format';
 import { camtDay } from './camt-day';
 import { parsePurpose } from './sepa-purpose';
+import { balanceFromUpdExtension } from './upd-extension';
 import { INSTANT_SEG, TRANSFER_SEG } from './fints-sepa';
 import { PENDING_SEG } from './fints-pending';
 import { CARD_STATEMENT_SEG } from './fints-cards';
@@ -80,6 +81,7 @@ export function accountsFor(s: Session): SerializedAccount[] {
     // A Sparkasse's credit card has its Umsätze over DKKKU instead (lib/fints-cards.ts).
     canStatements: acctSupports(a, 'HKKAZ') || acctSupports(a, 'HKCAZ') || acctSupports(a, CARD_STATEMENT_SEG),
     canBalance: acctSupports(a, 'HKSAL'),
+    listedBalance: balanceFromUpdExtension((a as { extension?: string }).extension, a.currency || 'EUR'),
     canTransfer: bankSupports(TRANSFER_SEG) && acctSupports(a, TRANSFER_SEG) && !!a.iban,
     canInstant: bankSupports(INSTANT_SEG) && acctSupports(a, INSTANT_SEG) && !!a.iban,
     // Read-only query (like statements/balance above) — gate on the account's

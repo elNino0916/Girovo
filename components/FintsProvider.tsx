@@ -1415,6 +1415,7 @@ function useFintsState() {
     }
     if (bank) {
       store.del(`fints.userId.${bank.blz}`);
+      store.del(`fints.loginDone.${bank.blz}`);
       try {
         const last = JSON.parse(store.get('fints.lastBank') ?? 'null') as ChosenBank | null;
         if (last?.blz === bank.blz) store.del('fints.lastBank');
@@ -3380,6 +3381,10 @@ function useFintsState() {
     // they arrive, widen it unless the user has picked one by then.
     setAppliedRange(defaultRange());
     rangeChosenRef.current = false;
+    // This bank's login went all the way through once: the next login is the
+    // short form (components/Login.tsx). Only where its name is kept.
+    const done = bankRef.current;
+    if (done && store.get(`fints.userId.${done.blz}`)) store.set(`fints.loginDone.${done.blz}`, '1');
     setView('dashboard');
     // The bank's messages are announced by the masthead's bell and the
     // Übersicht's Mitteilungen tile, both of which stay until they are read —
@@ -4987,6 +4992,33 @@ function useFintsState() {
   // goes into the vault as the account's last, with when it was read — and,
   // on a day every figure is known, the overview's figures for that day.
   // Nothing of it while the user said no.
+  // An account the bank offers no balance and no Umsätze for, but whose
+  // balance it put into the account list itself (HIUPD extension,
+  // lib/upd-extension.ts; a Bausparvertrag at a Sparkasse, issue #22): that
+  // figure. Only such accounts, so it never stands in for a read of one that
+  // can be read. A device profile keeps no extensions (lib/session.ts), so
+  // the list is the bank's answer to this login: stamped now, as a read is.
+  // A later list of the same login (a further bank logged in again) replaces
+  // a figure an earlier list gave.
+  const listedRef = useRef(new Set<string>());
+  useEffect(() => {
+    const listed = accounts.filter((a) => a.listedBalance && !a.canBalance && !a.canStatements && !isDepot(a)
+      && (!balancesRef.current[a.accountNumber] || listedRef.current.has(a.accountNumber))
+      && balancesRef.current[a.accountNumber] !== a.listedBalance);
+    if (!listed.length) return;
+    const next = { ...balancesRef.current };
+    const at: Record<string, number> = {};
+    const now = Date.now();
+    for (const a of listed) {
+      next[a.accountNumber] = a.listedBalance!;
+      at[a.accountNumber] = now;
+      listedRef.current.add(a.accountNumber);
+    }
+    balancesRef.current = next;
+    setBalances(next);
+    setBalanceAt((t) => ({ ...t, ...at }));
+  }, [accounts]);
+
   const keepingBalances = vaultStatus === 'ready' && vault?.keepBalances !== false;
   useEffect(() => {
     if (!keepingBalances) return;

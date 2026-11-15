@@ -128,6 +128,13 @@ export type SerializedAccount = {
   limit: number | null;
   canStatements: boolean;
   canBalance: boolean;
+  /**
+   * The balance the bank put into the account list itself (HIUPD extension,
+   * lib/upd-extension.ts), as of its own date; null without one. Used for an
+   * account the bank offers no other figure for (a Bausparvertrag at a
+   * Sparkasse, issue #22).
+   */
+  listedBalance?: SerializedBalance | null;
   canTransfer: boolean;
   canInstant: boolean;
   /**

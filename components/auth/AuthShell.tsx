@@ -43,18 +43,21 @@ const NO_DRAG = { WebkitAppRegion: 'no-drag' } as CSSProperties;
  * The auth screens' page. `step` draws the progress above the form; `aside` is
  * a second tile beside the main one on a wide sheet (the `auth` container
  * from 59rem) and is simply left out below that — whatever it says must not
- * be the only place it is said.
+ * be the only place it is said. `compact`: someone who has logged in here
+ * before, back for the daily login — no progress, the phone's small header.
  */
 export function AuthCard({
-  children, step, aside,
+  children, step, aside, compact = false,
 }: {
   children: ReactNode;
   step?: AuthStep;
   aside?: ReactNode;
+  compact?: boolean;
 }) {
   const t = useT();
   const phone = usePhone();
-  if (phone) return <PhoneAuth step={step}>{children}</PhoneAuth>;
+  if (phone) return <PhoneAuth step={compact ? undefined : step} compact={compact}>{children}</PhoneAuth>;
+  if (compact) step = undefined;
   return (
     <div className="flex h-dvh bg-stage text-stage-ink">
       {/* The brand field: the window's left edge, top to bottom. Nothing in
@@ -112,9 +115,9 @@ export function AuthCard({
  * the screen. A narrow browser window (the website) gets the same, with its
  * Darstellung beside the language.
  */
-function PhoneAuth({ step, children }: { step?: AuthStep; children: ReactNode }) {
+function PhoneAuth({ step, compact = false, children }: { step?: AuthStep; compact?: boolean; children: ReactNode }) {
   const t = useT();
-  const first = !step || step === 'bank';
+  const first = !compact && (!step || step === 'bank');
   return (
     <div className="flex h-dvh flex-col bg-stage text-stage-ink">
       <div data-scroll-root className="relative flex min-h-0 flex-1 flex-col overflow-y-auto">

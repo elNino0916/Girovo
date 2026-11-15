@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
-  GROUP_KINDS, GROUPINGS, groupAccounts, groupKindOf, groupSum, liveValue, orderAccounts, overviewFigures,
+  GROUP_KINDS, GROUPINGS, groupAccounts, groupKindOf, groupSum, keptStandIns, liveValue, orderAccounts, overviewFigures,
   type AccountGroup, type AccountGroupKind, type AccountGrouping, type AccountValue,
 } from '@/lib/account-overview';
 import { isCardAccount, isDepot, namesList } from '@/lib/balances';
@@ -23,7 +23,8 @@ import { PrivacyToggle } from '../shell/PrivacyToggle';
 import { txText } from '../transactions/model';
 import { Alert, Button, DotList, FilterChip, IconButton, Menu, MenuItemRadio, Skeleton, cx } from '../ui';
 import { accountIdent, vaultNote } from './AccountIdentity';
-import { AccountDisc } from './AccountMarks';
+import { AccountDisc, BankDisc } from './AccountMarks';
+import { useLastBookingShown } from './row-prefs';
 import { ArrangeSheet } from './ArrangeSheet';
 import { BalanceChart, Sparkline } from './BalanceChart';
 
@@ -122,8 +123,18 @@ export function AccountsOverview({ pane = false }: {
     return v.state === 'known' && !!v.kept;
   };
 
-  const absent = banks.filter((b) => b.state === 'remembered').map((b) => b.bank.name);
-  const figures = overviewFigures(accounts, valueOf, absent.length);
+  // A bank not logged in counts with the balances kept from its last
+  // session, where there are any (keptStandIns); only one with none keeps
+  // the Gesamtsaldo open.
+  const remembered = banks.filter((b) => b.state === 'remembered');
+  const { standIns, stillAbsent: absent, banks: standInBanks } = keptStandIns(
+    remembered.map((b) => ({ name: b.bank.name, blz: b.ref?.blz ?? b.bank.blz, accounts: b.ref?.accounts })),
+    kept,
+    new Set(every.map((a) => a.accountNumber)),
+    hiddenSet,
+  );
+  const standInUnkept = standInBanks.reduce((n, b) => n + b.unkept, 0);
+  const figures = overviewFigures(accounts, valueOf, absent.length, standIns);
   const grouping: AccountGrouping = vault?.accountGrouping ?? 'type';
   const ordered = orderAccounts(accounts, vault?.accountOrder);
   const kinds = GROUP_KINDS.filter((k) => accounts.some((a) => groupKindOf(a) === k));
@@ -143,9 +154,13 @@ export function AccountsOverview({ pane = false }: {
   const failed = figures.missing.filter((a) => !gone(a) && !loadingNow(a) && failureOf(a.accountNumber));
   const notYet = figures.missing.filter((a) => !gone(a) && !loadingNow(a) && !failureOf(a.accountNumber));
   const unreadDepots = figures.excluded.filter((e) => e.reason === 'unread').map((e) => e.account);
-  const excluded = namesList(figures.excluded.map(({ account, reason, currency }) => (
-    reason === 'currency' ? `${accountLabel(account)} (${currency})` : accountLabel(account)
-  )));
+  const excluded = namesList([
+    ...figures.excluded.map(({ account, reason, currency }) => (
+      reason === 'currency' ? `${accountLabel(account)} (${currency})` : accountLabel(account)
+    )),
+    // A bank not logged in: its kept balances in another currency, by the bank's name.
+    ...standInBanks.flatMap((b) => b.foreign.map((c) => `${b.name} (${c})`)),
+  ]);
   const facts: ReactNode[] = [
     failed.length > 0 && `${t.common.fetchFailed}: ${names(failed)}`,
     notYet.length > 0 && words.notYet(names(notYet)),
@@ -168,7 +183,7 @@ export function AccountsOverview({ pane = false }: {
     ? Date.parse(kept?.[a.accountNumber]?.readAt ?? '')
     : isDepot(a)
       ? (portfolios[a.accountNumber] ? Date.parse(portfolios[a.accountNumber].readAt) : NaN)
-      : balanceAt[a.accountNumber] ?? NaN)).filter(Number.isFinite);
+      : balanceAt[a.accountNumber] ?? NaN)).concat(standIns.map((s) => Date.parse(s.readAt))).filter(Number.isFinite);
   // The Gesamtsaldo's curve: one figure a day from the days every figure was known.
   const curve = kept ? netWorthPoints(vault?.netWorth ?? [], isoDate(new Date())) : null;
   const stand = figures.total != null && readTimes.length ? t.transactions.pending.asOf(sinceShort(Math.min(...readTimes))) : null;
@@ -302,6 +317,12 @@ export function AccountsOverview({ pane = false }: {
             {hiddenCount > 0 && ` · ${words.hiddenCount(hiddenCount)}`}
             {stand && ` · ${stand}`}
           </p>
+          {figures.total != null && standInBanks.length > 0 && (
+            <p className="text-[14px] leading-5 text-ink-2">
+              {t.banks.standIn(namesList(standInBanks.map((b) => b.name)))}
+              {standInUnkept > 0 && `, ${t.banks.standInUnkept(standInUnkept)}`}
+            </p>
+          )}
           {figures.total != null && excluded && (
             <p className="text-[14px] leading-5 text-ink-2" title={words.excludedHint}>{t.insights.without(excluded)}</p>
           )}
@@ -615,6 +636,9 @@ function AccountRow({
   const idClass = depot ? '' : 'iban text-[13px]';
 
   // The last booking: who and when, its amount beside it.
+  // "Letzte Buchung zeigen" off: the rows carry the account alone (Einstellungen, row-prefs.ts).
+  const lastShown = useLastBookingShown();
+  const lastRow = lastShown ? last : null;
   const lastWhen = last ? when(last, 'short') : '';
   const lastName = last ? txText(last).name : '';
   const lastAmount = last ? <Money value={last.amount} currency={last.currency} signed tone="credit" /> : null;
@@ -646,7 +670,7 @@ function AccountRow({
           <span className="min-w-0">
             <span className="block truncate text-[16px] leading-[22px] font-medium">{label}</span>
             <span className={cx('block truncate text-[14px] leading-5', meta)}>
-              {last ? (
+              {lastRow ? (
                 <>
                   <span className="sr-only">{words.columns.last}: </span>
                   {lastName} · {lastWhen}
@@ -679,16 +703,26 @@ function AccountRow({
           busy ? 'cursor-progress' : 'cursor-pointer',
         )}
       >
-        {/* A phone: name and figure, bank and number, the last booking and its amount. */}
+        {/* A phone: name and figure, the end of the number, the last booking and its amount.
+            With several banks the bank's mark is the disc; the kind is the group's head. */}
         <span className="grid grid-cols-[40px_minmax(0,1fr)_auto] gap-x-4 sm:hidden">
-          <AccountDisc account={a} entry={badge ? entry : null} logoFile={entry ? logoFiles[entry.bank.brand] : undefined} className="row-span-3 mt-0.5" />
+          {badge && entry ? (
+            <BankDisc entry={entry} logoFile={logoFiles[entry.bank.brand]} className="row-span-3 mt-0.5" />
+          ) : (
+            <AccountDisc account={a} entry={null} className="row-span-3 mt-0.5" />
+          )}
           <span className="col-start-2 truncate text-[16px] leading-[22px] font-medium text-ink">{label}</span>
           <span className="col-start-3 text-right text-[16px] leading-[22px] font-medium text-ink">{figure}</span>
+          {/* The bank's name is the disc's mark (or the same on every row): said to a screen reader only, while the number tells the rows apart. */}
           <span className="col-span-2 col-start-2 flex min-w-0 items-baseline text-[14px] leading-5 text-ink-2">
-            <span className="min-w-0 truncate">{bank}</span>
-            {short && <span className="shrink-0 whitespace-pre"> · <span className={idClass}>{short}</span></span>}
+            {short ? (
+              <>
+                <span className="sr-only">{bank}, </span>
+                <span className={cx('min-w-0 truncate', idClass)}>{short}</span>
+              </>
+            ) : <span className="min-w-0 truncate">{bank}</span>}
           </span>
-          {last ? (
+          {lastRow ? (
             <>
               <span className="col-start-2 flex min-w-0 items-baseline text-[14px] leading-5 text-ink-2">
                 <span className="sr-only">{words.columns.last}: </span>

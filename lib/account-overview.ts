@@ -12,6 +12,7 @@
 //
 // Pure and node-test-safe: no path aliases, `.ts` on sibling imports.
 
+import { qualifiedKey } from './account-key.ts';
 import { canReportBalance, isCardAccount, isDepot } from './balances.ts';
 import type { SerializedAccount } from './fints-types';
 
@@ -207,17 +208,88 @@ export type OverviewFigures<A> = {
   liabilities: number | null;
 };
 
+/** A bank of the view not logged in now, with its accounts' numbers as its bank lists them (LinkedBankRef). */
+export type AbsentBank = { name: string; blz: string; accounts?: readonly string[] };
+
+/** An absent bank's account counted by its kept balance (lib/kept-balances.ts). */
+export type StandIn = { key: string; bank: string; cents: number; readAt: string };
+
+/** What keptStandIns found for one absent bank it could stand in for. */
+export type StandInBank = {
+  name: string;
+  /** Its accounts with no kept balance (never read, or never reporting one): not in the total. */
+  unkept: number;
+  /** Kept balances in another currency: not in the total either, named like the ones on screen. */
+  foreign: string[];
+};
+
+/**
+ * What earlier sessions left of the banks not logged in now: each account of
+ * theirs with a balance kept from an earlier read stands in for it, dated, so
+ * the Gesamtsaldo need not wait for every login. A bank with none of its
+ * accounts kept stays absent (`stillAbsent`) and keeps the total open, as
+ * before; one whose accounts are all hidden keeps nothing open.
+ *
+ * The kept balances are keyed as the view keyed the accounts: a number
+ * another bank holds joins as "number@BLZ" (lib/linked-banks.ts
+ * joinQualified). So the qualified key is tried first, and a plain number is
+ * never taken while an account on screen (`shown`) holds it: that figure is
+ * the other bank's. Each kept figure counts once. Only euros: an account in
+ * another currency is left out, as from the total.
+ */
+export function keptStandIns(
+  absent: readonly AbsentBank[],
+  kept: Readonly<Record<string, { cents: number; currency: string; readAt: string }>> | undefined,
+  shown: ReadonlySet<string>,
+  hidden: ReadonlySet<string> = new Set(),
+): { standIns: StandIn[]; stillAbsent: string[]; banks: StandInBank[] } {
+  const standIns: StandIn[] = [];
+  const stillAbsent: string[] = [];
+  const banks: StandInBank[] = [];
+  const used = new Set<string>();
+  for (const bank of absent) {
+    let covered = false;
+    let every = true;
+    let unkept = 0;
+    const foreign: string[] = [];
+    for (const n of bank.accounts ?? []) {
+      const key = [qualifiedKey(n, bank.blz), n].find((k) => kept?.[k] && !shown.has(k) && !used.has(k));
+      const isHidden = hidden.has(qualifiedKey(n, bank.blz)) || (!shown.has(n) && hidden.has(n));
+      if (isHidden) continue;
+      every = false;
+      if (!key) {
+        unkept++;
+        continue;
+      }
+      used.add(key);
+      const k = kept![key];
+      const currency = (k.currency || 'EUR').toUpperCase();
+      if (currency !== 'EUR') {
+        foreign.push(currency);
+        continue;
+      }
+      covered = true;
+      standIns.push({ key, bank: bank.name, cents: k.cents, readAt: k.readAt });
+    }
+    if (covered) banks.push({ name: bank.name, unkept, foreign });
+    else if (!(every && (bank.accounts?.length ?? 0) > 0)) stillAbsent.push(bank.name);
+  }
+  return { standIns, stillAbsent, banks };
+}
+
 /**
  * Gesamtsaldo, Vermögen and Verbindlichkeiten over `accounts`. Vermögen and
  * Verbindlichkeiten go by each account's own sign, not by its kind: an
  * overdrawn Girokonto is owed, a credit card paid in advance is owned. A
  * bank of the view that is not logged in (`absent`) keeps every figure open:
- * its accounts are not even listed.
+ * its accounts are not even listed — unless its kept balances stand in for
+ * it (`standIns`, keptStandIns), which then count like the others.
  */
 export function overviewFigures<A>(
   accounts: readonly A[],
   valueOf: (a: A) => AccountValue,
   absent = 0,
+  standIns: readonly { cents: number }[] = [],
 ): OverviewFigures<A> {
   const counted: A[] = [];
   const missing: A[] = [];
@@ -248,6 +320,11 @@ export function overviewFigures<A>(
     total += v.cents;
     if (v.cents >= 0) assets += v.cents;
     else liabilities += v.cents;
+  }
+  for (const s of standIns) {
+    total += s.cents;
+    if (s.cents >= 0) assets += s.cents;
+    else liabilities += s.cents;
   }
   const open = missing.length > 0 || absent > 0;
   return {

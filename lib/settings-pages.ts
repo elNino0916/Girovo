@@ -70,6 +70,7 @@ export const PAGE_OF: Record<SettingsTarget, SettingsPage> = {
   language: 'appearance',
   theme: 'appearance',
   black: 'appearance',
+  lastBooking: 'appearance',
   ask: 'ask',
   askTone: 'ask',
   askLength: 'ask',

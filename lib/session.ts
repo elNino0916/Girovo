@@ -10,6 +10,7 @@
 // a plain module-level Map would drop every logged-in user mid-approval. It
 // also means the app must stay a single Node process (see next.config.ts).
 
+import { withoutExtensions } from './upd-extension.ts';
 import 'server-only';
 
 import crypto from 'node:crypto';
@@ -321,7 +322,8 @@ export function saveSessionProfile(s: Session): void {
       });
     }
     const ok = saveProfile(s.meta.blz, cfg.userId, cfg.pin, {
-      bankingInformation: cfg.bankingInformation,
+      // Without the account list's own figures (lib/upd-extension.ts).
+      bankingInformation: withoutExtensions(cfg.bankingInformation),
       tanMethodId: cfg.tanMethodId,
       tanMediaName: cfg.tanMediaName,
       // The ID this session's Kundensystem-ID was issued under: the own one or, where the bank

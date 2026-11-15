@@ -5,7 +5,9 @@ import { BankPicker } from './auth/BankPicker';
 import { Credentials } from './auth/Credentials';
 import { TermsStep } from './auth/TermsStep';
 import { useFints } from './FintsProvider';
+import { store } from '@/lib/client-api';
 import { useTermsAccepted } from '@/lib/terms';
+import { useDemo } from './demo/demo-mode';
 import { Skeleton } from './ui';
 
 // The auth shell lives in components/auth/AuthShell.tsx; re-exported here
@@ -26,11 +28,20 @@ export function Login() {
     bank, setBank, bankChecking, staleBank, popularBanks, logoFiles, meta, connect, cancelConnect,
   } = useFints();
   const termsAccepted = useTermsAccepted();
+  const demo = useDemo();
+  // Back for the daily login: a login with this bank reached the Übersicht
+  // here before (FintsProvider afterAccountsReady) and its name is kept. The
+  // short form then: no steps, no first-time help, no privacy tile (issue #22).
+  const returning = !!bank && !demo && !!store.get(`fints.userId.${bank.blz}`) && store.get(`fints.loginDone.${bank.blz}`) === '1';
   // Not agreed to yet: nothing of the login is mounted, so nothing asks for a
   // PIN, Windows Hello or a fingerprint behind it.
   if (termsAccepted === false) return <AuthCard><TermsStep /></AuthCard>;
   return (
-    <AuthCard step={bank ? 'credentials' : 'bank'} aside={<PrivacyAside merchantLogos={meta?.merchantLogos} />}>
+    <AuthCard
+      step={bank ? 'credentials' : 'bank'}
+      compact={returning && !bankChecking}
+      aside={returning ? undefined : <PrivacyAside merchantLogos={meta?.merchantLogos} />}
+    >
       {bankChecking || termsAccepted === null ? (
         // The bank from last time is being checked against the list — a
         // moment, so neither form flashes up only to be replaced.
@@ -50,6 +61,7 @@ export function Login() {
           onChange={() => setBank(null)}
           onSubmit={connect}
           onCancel={cancelConnect}
+          returning={returning}
         />
       ) : (
         <BankPicker

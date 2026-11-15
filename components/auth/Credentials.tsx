@@ -73,6 +73,7 @@ export type Unsealed = { linked: GirovoSealedLogin[]; hello?: true; securityKey?
 
 export function Credentials({
   bank, logoFile, meta, onChange, onSubmit, onCancel, initialLogin, initialError, openedPin, onOpenedPinRefused, pinKept,
+  returning = false,
 }: {
   bank: ChosenBank;
   logoFile?: string;
@@ -94,6 +95,12 @@ export function Credentials({
   onOpenedPinRefused?: (blz: string, userId: string) => void;
   /** The desktop's add-bank sheet with "Weitere Banken mit anmelden" on: this PIN is kept, and the note says so. */
   pinKept?: boolean;
+  /**
+   * Someone who has logged in with this bank here before (Login): the form
+   * alone. The first-time words go: the card PIN hint, the approval hint,
+   * the remembered-device box, "Was brauche ich?" and the privacy note.
+   */
+  returning?: boolean;
 }) {
   const uid = useId();
   const tr = useT();
@@ -490,7 +497,7 @@ export function Credentials({
   return (
     <>
       <h1 className="text-[28px] leading-tight font-medium text-headline sm:text-[32px]">{words.title}</h1>
-      <p className="mt-1.5 text-[15px] leading-snug text-ink-2">{words.intro}</p>
+      {!returning && <p className="mt-1.5 text-[15px] leading-snug text-ink-2">{words.intro}</p>}
 
       {meta && !meta.productRegistered && (
         <Alert tone="warn" className="mt-5">
@@ -573,7 +580,7 @@ export function Credentials({
         <Field
           label={secret.label}
           htmlFor={`pin${uid}`}
-          hint={secret.hint}
+          hint={returning ? undefined : secret.hint}
           error={fieldErrors.pin ? secret.missing : undefined}
           className="mb-0"
         >
@@ -624,14 +631,14 @@ export function Credentials({
             the whole brand (lib/brands.ts), so it holds for banks found by
             search too. A remembered device says the opposite below (usually
             no approval), so the two never show together. */}
-        {!(remembered && !shownError) && (
+        {(!returning || !!shownError) && !(remembered && !shownError) && (
           <p className="mt-3 flex items-start gap-2 text-[13px] leading-snug text-ink-3">
             <PhoneIcon size={16} className="mt-px shrink-0" />
             <span>{words.approvalHint(APPROVAL_APP[bank.brand])}</span>
           </p>
         )}
 
-        {remembered && !shownError && (
+        {!returning && remembered && !shownError && (
           <Alert tone="info" title={words.rememberedTitle} icon={<ShieldIcon size={18} check />} className="mt-4" role="status">
             {words.rememberedText(secret.withIt)}
           </Alert>
@@ -714,9 +721,9 @@ export function Credentials({
         )}
       </form>
 
-      <LoginHelp step="credentials" />
+      {(!returning || !!shownError) && <LoginHelp step="credentials" />}
 
-      <PrivacyNote note={pinKept ? tr.settings.linkedUnlock.privacyNote : undefined} />
+      {!returning && <PrivacyNote note={pinKept ? tr.settings.linkedUnlock.privacyNote : undefined} />}
     </>
   );
 }
