@@ -1,14 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  REMINDER_EVERY_MS, askAllowed, bankAllowed, forecastAllowed, goalsAllowed, iconChoosable, readStatus, reminderDue, splitAllowed,
+  REMINDER_EVERY_MS, askAllowed, forecastAllowed, goalsAllowed, iconChoosable, readStatus, reminderDue, splitAllowed,
   trialDaysOf, unlocked,
 } from './plus.ts';
 
 test('Plus locks only in the Play build without it', () => {
   for (const s of ['free', 'active'] as const) {
     assert.equal(unlocked(s), true, s);
-    assert.equal(bankAllowed(s, false), true, s);
     assert.equal(forecastAllowed(s), true, s);
     assert.equal(askAllowed(s), true, s);
     assert.equal(splitAllowed(s), true, s);
@@ -20,9 +19,6 @@ test('Plus locks only in the Play build without it', () => {
     assert.equal(askAllowed(s), false, s);
     assert.equal(splitAllowed(s), false, s);
     assert.equal(goalsAllowed(s), false, s);
-    // The bank the app opens with always stays usable.
-    assert.equal(bankAllowed(s, true), true, s);
-    assert.equal(bankAllowed(s, false), false, s);
   }
   // Still asking: nothing flips to locked while the answer is on its way.
   assert.equal(unlocked(null), true);

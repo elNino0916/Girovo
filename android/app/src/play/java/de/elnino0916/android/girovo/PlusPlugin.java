@@ -40,8 +40,8 @@ import java.util.Map;
 /**
  * Girovo Plus in the Google Play build (docs/plus-plan.md, lib/plus.ts): one
  * subscription, `girovo_plus`, with a monthly and a yearly base plan and a
- * 3-day trial. It unlocks more than one bank and the month-end forecast, and
- * lets a subscriber switch the app icon to the gold one.
+ * 3-day trial. It unlocks the month-end forecast and the other perks in
+ * lib/plus.ts, and lets a subscriber switch the app icon to the gold one.
  *
  * Girovo has no server, so Play Billing's own purchase state on the phone is
  * the proof. The last answer is kept: a phone briefly without Play (no

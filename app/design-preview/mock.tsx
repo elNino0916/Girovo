@@ -78,7 +78,7 @@ import { withNote } from '@/lib/notes';
 import {
   counterpartyKey, setCustomCategories, txKey, type CategoryId, type CategoryResult, type CustomCategoryId,
 } from '@/lib/categories';
-import { bankAllowed, type PlusStatus } from '@/lib/plus';
+import type { PlusStatus } from '@/lib/plus';
 import {
   categoryValidator, cleanCategoryName, CUSTOM_LIMITS, nameKey, newCustomId, sanitizeSplit, withoutCategory, type SplitPart,
 } from '@/lib/splits';
@@ -812,8 +812,6 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
       : [],
     icon: 'standard',
   }));
-  const plusRef = useRef(plus);
-  plusRef.current = plus;
   const [plusOpen, setPlusOpen] = useState(opening === 'plus');
   // The desktop's "Weitere Banken mit anmelden": a switch and its dialog, nothing kept.
   const [linkedUnlock, setLinkedUnlockState] = useState<boolean | null>(
@@ -2083,10 +2081,6 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
 
   const openAddBank = useCallback((from?: { bank: ChosenBank; userId?: string }) => {
     if (addBankRef.current) return;
-    if (!bankAllowed(plusRef.current.state, false)) {
-      setPlusOpen(true);
-      return;
-    }
     clearTransients();
     setAddBank({
       step: from ? 'credentials' : 'bank',

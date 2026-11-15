@@ -1,18 +1,17 @@
 // Girovo Plus (lib/plus.ts, components/android/Plus.tsx): the Google Play
-// build's supporter subscription — more than one bank, the month-end forecast,
-// and the gold icon.
+// build's supporter subscription — the month-end forecast, Aufteilen,
+// Sparziele and the gold icon. Several banks are free since 6.3.
 
 export const de = {
   name: 'Girovo Plus',
   /** The Einstellungen row's line, by state. */
   row: {
     active: 'Aktiv, danke!',
-    inactive: 'Mehrere Banken und mehr',
+    inactive: 'Sparziele, Aufteilen und mehr',
     unavailable: 'Auf diesem Telefon nicht verfügbar',
   },
   lead: 'Unterstütze Girovo und hol dir mehr aus deinen Konten.',
   perks: {
-    banks: { title: 'Mehrere Banken', text: 'Alle deine Banken in einer Übersicht. Ohne Plus nur die erste.' },
     forecast: { title: 'Kontostand am Monatsende', text: 'Wohin sich dein Konto bis zum Monatsende bewegt, mit Warnung vor dem Dispo.' },
     ask: { title: 'Frag deine Umsätze', text: 'Gemini Nano beantwortet auf dem Telefon Fragen zu deinen Umsätzen.' },
     split: { title: 'Aufteilen', text: 'Eine Rechnung teilen und jeden Anteil mit einem GiroCode anfordern.' },
@@ -32,15 +31,12 @@ export const de = {
   goldIconHint: 'Das Symbol kann vom Startbildschirm verschwinden. Girovo ist dann im App-Menü.',
   unavailable: 'Käufe über Google Play gehen auf diesem Telefon gerade nicht. Die Version von GitHub hat alles kostenlos.',
   github: 'Girovo von GitHub',
-  /** A bank beside the first, without Plus (Übersicht). */
-  bankLocked: 'Mit Girovo Plus',
-  bankUnlock: 'Plus',
   /** The forecast's place without Plus. */
   forecastTeaser: 'Wohin sich dein Kontostand bis zum Monatsende bewegt.',
   /** "Frag deine Umsätze" without Plus, on a phone that could answer. */
   askTeaser: 'Stell Fragen zu deinen Umsätzen. Gemini Nano beantwortet sie auf dem Telefon.',
   /** The weekly reminder toast, in the Play build without Plus. */
-  reminder: 'Gefällt dir Girovo? Unterstütze es mit Girovo Plus: mehrere Banken und mehr.',
+  reminder: 'Gefällt dir Girovo? Unterstütze es mit Girovo Plus.',
   reminderAction: 'Ansehen',
   /**
    * The owner key (scripts/owner-key.mjs): Plus on the developer's own phone
@@ -62,12 +58,11 @@ export const en: typeof de = {
   name: 'Girovo Plus',
   row: {
     active: 'Active, thank you!',
-    inactive: 'Several banks and more',
+    inactive: 'Savings goals, Split and more',
     unavailable: 'Not available on this phone',
   },
   lead: 'Support Girovo and get more out of your accounts.',
   perks: {
-    banks: { title: 'Several banks', text: 'All your banks in one overview. Without Plus, only the first.' },
     forecast: { title: 'Balance at month end', text: 'Where your account is heading by the end of the month, with a warning before the overdraft.' },
     ask: { title: 'Ask your transactions', text: 'Gemini Nano answers questions about your transactions on the phone.' },
     split: { title: 'Split', text: 'Share a bill and request each share with a GiroCode.' },
@@ -87,11 +82,9 @@ export const en: typeof de = {
   goldIconHint: 'The icon may disappear from your home screen. Girovo is then in the app drawer.',
   unavailable: 'Purchases through Google Play don’t work on this phone right now. The version from GitHub has everything for free.',
   github: 'Girovo from GitHub',
-  bankLocked: 'With Girovo Plus',
-  bankUnlock: 'Plus',
   forecastTeaser: 'Where your balance is heading by the end of the month.',
   askTeaser: 'Ask about your transactions. Gemini Nano answers on the phone.',
-  reminder: 'Enjoying Girovo? Support it with Girovo Plus: several banks and more.',
+  reminder: 'Enjoying Girovo? Support it with Girovo Plus.',
   reminderAction: 'See',
   owner: {
     title: 'Developer key',

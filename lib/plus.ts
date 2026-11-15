@@ -1,7 +1,7 @@
 // Girovo Plus (docs/plus-plan.md): a supporter subscription in the Google
-// Play build only. It unlocks more than one bank, the month-end forecast and
-// "Frag deine Umsätze";
-// everything else — login, Umsätze, transfers, security, export — stays free.
+// Play build only. It unlocks the month-end forecast, "Frag deine Umsätze",
+// Aufteilen and Sparziele; everything else — login, several banks, Umsätze,
+// transfers, security, export — stays free (several banks since 6.3).
 // The GitHub APK, the desktop app and the design preview are complete, their
 // source public: there the status is 'free' and nothing is locked.
 //
@@ -45,12 +45,6 @@ export type PlusStatus = {
 
 /** Whether this state opens what Plus unlocks. */
 export const unlocked = (state: PlusState | null | undefined): boolean => state !== 'inactive' && state !== 'unavailable';
-
-/**
- * Whether a bank may be logged in to: the one the app opens with always;
- * the others with Plus (or wherever Plus does not apply).
- */
-export const bankAllowed = (state: PlusState | null | undefined, primary: boolean): boolean => primary || unlocked(state);
 
 /** Whether the month-end forecast shows its figure, or the Plus teaser instead. */
 export const forecastAllowed = (state: PlusState | null | undefined): boolean => unlocked(state);
