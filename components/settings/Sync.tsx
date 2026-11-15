@@ -13,7 +13,7 @@ import { IS_ANDROID } from '@/lib/platform';
 import { qrMatrix, qrSvgPath } from '@/lib/qr';
 import { useFints, type SyncPlaceChoice } from '../FintsProvider';
 import { MonitorIcon, PhoneIcon, RefreshIcon, ScanIcon } from '../icons';
-import { Alert, Button, CopyButton, Dialog, Field, Input } from '../ui';
+import { Alert, Button, CopyButton, Dialog, Field, Input, PasswordInput } from '../ui';
 import { ActionItem } from './rows';
 
 const when = (ts: number | null | undefined, never: string) =>
@@ -157,7 +157,7 @@ export function SyncDialog() {
               <Input autoComplete="username" value={dav.user} onChange={(e) => setDav({ ...dav, user: e.target.value })} />
             </Field>
             <Field label={words.webdavPassword}>
-              <Input type="password" autoComplete="current-password" value={dav.password} onChange={(e) => setDav({ ...dav, password: e.target.value })} />
+              <PasswordInput autoComplete="current-password" value={dav.password} onChange={(e) => setDav({ ...dav, password: e.target.value })} />
             </Field>
           </div>
         )}

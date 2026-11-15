@@ -12,7 +12,7 @@ import type { BackupSummary, RestoreReport } from '@/lib/backup';
 import { useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
 import { ArchiveIcon, UndoIcon, UploadIcon } from '../icons';
-import { Alert, Button, Dialog, Field, Input } from '../ui';
+import { Alert, Button, Dialog, Field, Input, PasswordInput } from '../ui';
 import { ActionItem } from './rows';
 
 /** The shortest password the server takes (lib/backup.ts BACKUP_MIN_PASSWORD) — said before it refuses. */
@@ -111,9 +111,8 @@ function MakeBackupDialog({ onClose }: { onClose: () => void }) {
       )}
     >
       <Field label={words.password} hint={words.hint(MIN_PASSWORD)} error={problem === 'short' ? words.tooShort(MIN_PASSWORD) : undefined}>
-        <Input
+        <PasswordInput
           ref={first}
-          type="password"
           autoComplete="new-password"
           value={password}
           onChange={(e) => {
@@ -123,8 +122,7 @@ function MakeBackupDialog({ onClose }: { onClose: () => void }) {
         />
       </Field>
       <Field label={words.confirm} error={problem === 'mismatch' ? words.mismatch : undefined} className="mb-1">
-        <Input
-          type="password"
+        <PasswordInput
           autoComplete="new-password"
           value={confirm}
           onChange={(e) => {
@@ -240,8 +238,7 @@ function RestoreBackupDialog({ onClose }: { onClose: () => void }) {
         />
       </div>
       <Field label={words.password} className="mb-1">
-        <Input
-          type="password"
+        <PasswordInput
           autoComplete="off"
           value={password}
           onChange={(e) => {

@@ -210,6 +210,9 @@ export const de = {
     copyFailed: 'Kopieren nicht möglich',
     /** After a field's label. */
     optional: '(optional)',
+    /** The eye at the end of a password field. */
+    showPassword: 'Passwort anzeigen',
+    hidePassword: 'Passwort verbergen',
     /** The close button of an inline alert or a toast. */
     dismiss: 'Hinweis schließen',
     remove: 'Entfernen',
@@ -614,6 +617,8 @@ export const en: typeof de = {
     copy: 'Copy',
     copyFailed: 'Couldn’t copy',
     optional: '(optional)',
+    showPassword: 'Show password',
+    hidePassword: 'Hide password',
     dismiss: 'Dismiss',
     remove: 'Remove',
     failed: 'That didn’t work',

@@ -460,7 +460,7 @@ function AccountsPage({ onDialog }: { onDialog: (d: DataDialog) => void }) {
 
 function DevicesPage({ onDialog }: { onDialog: (d: DataDialog) => void }) {
   const t = useT();
-  const { vaultStatus, sync, docsLocked, docsResettable, loadDocs } = useFints();
+  const { vaultStatus, sync, docsLocked, docsResettable, loadDocs, profile } = useFints();
   const kept = vaultStatus === 'ready' || vaultStatus === 'error' || vaultStatus === 'unavailable';
   // Documents this PIN cannot open, listed before the bank had its word on
   // the PIN: asked again, so "Neu beginnen" shows once it has taken it.
@@ -538,8 +538,9 @@ function DevicesPage({ onDialog }: { onDialog: (d: DataDialog) => void }) {
           )}
 
           {/* Whether or not the device is remembered: someone handing the
-              computer on needs a way to take their data with them. */}
-          {vaultStatus === 'ready' && (
+              computer on needs a way to take their data with them. With the
+              profile open (Girovo 7) that is "Profil löschen" in Sicherheit. */}
+          {vaultStatus === 'ready' && !profile.open && (
             <ActionItem
               setting="data"
               icon={<LockIcon />}

@@ -470,6 +470,14 @@
     opacity: 0.7;
     cursor: pointer;
   }
+  /* Edge's own eye and clear button in a password field (the desktop app runs
+     in WebView2): they come and go by Edge's rules, gone for good once the
+     field loses focus, and stood beside Girovo's own eye (PasswordInput,
+     Credentials). Girovo's eye is the one that stays. */
+  input::-ms-reveal,
+  input::-ms-clear {
+    display: none;
+  }
   /* Native number spinners invite a mis-scroll on an amount field. */
   input[type='number']::-webkit-inner-spin-button,
   input[type='number']::-webkit-outer-spin-button {

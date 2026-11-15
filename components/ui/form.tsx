@@ -12,7 +12,7 @@
 
 import {
   Children, type ComponentProps, createContext, type CSSProperties, Fragment, isValidElement, type ReactNode,
-  type Ref, type RefCallback, type RefObject, useCallback, useContext, useEffect, useId, useMemo,
+  type Ref, type RefCallback, type RefObject, useCallback, useContext, useEffect, useId, useMemo, useState,
 } from 'react';
 import { M3eCheckbox } from '@m3e/react/checkbox';
 import { M3eFormField } from '@m3e/react/form-field';
@@ -21,6 +21,8 @@ import { M3eLinearProgressIndicator } from '@m3e/react/progress-indicator';
 import { M3eSelect } from '@m3e/react/select';
 import { M3eSwitch } from '@m3e/react/switch';
 import { useT } from '@/lib/i18n/react';
+import { EyeIcon, EyeOffIcon } from '../icons';
+import { IconButton } from './button';
 import { cx } from './shared';
 
 type FieldWiring = {
@@ -231,6 +233,42 @@ export function Input({ className, invalid, leading, trailing, containerClassNam
         </>
       )}
       control={<input {...rest} {...wiring} ref={ownRef} className={className} />}
+    />
+  );
+}
+
+/**
+ * A password field with Girovo's own eye at its end: shows and hides what
+ * was typed, and always stays there (Edge's own eye is hidden, globals.css).
+ * `concealed` hides it again from outside, while the form is sent, say.
+ */
+export function PasswordInput({ concealed, disabled, readOnly, ...rest }: Omit<InputProps, 'type' | 'trailing'> & { concealed?: boolean }) {
+  const t = useT();
+  const [shown, setShown] = useState(false);
+  // Concealed (sent, say): hidden again, and it stays hidden afterwards.
+  useEffect(() => {
+    if (concealed) setShown(false);
+  }, [concealed]);
+  const visible = shown && !concealed;
+  return (
+    <Input
+      {...rest}
+      disabled={disabled}
+      readOnly={readOnly}
+      type={visible ? 'text' : 'password'}
+      autoCapitalize="off"
+      autoCorrect="off"
+      spellCheck={false}
+      trailing={(
+        <IconButton
+          aria-label={visible ? t.shell.ui.hidePassword : t.shell.ui.showPassword}
+          title={visible ? t.shell.ui.hidePassword : t.shell.ui.showPassword}
+          onClick={() => setShown((s) => !s)}
+          disabled={disabled || readOnly}
+        >
+          {visible ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
+        </IconButton>
+      )}
     />
   );
 }

@@ -14,10 +14,10 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { useT } from '@/lib/i18n/react';
 import { startDemo } from '../demo/demo-mode';
 import { useFints } from '../FintsProvider';
-import { EyeIcon, EyeOffIcon, FingerprintIcon } from '../icons';
+import { FingerprintIcon } from '../icons';
 import { useIntroPlaying } from '../shell/Intro';
 import { useWindowInFront } from '../shell/useWindowInFront';
-import { Alert, Button, Dialog, Field, IconButton, Input, Spinner } from '../ui';
+import { Alert, Button, Dialog, Field, PasswordInput, Spinner } from '../ui';
 
 /** Windows Hello asks by itself once per start of the app, never again after a logout. */
 let helloAskedThisStart = false;
@@ -37,7 +37,6 @@ export function Unlock() {
   const { profile, profileSigningIn, unlockProfile, forgetProfile, autoLoggedOut } = useFints();
   const uid = useId();
   const [password, setPassword] = useState('');
-  const [reveal, setReveal] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
   const [forgotOpen, setForgotOpen] = useState(false);
@@ -61,7 +60,6 @@ export function Unlock() {
     }
     setWorking(true);
     setError(null);
-    setReveal(false);
     const problem = await unlockProfile(typed);
     setWorking(false);
     if (problem === null) {
@@ -113,31 +111,17 @@ export function Unlock() {
       ) : (
         <form onSubmit={submit} noValidate className="mt-6">
           <Field label={words.password} htmlFor={`pw${uid}`} error={error ?? undefined} className="mb-0">
-            <Input
+            <PasswordInput
               id={`pw${uid}`}
               ref={field}
-              type={reveal ? 'text' : 'password'}
               value={password}
               onChange={(e) => {
                 setPassword(e.target.value);
                 if (error) setError(null);
               }}
               autoComplete="current-password"
-              autoCapitalize="off"
-              autoCorrect="off"
-              spellCheck={false}
               readOnly={busy}
-              trailing={(
-                <IconButton
-                  aria-label={words.reveal}
-                  aria-pressed={reveal}
-                  aria-controls={`pw${uid}`}
-                  onClick={() => setReveal((r) => !r)}
-                  disabled={busy}
-                >
-                  {reveal ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
-                </IconButton>
-              )}
+              concealed={busy}
             />
           </Field>
           <div className="mt-5 flex flex-wrap items-center gap-3">

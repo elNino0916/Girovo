@@ -13,7 +13,7 @@ import { helloAvailable } from '@/lib/windows-hello-client';
 import { useFints } from '../FintsProvider';
 import { FingerprintIcon, LockIcon, PencilIcon, TrashIcon, UserIcon } from '../icons';
 import { firstName, holderName, sessionHolder } from '../shell/session';
-import { Alert, Button, Checkbox, Dialog, Field, Input } from '../ui';
+import { Alert, Button, Checkbox, Dialog, Field, Input, PasswordInput } from '../ui';
 import { ActionItem, SettingsGroup, SwitchItem } from './rows';
 
 const MIN = PROFILE_PASSWORD_MIN;
@@ -163,14 +163,13 @@ function PasswordDialog({ onClose }: { onClose: () => void }) {
       )}
     >
       <Field label={words.current}>
-        <Input ref={first} type="password" autoComplete="current-password" value={current} onChange={(e) => { setCurrent(e.target.value); setError(null); }} />
+        <PasswordInput ref={first} autoComplete="current-password" value={current} onChange={(e) => { setCurrent(e.target.value); setError(null); }} />
       </Field>
       <Field label={words.next} hint={t.profile.create.passwordHint(MIN)} error={problem === 'short' ? t.profile.create.tooShort(MIN) : undefined}>
-        <Input type="password" autoComplete="new-password" value={next} onChange={(e) => { setNext(e.target.value); setProblem(null); }} />
+        <PasswordInput autoComplete="new-password" value={next} onChange={(e) => { setNext(e.target.value); setProblem(null); }} />
       </Field>
       <Field label={t.profile.create.again} error={problem === 'mismatch' ? t.profile.create.mismatch : undefined} className="mb-1">
-        <Input
-          type="password"
+        <PasswordInput
           autoComplete="new-password"
           value={again}
           onChange={(e) => { setAgain(e.target.value); if (problem === 'mismatch') setProblem(null); }}
@@ -214,7 +213,7 @@ function DeleteDialog({ onClose }: { onClose: () => void }) {
       )}
     >
       <Field label={words.deleteConfirm} error={error ?? undefined} className="mb-1">
-        <Input type="password" autoComplete="current-password" value={password} onChange={(e) => { setPassword(e.target.value); setError(null); }} />
+        <PasswordInput autoComplete="current-password" value={password} onChange={(e) => { setPassword(e.target.value); setError(null); }} />
       </Field>
     </Dialog>
   );
@@ -318,11 +317,10 @@ function CreateForm({ suggested, hello, words, other, create }: {
         />
       </Field>
       <Field label={words.password} hint={words.passwordHint(MIN)} error={problem === 'short' ? words.tooShort(MIN) : undefined}>
-        <Input type="password" autoComplete="new-password" value={password} onChange={(e) => { setPassword(e.target.value); if (problem === 'short') setProblem(null); }} />
+        <PasswordInput autoComplete="new-password" value={password} onChange={(e) => { setPassword(e.target.value); if (problem === 'short') setProblem(null); }} />
       </Field>
       <Field label={words.again} error={problem === 'mismatch' ? words.mismatch : undefined} className={hello ? 'mb-3' : 'mb-1'}>
-        <Input
-          type="password"
+        <PasswordInput
           autoComplete="new-password"
           value={again}
           onChange={(e) => { setAgain(e.target.value); if (problem === 'mismatch') setProblem(null); }}

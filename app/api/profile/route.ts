@@ -13,7 +13,7 @@
 //   password {current, next, secret}         → { ok }
 //   hello   {key | null, secret}             → { hello }
 //   aside                                    → { exists: false }   "Passwort vergessen": set aside as .bak
-//   delete  {password, secret}               → { removed }
+//   delete  {sessionId, linked, password, secret}  → { removed }   with every bank's kept Umsätze and documents
 //
 // `secret` is the shell's DPAPI secret (src-tauri/src/secret.rs) and `key`
 // the shell's key after a Windows Hello gesture (src-tauri/src/hello.rs):
@@ -29,7 +29,7 @@ import { msgs } from '@/lib/i18n';
 import { sanitizeLinkedBanks, sameLogin } from '@/lib/linked-banks';
 import { linkedUnlockServed, loginOfSession, openLogins, parseSecret, removeLinkedUnlock } from '@/lib/linked-unlock';
 import {
-  PROFILE_BASE, PROFILE_LIMITS, ProfileError, changePassword, createProfile, deleteProfile, forgetBankPin, keepBank,
+  PROFILE_BASE, PROFILE_LIMITS, ProfileError, changePassword, checkProfilePassword, createProfile, deleteProfile, forgetBankPin, keepBank,
   lockProfile, openProfile, orderBanks, profileStatus, removeBank, renameProfile, setHello, setProfileAside, unlockProfile,
   type ProfileBank, type ProfileContent,
 } from '@/lib/profile';
@@ -38,6 +38,11 @@ import { readMeta, removeMeta, syncMetaFile, writeMeta } from '@/lib/sync-meta';
 import { removeFamily } from '@/lib/sealed-file';
 import { removeSecurityKeys } from '@/lib/security-key';
 import { loadVault, removeLegacyVault } from '@/lib/vault';
+import { DocError, wipeDocs, wipeDocsOf } from '@/lib/doc-store';
+import { HistoryError, wipeHistory, wipeHistoryOf } from '@/lib/history-store';
+import { forgetLanGroup, sessionsNamed, wipeFailed } from '@/lib/wipe-saved';
+import { disable as disableBackground } from '@/lib/background-check';
+import { backgroundServed, backgroundStore } from '@/lib/background-store';
 import { parseHelloKey, readLoginName, removeWindowsHello } from '@/lib/windows-hello';
 import path from 'node:path';
 
@@ -198,8 +203,45 @@ export const POST = wrap(async (req: Request) => {
       case 'delete': {
         const secret = parseSecret(b.secret);
         if (!secret) return fail(said.noKey, 400);
+        // The password first: nothing around the profile goes on a wrong one.
+        if (!(await checkProfilePassword(b.password, secret))) throw new ProfileError('wrong', 403);
         const banks = openProfile()?.banks ?? [];
-        const removed = await deleteProfile(b.password, secret);
+        // What "Gespeicherte Daten löschen" took in 6.x goes with the profile
+        // (it is the one way to delete it now): the group's files on the LAN
+        // shelf, while the settings still say which they are; the PINs kept
+        // for "Neue Umsätze melden"; and every bank's kept Umsätze and
+        // documents, through its live session where it has one (which stops
+        // that session keeping more), by its login otherwise.
+        // The bank the app logged in to first, then every further one (sessionsNamed caps those at eight).
+        const first = getSession(b.sessionId ?? '');
+        const live = [...(first ? [first] : []), ...sessionsNamed(b.linked, getSession).filter((s) => s !== first)];
+        // As in app/api/vault 'wipe': anything that does not go stops it, and
+        // the profile stays, so "Profil löschen" can simply be tried again;
+        // the sessions it went through keep documents again (wipeFailed).
+        let removed: number;
+        try {
+          const syncMeta = live[0] ? await readMeta(live[0]) : null;
+          if (syncMeta?.place.kind === 'lan') await forgetLanGroup(syncMeta.key);
+          if (backgroundServed()) await disableBackground(backgroundStore());
+          const done: { blz: string; userId: string }[] = [];
+          for (const s of live) {
+            const login = loginOfSession(s);
+            if (!login || done.some((l) => sameLogin(l, login))) continue;
+            done.push(login);
+            await wipeHistory(s);
+            await wipeDocs(s);
+          }
+          for (const bank of banks) {
+            if (done.some((l) => sameLogin(l, bank))) continue;
+            await wipeHistoryOf(bank);
+            await wipeDocsOf(bank);
+          }
+          removed = await deleteProfile(b.password, secret);
+        } catch (err) {
+          wipeFailed(live);
+          if (err instanceof HistoryError || err instanceof DocError) return fail(err.message, err.status);
+          throw err;
+        }
         // What sync kept beside it goes with it: it opened only with the profile's key.
         const meta = syncMetaFile(PROFILE_BASE);
         await removeFamily(path.dirname(meta), path.basename(meta), () => {}).catch(() => {});

@@ -449,6 +449,13 @@ export async function setProfileAside(): Promise<boolean> {
   });
 }
 
+/** Whether `password` opens the open profile: asked before "Profil löschen" deletes anything around it. */
+export async function checkProfilePassword(password: unknown, secret: Buffer): Promise<boolean> {
+  const o = opened;
+  if (!o || typeof password !== 'string') return false;
+  return !!(await openLock(o.file.locks.password, { password }, secret));
+}
+
 /**
  * "Profil löschen": the file, every copy set aside and any temp file go for
  * good, since each opens with a password someone could try offline. Needs

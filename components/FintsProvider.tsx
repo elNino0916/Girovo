@@ -3812,14 +3812,29 @@ function useFintsState() {
     const before = vaultStatusRef.current;
     if (vaultTimerRef.current) { clearTimeout(vaultTimerRef.current); vaultTimerRef.current = null; }
     vaultStatusRef.current = 'unavailable';
+    // A sync round under way finishes first: it must not put files back on the shelf that goes now.
+    await syncRunRef.current?.catch(() => {});
     await vaultChainRef.current;
     try {
-      await post('/api/profile', { op: 'delete', password, secret });
+      await post('/api/profile', {
+        op: 'delete', password, secret,
+        sessionId: sessionRef.current, linked: linksRef.current.flatMap((l) => (l.sessionId ? [l.sessionId] : [])),
+      });
     } catch (err) {
       setVaultStatusBoth(before);
       if (before === 'ready' && vaultDirtyRef.current) scheduleVaultSave();
       return (err as Error).message;
     }
+    // As after "Gespeicherte Daten löschen" in 6.x: the checks for new
+    // Umsätze are off, the LAN shelf closed, and the login names this
+    // computer remembers for the profile's banks forgotten.
+    if (backgroundRef.current) {
+      setBackgroundBoth(false);
+      void shellSchedule(false);
+    }
+    if (syncRef.current?.place === 'lan') void window.electronSync?.lan(false);
+    for (const b of profileBanksRef.current) store.del(`fints.userId.${b.blz}`);
+    store.del('fints.lastBank');
     profileBanksRef.current = [];
     vaultDirtyRef.current = false;
     setVaultStatusBoth('unavailable');
@@ -3827,7 +3842,7 @@ function useFintsState() {
     toast(msgs().profile.settings.deleted, 'info');
     void logoutRef.current('user');
     return null;
-  }, [flushVault, setProfileBoth, setVaultStatusBoth, scheduleVaultSave, toast]);
+  }, [flushVault, setProfileBoth, setVaultStatusBoth, scheduleVaultSave, setBackgroundBoth, toast]);
 
   /**
    * "Profil sperren" on the bank's login form after an unlock, and its idle
