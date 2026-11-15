@@ -27,6 +27,8 @@ import { goalsAllowed } from '@/lib/plus';
 import { setBlack, setThemePref } from '@/lib/theme';
 import type { VaultData } from '@/lib/app-types';
 import { useFints, type IdleMinutes } from '../FintsProvider';
+import { withOwnGroupsOff, withOwnGroupsOn } from '../overview/own-groups';
+import { msgs } from '@/lib/i18n';
 import { useGemma } from '../insights/gemma';
 import { useBlackBackground, useThemePref } from '../ThemeToggle';
 
@@ -34,6 +36,7 @@ export type ApiWrites = {
   actions: ApiActions;
   settings: {
     values: () => Partial<SettingsValues>;
+    offers: { ownGroups: boolean };
     write: <K extends SettingKey>(key: K, value: SettingsValues[K]) => void;
   };
   refresh: (key: string | null) => Promise<RefreshReport>;
@@ -121,7 +124,8 @@ export function useApiWrites(): ApiWrites {
         return i < 0 ? order.length : i;
       };
       out.accountOrder = f.accounts.map((a, i) => ({ a, i })).sort((x, y) => place(x.a) - place(y.a) || x.i - y.i).map((x) => x.a.accountNumber);
-      out.accountGrouping = vault.accountGrouping ?? 'type';
+      // As Konten anordnen shows it: on the desktop "Keine" or "Eigene", on the phone its grouping.
+      out.accountGrouping = IS_ANDROID ? vault.accountGrouping ?? 'type' : vault.accountGroupsOn ? 'own' : 'none';
       out.hiddenAccounts = [...(vault.accountsHidden ?? [])];
     }
     return out;
@@ -155,7 +159,12 @@ export function useApiWrites(): ApiWrites {
       case 'aiUseName': updateVault((vv) => flag(vv, 'askNameOff', value === false, true)); break;
       case 'aiNames': updateVault((vv) => flag(vv, 'aiNamesOn', value === true, true)); break;
       case 'accountOrder': f.arrangeAccounts({ order: value as string[] }); break;
-      case 'accountGrouping': f.arrangeAccounts({ grouping: v }); break;
+      case 'accountGrouping':
+        // The desktop, as Konten anordnen: "Eigene" on, or off ("Keine") with
+        // the groups kept and the phone's grouping left alone. The phone sets its grouping.
+        if (!IS_ANDROID) updateVault((vv) => (value === 'own' ? withOwnGroupsOn(vv, f.accounts, msgs().insights.accounts.groups) : withOwnGroupsOff(vv)));
+        else f.arrangeAccounts({ grouping: v });
+        break;
       case 'hiddenAccounts': f.setAccountsHidden(value as string[]); break;
     }
   };
@@ -204,5 +213,5 @@ export function useApiWrites(): ApiWrites {
     }
   };
 
-  return { actions, settings: { values, write }, refresh };
+  return { actions, settings: { values, offers: { ownGroups: !IS_ANDROID }, write }, refresh };
 }

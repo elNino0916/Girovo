@@ -158,6 +158,41 @@ test('accountOrder and accountGrouping: kept when well formed, dropped otherwise
   assert.equal(bad && 'accountGrouping' in bad, false);
 });
 
+test('own groups: kept when well formed and within the caps; folds only of groups that are there', () => {
+  const out = vault.sanitizeVault(base({
+    accountGroups: [
+      { id: 'g1', name: 'Alltag', accounts: ['1001', '2002@12345678', '1001'] },
+      { id: 'g1', name: 'Zweimal', accounts: [] },
+      { id: 'g2', name: 'x'.repeat(80), accounts: ['k'.repeat(65)] },
+    ],
+    accountGroupsOn: true,
+    accountGroupsFolded: ['g2', 'g7', 'rest'],
+  }));
+  assert.deepEqual(out?.accountGroups, [
+    { id: 'g1', name: 'Alltag', accounts: ['1001', '2002@12345678'] },
+    { id: 'g2', name: 'x'.repeat(40), accounts: [] },
+  ]);
+  assert.equal(out?.accountGroupsOn, true);
+  assert.deepEqual(out?.accountGroupsFolded, ['g2', 'rest']);
+  // Every group deleted is still an answer: Eigene with everything in Weitere Konten.
+  assert.deepEqual(vault.sanitizeVault(base({ accountGroups: [] }))?.accountGroups, []);
+  const bad = vault.sanitizeVault(base({ accountGroups: 'g1' as never, accountGroupsOn: 'yes' as never, accountGroupsFolded: 'g1' as never }));
+  assert.equal(bad && ('accountGroups' in bad || 'accountGroupsOn' in bad || 'accountGroupsFolded' in bad), false);
+});
+
+test('own groups in a backup: this computer\'s while it has groups, else the backup\'s with its choice and folds', () => {
+  const backup = base({ accountGroups: [{ id: 'g1', name: 'Alt', accounts: ['1'] }], accountGroupsOn: true, accountGroupsFolded: ['g1'] });
+  const fresh = vault.mergeVaults(base(), backup);
+  assert.deepEqual(fresh.accountGroups, backup.accountGroups);
+  assert.equal(fresh.accountGroupsOn, true);
+  assert.deepEqual(fresh.accountGroupsFolded, ['g1']);
+  const here = base({ accountGroups: [{ id: 'g3', name: 'Neu', accounts: ['2'] }] });
+  const merged = vault.mergeVaults(here, backup);
+  assert.deepEqual(merged.accountGroups, here.accountGroups);
+  assert.equal(merged.accountGroupsOn, undefined, 'this computer left Eigene: the backup does not switch it on');
+  assert.equal(merged.accountGroupsFolded, undefined);
+});
+
 test('keptBalances and netWorth: kept when well formed; switched off, neither is kept', () => {
   const kept = { '1234': { cents: 78011, currency: 'EUR', readAt: '2026-11-02T18:02:00.000Z' } };
   const days = [{ day: '2026-11-02', total: 78011, assets: 78011, liabilities: 0 }];

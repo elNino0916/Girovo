@@ -134,6 +134,7 @@ const host: RouterHost = {
   actions: () => (live.current?.open ? live.current.writes.actions : null),
   settings: {
     values: () => live.current?.writes.settings.values() ?? {},
+    get offers() { return live.current?.writes.settings.offers ?? {}; },
     write: (key, value) => live.current?.writes.settings.write(key, value),
   } satisfies SettingsHost,
   refresh: (key) => live.current?.writes.refresh(key) ?? Promise.resolve({ steps: [] }),

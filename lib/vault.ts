@@ -37,6 +37,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { sanitizeFolded, sanitizeOwnGroups } from './account-groups.ts';
 import { isGrouping, sanitizeAccountOrder } from './account-overview.ts';
 import { mergeAskConversations, sanitizeAskConversations } from './ask-saved.ts';
 import { isAskLength, isAskTone } from './ask-style-fields.ts';
@@ -251,6 +252,9 @@ export function sanitizeVault(input: unknown, now = Date.now()): VaultData | nul
   const splitRequests = sanitizeSplitRequests(input.splitRequests);
   const accountOrder = sanitizeAccountOrder(input.accountOrder, VAULT_LIMITS.accountKey);
   const accountsHidden = sanitizeAccountOrder(input.accountsHidden, VAULT_LIMITS.accountKey);
+  // Girovo Next's own groups (lib/account-groups.ts): ids, names and account keys within their caps.
+  const accountGroups = sanitizeOwnGroups(input.accountGroups, VAULT_LIMITS.accountKey);
+  const accountGroupsFolded = sanitizeFolded(input.accountGroupsFolded, accountGroups);
   // Switched off, nothing of them is kept, whatever the file says.
   const keepBalances = input.keepBalances !== false;
   const keptBalances = keepBalances ? sanitizeKeptBalances(input.keptBalances, VAULT_LIMITS.accountKey) : {};
@@ -296,6 +300,10 @@ export function sanitizeVault(input: unknown, now = Date.now()): VaultData | nul
     // "Konten anordnen" (lib/account-overview.ts): account keys each once, and one of the three groupings.
     ...(accountOrder.length ? { accountOrder } : {}),
     ...(isGrouping(input.accountGrouping) ? { accountGrouping: input.accountGrouping } : {}),
+    // "Eigene": the groups (an empty list stays one), whether it is chosen, and the folded groups.
+    ...(accountGroups ? { accountGroups } : {}),
+    ...(input.accountGroupsOn === true ? { accountGroupsOn: true as const } : {}),
+    ...(accountGroupsFolded.length ? { accountGroupsFolded } : {}),
     // Konten als Ebenen: the accounts unticked in the desktop's sidebar, each once.
     ...(accountsHidden.length ? { accountsHidden } : {}),
     // The last balances and the daily figures (lib/kept-balances.ts), unless switched off.
@@ -642,6 +650,12 @@ export function mergeVaults(current: VaultData, fromBackup: VaultData): VaultDat
     // How the accounts are arranged is this computer's while it says anything; else the backup's.
     ...(current.accountOrder || !backup.accountOrder ? {} : { accountOrder: backup.accountOrder }),
     ...(current.accountGrouping || !backup.accountGrouping ? {} : { accountGrouping: backup.accountGrouping }),
+    // The own groups likewise, with their choice and folds: this computer's once it has groups, else the backup's.
+    ...(current.accountGroups || !backup.accountGroups ? {} : {
+      accountGroups: backup.accountGroups,
+      ...(backup.accountGroupsOn ? { accountGroupsOn: true as const } : {}),
+      ...(backup.accountGroupsFolded ? { accountGroupsFolded: backup.accountGroupsFolded } : {}),
+    }),
     // Girovo AI's answer style: this computer's where it chose one, else the backup's.
     ...(current.askTone || !backup.askTone ? {} : { askTone: backup.askTone }),
     ...(current.askLength || !backup.askLength ? {} : { askLength: backup.askLength }),

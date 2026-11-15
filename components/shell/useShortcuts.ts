@@ -15,6 +15,7 @@
 // visible trace near the eye — every amount masked at once — it says.
 
 import { useEffect, useRef } from 'react';
+import { keyOrder } from '@/lib/account-groups';
 import { orderAccounts } from '@/lib/account-overview';
 import type { DashboardTab } from '@/lib/app-types';
 import type { SerializedAccount } from '@/lib/fints-types';
@@ -187,7 +188,9 @@ export function useGlobalShortcuts(actions: ShellActions, { frame = false }: { f
       // 1–9: the n-th account in the user's order ("Konten anordnen",
       // lib/account-overview.ts) — its page, from every account too.
       if (/^[1-9]$/.test(key) && !e.shiftKey) {
-        const account = orderAccounts(f.accounts, f.vault?.accountOrder)[Number(key) - 1];
+        // The frame's sidebar may show them under the user's own groups
+        // (lib/account-groups.ts): the keys count what it shows, a folded group's accounts left out.
+        const account = (latest.current.frame ? keyOrder(f.accounts, f.vault) : orderAccounts(f.accounts, f.vault?.accountOrder))[Number(key) - 1];
         if (!account) return;
         e.preventDefault();
         const alreadyAlone = latest.current.frame

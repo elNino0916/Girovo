@@ -7,7 +7,8 @@
 // page. What is unticked lives in the vault (accountsHidden), on this device.
 
 import { useCallback } from 'react';
-import { liveValue, orderAccounts, type AccountValue } from '@/lib/account-overview';
+import { frameOrder } from '@/lib/account-groups';
+import { liveValue, type AccountValue } from '@/lib/account-overview';
 import { isDepot } from '@/lib/balances';
 import type { SerializedAccount } from '@/lib/fints-types';
 import { useFints, type FintsApi } from '../FintsProvider';
@@ -39,11 +40,11 @@ export function showAlone(
   f.selectAccount(a);
 }
 
-/** Every account as a layer, in the user's order, with its colour and whether it is ticked. */
+/** Every account as a layer, in the order the sidebar shows them (its own groups' with "Eigene"), with its colour and whether it is ticked. */
 export function useLayers(): { layers: Layer[]; shown: SerializedAccount[]; setShown: (acct: string, on: boolean) => void; only: (a: SerializedAccount) => void; all: () => void } {
   const { accounts, vault, accountsHidden, setAccountsHidden, selectAccount } = useFints();
   const off = new Set(accountsHidden);
-  const layers = orderAccounts(accounts, vault?.accountOrder).map((account, i) => ({
+  const layers = frameOrder(accounts, vault).map((account, i) => ({
     account,
     color: LAYER_COLORS[i % LAYER_COLORS.length],
     shown: !off.has(account.accountNumber),

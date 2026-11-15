@@ -109,7 +109,7 @@ import type {
 } from '@/lib/fints-types';
 import { scheduleSentence } from '@/lib/order-schedule';
 import {
-  ACCT, MOCK_DEPOT, MOCK_PAYEES, MOCK_TAN_KIND, getMockData, mockPdf, mockPortfolio,
+  ACCT, MOCK_DEPOT, MOCK_USD, MOCK_PAYEES, MOCK_TAN_KIND, getMockData, mockPdf, mockPortfolio,
   type MockData, type MockStatement, type MockTanKind,
 } from './data';
 import type { ListedDoc, StatementFetch } from '@/components/FintsProvider';
@@ -153,6 +153,8 @@ export type MockOptions = {
   method?: MockTanKind;
   /** The bank lists a Depot too (data.ts MOCK_DEPOT): its holdings in place of Umsätze. */
   depot?: boolean;
+  /** The bank lists a US dollar account too (data.ts MOCK_USD), its balance read: a figure no euro sum counts. */
+  usdAccount?: boolean;
   /** A receipt is attached to a booking from the start (the drawer's "Belege"), and two of the bank's statements are kept. */
   docs?: boolean;
   // First-frame navigation. Part of the initial state rather than set from an
@@ -598,6 +600,7 @@ function initialState(data: MockData, preset: MockPreset, opts: MockOptions) {
     }
     // The second bank, logged in beside the first: its Girokonto read once.
     if (opts.secondBank === 'linked' || opts.secondBank === 'loggedOut') load(ACCT.spk, range);
+    if (opts.usdAccount) balances[ACCT.usd] = data.balance(ACCT.usd);
     // Every account opened once: the overview with every figure.
     if (opts.allBalances && !opts.oneAccount) {
       for (const a of data.accounts) if (a.canStatements && !txCache[a.accountNumber]) load(a.accountNumber, range);
@@ -685,6 +688,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   // What the bank lists for this login; a first-frame option, so fixed per session.
   const [bankAccounts] = useState(() => {
     let listed = opts.oneAccount ? data.accounts.slice(0, 1) : opts.depot ? [...data.accounts, MOCK_DEPOT] : data.accounts;
+    if (opts.usdAccount && !opts.oneAccount) listed = [...listed, MOCK_USD];
     if (opts.noOrders) listed = listed.map((a) => ({ ...a, dated: null, standing: null }));
     return opts.pendingWithStatements
       ? listed.map((a) => (a.accountNumber === ACCT.giro ? { ...a, canPending: false } : a))

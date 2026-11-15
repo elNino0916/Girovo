@@ -137,6 +137,8 @@ export const ACCT = {
   spk: '1902345678',
   /** A Depot, listed only with MockOptions `depot`. */
   depot: '0105593299',
+  /** A US dollar account, listed only with MockOptions `usdAccount`. */
+  usd: '0105593310',
 } as const;
 
 const GIRO_IBAN = makeIban('DE', `${BLZ}${ACCT.giro}`);
@@ -200,6 +202,17 @@ export const MOCK_ACCOUNTS: SerializedAccount[] = [
     canStatements: true, canBalance: true, canTransfer: false, canInstant: false, canPending: false,
   },
 ];
+
+/**
+ * A US dollar account (MockOptions `usdAccount`): a balance in another
+ * currency, which no euro sum counts (the Gesamtsaldo and a group's sum name
+ * it). No Umsätze over FinTS, so nothing to load for it.
+ */
+export const MOCK_USD: SerializedAccount = {
+  accountNumber: ACCT.usd, iban: makeIban('DE', `${BLZ}${ACCT.usd}`), bic: BIC, currency: 'USD', accountType: 'CheckingAccount',
+  holder: HOLDER, product: 'Dollarkonto', limit: null,
+  canStatements: false, canBalance: true, canTransfer: false, canInstant: false, canPending: false,
+};
 
 /** A Depot (MockOptions `depot`): no Umsätze, no balance over FinTS — its holdings instead (HKWPD). */
 export const MOCK_DEPOT: SerializedAccount = {
@@ -996,6 +1009,7 @@ function buildMockData(today: string): MockData {
   const dateOf = (acct: string) => (acct === ACCT.giro ? mt940Date : camtDate);
 
   const balance = (acct: string, opts: { empty?: boolean } = {}): SerializedBalance => {
+    if (acct === ACCT.usd) return { balance: 1840.25, currency: 'USD', date: camtDate(today), availableAmount: 1840.25 };
     const value = opts.empty ? (acct === ACCT.giro ? 1250 : acct === ACCT.karte ? 0 : 5000) : balanceAt(acct, today);
     const limit = LIMIT[acct];
     const noted = acct === ACCT.giro && !opts.empty ? gen.pending[acct].reduce((s, t) => s + t.amount, 0) : 0;

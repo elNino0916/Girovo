@@ -211,7 +211,9 @@ about first; refused with reason `deletes_data`), `companyLogos` (off only:
 on sends shop names to the logo service, the user's own consent; reason
 `consent`), `ai`, `aiTone`, `aiLength`, `aiUseName`, `aiNames` (with the
 desktop's Gemma), `singleKeyShortcuts`, `accountOrder` (every account id
-once), `accountGrouping` (type, bank, none), `hiddenAccounts` (one stays
+once), `accountGrouping` (as Konten anordnen offers it: none or own, the
+user's own groups, on the desktop; type, bank or none on the phone),
+`hiddenAccounts` (one stays
 shown). A key the app does not offer right now is left out of settings.get
 and `invalid` (reason `unavailable`) for settings.set.
 

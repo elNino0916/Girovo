@@ -5,6 +5,7 @@
 // the encrypted personal-data vault, the inbox. One place, so a view and the
 // provider can never disagree about a shape.
 
+import type { OwnGroup } from './account-groups';
 import type { AccountGrouping } from './account-overview';
 import type { AskLength, AskTone } from './ask-style-fields';
 import type { CategoryId, CustomCategory } from './categories';
@@ -259,6 +260,31 @@ export type VaultData = {
    */
   accountOrder?: string[];
   accountGrouping?: AccountGrouping;
+  /**
+   * Girovo Next on the desktop: the user's own account groups, "Eigene"
+   * (lib/account-groups.ts), in their order, each with its account keys.
+   * Absent until "Eigene" is chosen the first time; kept while another
+   * grouping is chosen, so the groups are there again. Synced.
+   */
+  accountGroups?: OwnGroup[];
+  /**
+   * "Eigene" is chosen. A field of its own rather than a fourth value of
+   * accountGrouping, on purpose: 6.x devices sync this vault too, and their
+   * sanitizer knows only 'type', 'bank' and 'none'. Given a value it does not
+   * know there, a 6.x device drops accountGrouping, and its Girovo API
+   * promises one of the three. A field it does not know at all another 6.x
+   * device never reads into its vault, so never stamps and never sends back
+   * as deleted (lib/sync.ts stamps only what the kept vault holds; its state
+   * file passes the entry on as it came), while accountGrouping keeps the
+   * last of the three the user chose, which the phone and 6.x go on showing
+   * (Nach Art unless the user picked another there). Not covered, as for
+   * every field newer than 6.x (askTone, say): a 6.x build installed over
+   * this one on the same data folder, whose first round finds this
+   * version's stamps for fields it drops. Synced.
+   */
+  accountGroupsOn?: true;
+  /** The folded groups by id, "rest" for Weitere Konten. Synced, like the groups. */
+  accountGroupsFolded?: string[];
   /**
    * Konten als Ebenen (the desktop's sidebar): the accounts unticked there,
    * by accountNumber — their Umsätze and balance stay out of the Übersicht.

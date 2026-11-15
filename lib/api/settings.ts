@@ -99,13 +99,16 @@ export type SettingsValues = {
   aiNames: boolean;
   singleKeyShortcuts: boolean;
   accountOrder: string[];
-  accountGrouping: 'type' | 'bank' | 'none';
+  /** As Konten anordnen offers it: on the desktop none or own (the user's own groups, lib/account-groups.ts), on the phone type, bank or none. */
+  accountGrouping: 'type' | 'bank' | 'none' | 'own';
   hiddenAccounts: string[];
 };
 
 export type SettingsHost = {
   /** The current values; a key missing here is not offered in this app right now (and can't be set). */
   values: () => Partial<SettingsValues>;
+  /** Values of a key this app offers beside the usual ones: the desktop's own account groups. */
+  offers?: { ownGroups?: boolean };
   /** Writes one, as Einstellungen' own control would. */
   write: <K extends SettingKey>(key: K, value: SettingsValues[K]) => void;
 };
@@ -165,7 +168,7 @@ const DEFS: { [K in SettingKey]: Def<K> } = {
     },
     show: showAccounts,
   },
-  accountGrouping: { parse: oneOf(['type', 'bank', 'none'] as const) },
+  accountGrouping: { parse: oneOf(['type', 'bank', 'none', 'own'] as const) },
   hiddenAccounts: {
     parse: (v, data) => {
       const out = accountKeys(v, data);
@@ -215,6 +218,14 @@ export function settingsSet(data: ApiData, host: SettingsHost, params: unknown):
   const def = DEFS[key] as Def<typeof key>;
   const parsed = def.parse(value, data);
   if ('invalid' in parsed) return { invalid: 'value', data: { key } };
+  // The choices Konten anordnen has: on the desktop "Keine" and "Eigene"
+  // (none, own), on the phone by kind, by bank or none.
+  if (key === 'accountGrouping') {
+    const desk = !!host.offers?.ownGroups;
+    if (desk ? parsed.value === 'type' || parsed.value === 'bank' : parsed.value === 'own') {
+      return { invalid: 'value', data: { key, reason: 'unavailable' } };
+    }
+  }
   const reason = def.refuse?.(parsed.value as never, current as never);
   if (reason) return { fail: 'not_permitted', data: { key, reason } };
   const changed = !same(parsed.value, current);

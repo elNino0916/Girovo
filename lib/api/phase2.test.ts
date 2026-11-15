@@ -272,6 +272,22 @@ test('settings.set: each key checked by its own rule, and written as Einstellung
   assert.equal(writes.length, good.length, 'nothing written by a refused call');
 });
 
+test('settings.set: accountGrouping takes what Konten anordnen offers: own only on the desktop, type and bank only on the phone', () => {
+  const d = data();
+  const phone = fakeSettings();
+  const refused = settingsSet(d, phone.host, { key: 'accountGrouping', value: 'own' }) as Any;
+  assert.deepEqual([refused.invalid, refused.data.reason], ['value', 'unavailable']);
+  assert.equal(phone.writes.length, 0);
+  const desk = fakeSettings({ accountGrouping: 'none' });
+  desk.host.offers = { ownGroups: true };
+  assert.equal(res(settingsSet(d, desk.host, { key: 'accountGrouping', value: 'own' })).changed, true);
+  for (const value of ['type', 'bank']) {
+    assert.equal((settingsSet(d, desk.host, { key: 'accountGrouping', value }) as Any).data.reason, 'unavailable', value);
+  }
+  assert.equal(res(settingsSet(d, desk.host, { key: 'accountGrouping', value: 'none' })).changed, true);
+  assert.deepEqual(desk.writes, [['accountGrouping', 'own'], ['accountGrouping', 'none']]);
+});
+
 test('settings.set: what deletes kept data or needs the user\'s consent is refused', () => {
   const d = data();
   const { host, writes } = fakeSettings({ keepBookings: true, companyLogos: false });

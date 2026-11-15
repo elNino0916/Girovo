@@ -7,6 +7,7 @@
 import {
   type DateRange, EMPTY_VAULT, type InboxMessage, type StatementInfo, type TransferTemplate, type VaultData,
 } from '@/lib/app-types';
+import { sanitizeFolded, sanitizeOwnGroups } from '@/lib/account-groups';
 import { isGrouping, sanitizeAccountOrder } from '@/lib/account-overview';
 import { sanitizeAskConversations } from '@/lib/ask-saved';
 import { isAskLength, isAskTone } from '@/lib/ask-style-fields';
@@ -698,6 +699,9 @@ export function normalizeVault(raw: VaultData | null | undefined): VaultData {
   const splitRequests = sanitizeSplitRequests(raw.splitRequests);
   const accountOrder = sanitizeAccountOrder(raw.accountOrder);
   const accountsHidden = sanitizeAccountOrder(raw.accountsHidden);
+  // Kept too, or the next save would forget the own groups (Girovo Next, lib/account-groups.ts).
+  const accountGroups = sanitizeOwnGroups(raw.accountGroups);
+  const accountGroupsFolded = sanitizeFolded(raw.accountGroupsFolded, accountGroups);
   // As the vault does (lib/vault.ts sanitizeVault): switched off, none are kept.
   const keepBalances = raw.keepBalances !== false;
   const keptBalances = keepBalances ? sanitizeKeptBalances(raw.keptBalances) : {};
@@ -744,6 +748,9 @@ export function normalizeVault(raw: VaultData | null | undefined): VaultData {
     // as on again after it was switched off.
     ...(accountOrder.length ? { accountOrder } : {}),
     ...(isGrouping(raw.accountGrouping) ? { accountGrouping: raw.accountGrouping } : {}),
+    ...(accountGroups ? { accountGroups } : {}),
+    ...(raw.accountGroupsOn === true ? { accountGroupsOn: true as const } : {}),
+    ...(accountGroupsFolded.length ? { accountGroupsFolded } : {}),
     ...(accountsHidden.length ? { accountsHidden } : {}),
     ...(Object.keys(keptBalances).length ? { keptBalances } : {}),
     ...(netWorth.length ? { netWorth } : {}),

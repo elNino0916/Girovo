@@ -217,6 +217,57 @@ test('a device that joins never overwrites the group\'s newer data with what it 
   assert.deepEqual(desk.vault.notes, { a: 'neu', b: 'nur hier' });
 });
 
+test('own groups reach the other devices, and a 6.x device that does not know them never deletes or overwrites them', async () => {
+  const place = memoryPlace();
+  const key = newGroupKey();
+  const groups = [{ id: 'g1', name: 'Alltag', accounts: ['1001', '2002@12345678'] }];
+  const desk = device('Computer', { accountGrouping: 'bank', accountGroups: groups, accountGroupsOn: true, accountGroupsFolded: ['rest'] });
+  // A 6.x phone: its vaultFromEntries and sanitizer know none of the three fields (as the keeping strips them here).
+  const old = (v: VaultData): VaultData => {
+    const { accountGroups: _g, accountGroupsOn: _o, accountGroupsFolded: _f, ...rest } = v;
+    return rest as VaultData;
+  };
+  const phone = device('Telefon (6.2)', { notes: { a: 'Notiz' } });
+  await round(place, key, desk, 1000);
+  await round(place, key, phone, 2000, { keep: old });
+  assert.equal(phone.vault.accountGroups, undefined, 'the 6.x phone keeps none of them');
+  assert.equal(phone.vault.accountGrouping, 'bank', 'and shows the last grouping it knows');
+  assert.equal(phone.local.stamps.accountGroups, undefined, 'nothing stamped that it does not hold');
+  // The phone edits something else and syncs again, more than once.
+  phone.vault = { ...phone.vault, notes: { a: 'Notiz', b: 'neu' } };
+  await round(place, key, phone, 3000, { keep: old });
+  await round(place, key, phone, 4000, { keep: old });
+  for (const p of ['accountGroups', 'accountGroupsOn', 'accountGroupsFolded']) {
+    assert.equal(phone.local.stamps[p], undefined, `${p}: never stamped on the 6.x phone, so never a tombstone`);
+  }
+  // The phone's own state passes them on as they came, deletion of none.
+  const fromPhone = JSON.parse(unseal(key, stateFile(key, phone.id), place.files.get(stateFile(key, phone.id))!)!.toString('utf8'));
+  assert.deepEqual(fromPhone.entries.accountGroups.v, groups);
+  assert.equal(fromPhone.entries.accountGroups.d, undefined);
+  await round(place, key, desk, 5000);
+  assert.deepEqual(desk.vault.accountGroups, groups, 'never deleted on the desk');
+  assert.equal(desk.vault.accountGroupsOn, true);
+  assert.deepEqual(desk.vault.accountGroupsFolded, ['rest']);
+  assert.equal(desk.vault.notes.b, 'neu');
+  // A 7 device that knows them gets them from the phone's state alone, the desk's out of the place.
+  const deskState = place.files.get(stateFile(key, desk.id))!;
+  place.files.delete(stateFile(key, desk.id));
+  const laptop = device('Laptop');
+  laptop.local = { ...laptop.local, joining: true };
+  await round(place, key, laptop, 6000);
+  assert.deepEqual(laptop.vault.accountGroups, groups);
+  assert.equal(laptop.vault.accountGroupsOn, true);
+  place.files.set(stateFile(key, desk.id), deskState);
+  // A rename on the laptop and a fold on the desk both stand: separate entries.
+  laptop.vault = { ...laptop.vault, accountGroups: [{ ...groups[0], name: 'Täglich' }] };
+  desk.vault = { ...desk.vault, accountGroupsFolded: ['g1', 'rest'] };
+  await round(place, key, laptop, 7000);
+  await round(place, key, desk, 8000);
+  await round(place, key, laptop, 9000);
+  assert.equal(desk.vault.accountGroups?.[0].name, 'Täglich');
+  assert.deepEqual(laptop.vault.accountGroupsFolded, ['g1', 'rest']);
+});
+
 test('a device silent for months is left out and cannot bring a deleted note back', async () => {
   const place = memoryPlace();
   const key = newGroupKey();

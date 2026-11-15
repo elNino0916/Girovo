@@ -312,6 +312,38 @@ async function openArrange(c: Ctx) {
   await c.poll(() => document.querySelector('[data-arrange]'), 3000);
 }
 
+/**
+ * Girovo Next on the desktop: the user's own groups (lib/account-groups.ts),
+ * one open, one folded, an account in none (Weitere Konten), and a dollar
+ * account in a group. The frame needs a window from 640px; the sidebar is
+ * open from 1100px.
+ */
+const OWN_GROUPS: MockOptions = {
+  allBalances: true,
+  depot: true,
+  usdAccount: true,
+  secondBank: 'linked',
+  vaultExtra: {
+    accountGroupsOn: true,
+    accountGroups: [
+      { id: 'g1', name: 'Alltag', accounts: [ACCT.giro, ACCT.spk, ACCT.usd] },
+      { id: 'g2', name: 'Rücklagen', accounts: [ACCT.tagesgeld, ACCT.depot] },
+    ],
+    accountGroupsFolded: ['g2'],
+  },
+};
+
+/** "Konten anordnen" from the desktop frame's sidebar (its arrows beside "+"). */
+async function openFrameArrange(c: Ctx) {
+  if (!document.querySelector('[data-frame]')) {
+    console.info('[design-preview] these groups are the desktop frame’s (from 640px)');
+    return;
+  }
+  const button = await c.poll(() => document.querySelector<HTMLElement>('[data-frame-side] [aria-label="Konten anordnen"]'), 3000);
+  button?.click();
+  await c.poll(() => document.querySelector('[data-arrange]'), 3000);
+}
+
 async function fetchAllBalances(c: Ctx) {
   await c.click(/^alle salden abrufen/i, { within: 'page' });
   await c.until((f) => f.loadingAllBalances, 2000);
@@ -493,6 +525,15 @@ const VIEWS: Record<string, ViewDef> = {
       c.api().openOrders();
       await c.until((f) => f.ordersOpen, 2000);
     },
+  },
+  // Girovo Next, issue #22: the desktop frame's sidebar under the user's own groups ("Eigene",
+  // lib/account-groups.ts): Alltag open with both Girokonten and a dollar account (its sum
+  // names it), Rücklagen folded, the credit card in no group, so in Weitere Konten.
+  'frame-groups': {
+    label: 'Eigene Kontogruppen (Rechner)', group: 'Dashboard', options: OWN_GROUPS,
+  },
+  'frame-groups-arrange': {
+    label: 'Eigene Kontogruppen anordnen (Rechner)', group: 'Dashboard', options: OWN_GROUPS, script: openFrameArrange,
   },
   // 6.0: yesterday's balances kept, today's read only for the Girokonto; the net-worth curve.
   'overview-kept': {

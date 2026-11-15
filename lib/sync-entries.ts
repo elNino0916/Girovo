@@ -44,7 +44,17 @@ export const TOMBSTONE_MS = 3 * 365 * 86_400_000;
 
 type MapField = 'aliases' | 'categoryRules' | 'txCategories' | 'splits' | 'budgets' | 'notes' | 'keptBalances' | 'contractReminders' | 'contractNames' | 'manualContracts' | 'manualDays';
 const MAPS: readonly MapField[] = ['aliases', 'categoryRules', 'txCategories', 'splits', 'budgets', 'notes', 'keptBalances', 'contractReminders', 'contractNames', 'manualContracts', 'manualDays'];
-const SCALARS = ['avatar', 'avatarImage', 'accountGrouping', 'accountOrder', 'askTone', 'askLength', 'askNameOff'] as const;
+// The own groups (Girovo Next, lib/account-groups.ts) are three entries of
+// their own, never a value of accountGrouping: a 6.x device has none of them
+// here, so it leaves them out of its vault, stamps none and deletes none — it
+// passes the others' entries on in its state as they came — and its
+// accountGrouping stays one of the three it knows (lib/app-types.ts
+// accountGroupsOn). The fold has its own entry so a fold on one device and a
+// rename on another both stand.
+const SCALARS = [
+  'avatar', 'avatarImage', 'accountGrouping', 'accountOrder', 'accountGroups', 'accountGroupsOn', 'accountGroupsFolded',
+  'askTone', 'askLength', 'askNameOff',
+] as const;
 
 /** How each list's members are told apart. */
 const LISTS = {
@@ -161,6 +171,9 @@ export function vaultFromEntries(entries: ReadonlyMap<string, unknown>, base: Va
   if (lists.splitRequests.length) out.splitRequests = ordered('splitRequests', lists.splitRequests as NonNullable<VaultData['splitRequests']>);
   if (scalars.accountOrder !== undefined) out.accountOrder = scalars.accountOrder as string[];
   if (scalars.accountGrouping !== undefined) out.accountGrouping = scalars.accountGrouping as VaultData['accountGrouping'];
+  if (scalars.accountGroups !== undefined) out.accountGroups = scalars.accountGroups as NonNullable<VaultData['accountGroups']>;
+  if (scalars.accountGroupsOn !== undefined) out.accountGroupsOn = true;
+  if (scalars.accountGroupsFolded !== undefined) out.accountGroupsFolded = scalars.accountGroupsFolded as string[];
   // Girovo AI's answer style follows the user to every device.
   if (scalars.askTone !== undefined) out.askTone = scalars.askTone as VaultData['askTone'];
   if (scalars.askLength !== undefined) out.askLength = scalars.askLength as VaultData['askLength'];

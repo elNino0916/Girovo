@@ -24,6 +24,9 @@ test('a vault round-trips through its entries, with what a device keeps for itse
     splitRequests: [{ tx: 'd2|2026-11-01|-30.00|DE1|R', name: 'Lea', cents: 1000, on: '2026-11-01', paid: { on: '2026-11-03', by: 'k1' } }],
     accountGrouping: 'bank',
     accountOrder: ['DE03', 'DE01'],
+    accountGroups: [{ id: 'g1', name: 'Alltag', accounts: ['DE01'] }],
+    accountGroupsOn: true,
+    accountGroupsFolded: ['rest'],
     keepBookings: true,
   });
   const entries = vaultEntries(v);
