@@ -32,6 +32,10 @@ windows = { version = "0.62", features = [
   "Win32_System_Threading",
 ] }
 
+# Who listens at Girovo's socket (SO_PEERCRED).
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
+
 # The tests' fake Girovo listens on a named pipe of its own.
 [target.'cfg(windows)'.dev-dependencies]
 windows = { version = "0.62", features = [

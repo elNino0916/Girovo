@@ -398,8 +398,8 @@ async fn serve(shared: Arc<Shared>, address: String, mut stopped: watch::Receive
     tokio::select! {
       _ = stopped.changed() => break,
       accepted = listener.accept() => match accepted {
-        Ok((stream, pid)) => {
-          tokio::spawn(connection(shared.clone(), stream, pid, stopped.clone()));
+        Ok((stream, peer)) => {
+          tokio::spawn(connection(shared.clone(), stream, peer, stopped.clone()));
         }
         Err(e) => {
           eprintln!("[api] accept: {e}");
@@ -473,7 +473,7 @@ impl Drop for Announced {
   }
 }
 
-async fn connection<S>(shared: Arc<Shared>, stream: S, pid: Option<u32>, mut stopped: watch::Receiver<bool>)
+async fn connection<S>(shared: Arc<Shared>, stream: S, peer: Option<transport::Peer>, mut stopped: watch::Receiver<bool>)
 where
   S: AsyncRead + AsyncWrite + Send + 'static,
 {
@@ -488,6 +488,7 @@ where
     let _ = write.shutdown().await;
     return;
   }
+  let pid = peer.as_ref().map(|p| p.pid);
   let _per_client = match pid {
     Some(pid) => match PerClient::take(&shared, pid) {
       Some(counted) => Some(counted),
@@ -504,6 +505,9 @@ where
     Some(pid) => tokio::task::spawn_blocking(move || identify(pid)).await.ok().flatten(),
     None => None,
   };
+  // Identified only while it is still the process that connected; the peer is held until here.
+  let client = client.filter(|_| peer.as_ref().is_some_and(transport::Peer::same_process));
+  drop(peer);
   let Some(client) = client else {
     let _ = write.write_all(&refuse("denied", "Girovo could not tell which program this is")).await;
     let _ = write.shutdown().await;

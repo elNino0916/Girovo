@@ -552,3 +552,17 @@ fn the_address_is_the_one_girovo_listens_on() {
   #[cfg(unix)]
   assert!(address.ends_with("/girovo-api.sock"), "{address}");
 }
+
+/// The fallback for an elevated Girovo reads the pipe's owner; a pipe made by
+/// this user (no descriptor of its own) is owned by this user.
+#[cfg(windows)]
+#[test]
+fn the_pipe_owner_is_this_user() {
+  use crate::girovo::for_tests::{connect, current_user_sid, pipe_owner};
+  let address = unique_address();
+  let fake = fake_at(&address, state(&[], Dialog::SwitchOff), 1, None);
+  let stream = connect(&address).unwrap();
+  assert_eq!(pipe_owner(&stream).unwrap(), current_user_sid().unwrap());
+  drop(stream);
+  fake.join().unwrap();
+}
