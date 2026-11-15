@@ -5,6 +5,10 @@
 // that is reset or wiped takes it along, and the device joins again.
 //
 // Named like the vault, `<vault base>.sync`. Never in a backup, never logged.
+//
+// Girovo 7 on the desktop: with the profile open (lib/profile.ts) vaultKeyOf
+// answers the profile's key and base, so the same functions keep it beside
+// the profile as `girovo-profile.sync`.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -14,6 +18,7 @@ import { readPlace, type SyncDevice, type SyncLocal, type SyncPlace } from './sy
 import { removeFamily, serialized, writeFileAtomic } from './sealed-file.ts';
 import { STATE_DIR } from './state-store.ts';
 import { vaultBaseName, vaultKeyOf } from './vault';
+import { isProfileOpen, PROFILE_BASE } from './profile.ts';
 
 export type SyncMeta = {
   key: Buffer;
@@ -94,10 +99,16 @@ export async function writeMeta(s: Session, meta: SyncMeta): Promise<void> {
   await serialized(file, () => writeFileAtomic(file, JSON.stringify(sealBox(vk.key, vk.salt, plain, Buffer.from(`${AAD}|${vk.base}`)))));
 }
 
-/** Leaves the group on this device: its settings go, copies included. Needs no key. */
+/**
+ * Leaves the group on this device: its settings go, copies included. Needs no
+ * key. With the profile open, the profile's go as well: those are the ones
+ * in use, and the login's own are a 6.x leftover.
+ */
 export async function removeMeta(blz: string, userId: string): Promise<void> {
-  const file = syncMetaFileOf(blz, userId);
-  await serialized(file, async () => {
-    await removeFamily(path.dirname(file), path.basename(file), (code) => console.warn('[sync] could not delete a file:', code));
-  });
+  const files = [syncMetaFileOf(blz, userId), ...(isProfileOpen() ? [syncMetaFile(PROFILE_BASE)] : [])];
+  for (const file of files) {
+    await serialized(file, async () => {
+      await removeFamily(path.dirname(file), path.basename(file), (code) => console.warn('[sync] could not delete a file:', code));
+    });
+  }
 }

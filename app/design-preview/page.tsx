@@ -1238,6 +1238,20 @@ const VIEWS: Record<string, ViewDef> = {
   },
 
   login: { label: 'Bank wählen', group: 'Anmeldung', options: { view: 'login' } },
+  // Girovo 7, the profile above all banks (lib/profile.ts): any password of 8 characters opens it here.
+  'profile-unlock': { label: 'Profil entsperren', group: 'Anmeldung', options: { view: 'login', profile: 'locked' } },
+  'profile-unlock-hello': { label: 'Profil entsperren mit Windows Hello', group: 'Anmeldung', options: { view: 'login', profile: 'locked-hello' } },
+  'profile-signing-in': { label: 'Profil: Banken melden sich an', group: 'Anmeldung', options: { view: 'login', profile: 'signing-in' } },
+  'profile-create': { label: 'Profil anlegen', group: 'Dialoge', options: { profile: 'create', secondBank: 'linked' } },
+  'profile-settings': {
+    label: 'Einstellungen: Profil (Desktop)', group: 'Dashboard',
+    options: { tab: 'settings', settingsPage: 'security', profile: 'open', secondBank: 'linked' },
+  },
+  'profile-settings-none': {
+    label: 'Einstellungen: noch kein Profil (Desktop)', group: 'Dashboard',
+    options: { tab: 'settings', settingsPage: 'security', profile: 'none', windowsHello: false, linkedUnlock: false, secondBank: 'linked' },
+  },
+  'profile-session': { label: 'Sitzungsmenü mit Profil', group: 'Dialoge', options: { profile: 'open', secondBank: 'linked' }, script: openSession },
   intro: { label: 'Intro beim ersten Start', group: 'Anmeldung', options: { view: 'login' }, intro: 'welcome' },
   'intro-six': { label: 'Intro beim ersten Start von Girovo 6', group: 'Anmeldung', options: { view: 'login', bankChosen: true }, intro: 'six' },
   credentials: {

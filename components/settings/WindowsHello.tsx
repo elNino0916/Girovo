@@ -14,9 +14,10 @@ import { SwitchItem } from './rows';
 /** The row, where Windows has Windows Hello set up (windowsHello is null elsewhere). */
 export function WindowsHelloSwitch() {
   const t = useT();
-  const { bank, windowsHello, setWindowsHello } = useFints();
+  const { bank, windowsHello, setWindowsHello, profile } = useFints();
   const [working, setWorking] = useState(false);
-  if (windowsHello === null || !bank) return null;
+  // Girovo 7: with the profile open, Windows Hello opens the profile (ProfileGroup).
+  if (windowsHello === null || !bank || profile.open) return null;
   const words = t.settings.windowsHello;
   const change = async (next: boolean) => {
     setWorking(true);

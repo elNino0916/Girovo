@@ -26,7 +26,8 @@ import { getSession, type Session } from '@/lib/session';
 import {
   leaveGroup, loginTag, makeCode, newDeviceId, newGroupKey, readCode, readPlace, runSync, type ReceiptsSide, type SyncPlace,
 } from '@/lib/sync';
-import { readMeta, removeMeta, syncMetaFileOf, writeMeta, type SyncMeta } from '@/lib/sync-meta';
+import { readMeta, removeMeta, syncMetaFile, syncMetaFileOf, writeMeta, type SyncMeta } from '@/lib/sync-meta';
+import { isProfileOpen, PROFILE_BASE } from '@/lib/profile';
 import { keepLanToken, storeFor, SyncPlaceError } from '@/lib/sync-stores';
 import { serialized } from '@/lib/sealed-file';
 import { sanitizeVault, saveVault, VAULT_LIMITS, VAULT_REQUEST_MAX_BYTES, vaultKeyOf } from '@/lib/vault';
@@ -112,8 +113,10 @@ export const POST = wrap(async (req: Request) => {
   if (!login) return fail(said.noVault, 409);
 
   // One operation per login at a time: two rounds at once would add a
-  // receipt twice and keep only one round's stamps.
-  return serialized(`${syncMetaFileOf(login.blz, login.userId)}#op`, () => handle(b, s, login));
+  // receipt twice and keep only one round's stamps. With the profile open
+  // (Girovo 7, lib/profile.ts) every bank's session shares its settings: one per profile.
+  const file = isProfileOpen() ? syncMetaFile(PROFILE_BASE) : syncMetaFileOf(login.blz, login.userId);
+  return serialized(`${file}#op`, () => handle(b, s, login));
 });
 
 async function handle(b: SyncBody, s: Session, login: { blz: string; userId: string }) {

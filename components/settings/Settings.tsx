@@ -76,6 +76,7 @@ import { LinkedUnlockSwitch } from './LinkedUnlock';
 import { PublisherCertGroup } from './PublisherCert';
 import { SecurityKeysRow } from './SecurityKeys';
 import { WindowsHelloSwitch } from './WindowsHello';
+import { ProfileGroup } from './ProfileSettings';
 import { BackgroundSwitch } from './BackgroundChecks';
 import { BackgroundAlertsRow } from './BackgroundAlerts';
 import { SyncRow } from './Sync';
@@ -333,6 +334,8 @@ function SecurityPage() {
   const { idleMinutes, setIdleMinutes, deviceRemembered, setForgetDeviceOpen } = useFints();
   return (
     <>
+      {/* Girovo 7, the desktop app: the profile above all banks (lib/profile.ts). */}
+      <ProfileGroup />
       <SettingsGroup title={t.settings.groups.signIn}>
         {/* The Android app only: fingerprint login. */}
         <FingerprintSwitch />

@@ -40,7 +40,8 @@ import {
   ApiError, BACK_EVENT, PIN_REFUSED_EVENT, SESSION_EXPIRED_EVENT, get, post, store, type SessionExpiredDetail,
 } from '@/lib/client-api';
 import { IS_ANDROID } from '@/lib/platform';
-import { forgetHello, helloAvailable, helloOn, helloStoreBroken, sealWithHello } from '@/lib/windows-hello-client';
+import { forgetHello, helloAvailable, helloOn, helloShell, helloStoreBroken, sealWithHello } from '@/lib/windows-hello-client';
+import { NO_PROFILE, loginPlan, startingOrder, withProfileBanks, type ProfileInfo, type UnlockedBank } from '@/lib/profile-client';
 import {
   addSecurityKey as sealWithSecurityKey, forgetSecurityKeys, nameSecurityKey, removeSecurityKey as dropSecurityKey, securityKeyAvailable, securityKeysOf,
   type SecurityKeyInfo,
@@ -49,7 +50,7 @@ import { withNoticed, type ContractNotice, type ContractReminder } from '@/lib/c
 import { keepsNothing, unsafePhone } from '@/lib/device-integrity';
 import { msgs, type Messages } from '@/lib/i18n';
 import { useLocale, useT } from '@/lib/i18n/react';
-import { bankAnswerLines, notAboutPin } from '@/lib/bank-answer';
+import { bankAnswerLines, isBankOutage, isNotAboutPin, notAboutPin } from '@/lib/bank-answer';
 import { bookingKind, categorize, explainGuess, guessCategory, type CategoryGuess } from '@/lib/categorize';
 import { EXAMPLE_MIN, nameSimilarity } from '@/lib/nano-categories';
 import { sanitizeBudgets, type Budgets } from '@/lib/budgets';
@@ -82,6 +83,7 @@ import { keepBalances as foldKeptBalances, recordNetWorth, type KeptBalance, typ
 import { acceptsBalance, balanceQueue, failureSentence, isDepot, namesList } from '@/lib/balances';
 import {
   LINKED_BANK_LIMITS, claimedBefore, forgetLinkedBank, joinQualified, rememberLinkedBank, routeFor, sameLogin,
+  type LinkedBankRef,
 } from '@/lib/linked-banks';
 import {
   EMPTY_HISTORY, deliveredSpan, historyCoverage, mergeIntoHistory, planFetch, sanitizeHistory, savedPeriod, spanAt,
@@ -370,6 +372,22 @@ function useFintsState() {
     linkedUnlockRef.current = on;
     setLinkedUnlockState(on);
   }, []);
+  // Girovo 7 on the desktop: the profile above all banks (lib/profile.ts).
+  // How it stands, the bank being logged in after an unlock, the dialog that
+  // creates one, the banks it knows (without PINs) and the sessions whose PIN
+  // waits for the bank's word before it is kept (keepInProfile).
+  const [profile, setProfileState] = useState<ProfileInfo>(NO_PROFILE);
+  const profileRef = useRef<ProfileInfo>(NO_PROFILE);
+  const setProfileBoth = useCallback((fn: (p: ProfileInfo) => ProfileInfo) => {
+    profileRef.current = fn(profileRef.current);
+    setProfileState(profileRef.current);
+  }, []);
+  const [profileSigningIn, setProfileSigningIn] = useState<string | null>(null);
+  const [profileCreateOpen, setProfileCreateOpen] = useState(false);
+  const profileBanksRef = useRef<LinkedBankRef[]>([]);
+  const profileKeepRef = useRef(new Map<string, { name: string; accounts: string[]; asking: boolean }>());
+  // "Später" in the create dialog, offered only where this computer cannot keep a profile: not again this run.
+  const profileDeferredRef = useRef(false);
   // The desktop: whether the first login opens with Windows Hello
   // (lib/windows-hello.ts) — null until the login says, and where Windows
   // has none — and the login this session came in with: its BLZ and name,
@@ -2927,6 +2945,31 @@ function useFintsState() {
 
   // ---- login --------------------------------------------------------------
   /**
+   * Girovo 7, the profile open: the session's bank joins the profile (or
+   * stays in it under a new name), and its PIN with it once the bank has
+   * taken it. Until then the session waits in profileKeepRef and is asked
+   * again after its next read (the effect beside the profile's actions).
+   */
+  const keepInProfile = useCallback(async (sid: string, name: string, accounts: string[]) => {
+    if (!profileRef.current.open) return;
+    const waiting = profileKeepRef.current;
+    waiting.set(sid, { name, accounts, asking: true });
+    try {
+      const r = await post<{ pin: boolean; banks: LinkedBankRef[] }>('/api/profile', { op: 'keep', sessionId: sid, name, accounts });
+      profileBanksRef.current = r.banks;
+      if (r.pin) waiting.delete(sid);
+      else waiting.set(sid, { name, accounts, asking: false });
+    } catch {
+      waiting.set(sid, { name, accounts, asking: false });
+    }
+  }, []);
+
+  /** The accounts the bank the app opened with brought, by their numbers. */
+  const primaryNumbers = useCallback(() => accountsRef.current
+    .filter((a) => !linksRef.current.some((l) => l.accountNumbers.includes(a.accountNumber)))
+    .map((a) => a.accountNumber), []);
+
+  /**
    * The desktop, once the bank has taken the first login's PIN (connect,
    * afterAccountsReady): the further banks' PINs kept beside it open with it
    * (lib/linked-unlock.ts), and the chain below logs them in once the
@@ -3360,10 +3403,18 @@ function useFintsState() {
 
   /** The desktop: the bank took the first login's PIN — what was kept with it may open now. */
   const pinTaken = useCallback((sid: string) => {
+    // Girovo 7, the profile open: the PIN goes into it. What 6.x kept beside
+    // the first login (further banks' PINs, Windows Hello, security keys)
+    // stays unopened: the profile logs the banks in and Windows Hello opens it.
+    if (profileRef.current.open) {
+      const own = bankRef.current;
+      if (own) void keepInProfile(sid, own.name, primaryNumbers());
+      return;
+    }
     void openLinkedUnlock(sid);
     void checkWindowsHello(sid);
     void checkSecurityKeys(sid);
-  }, [openLinkedUnlock, checkWindowsHello, checkSecurityKeys]);
+  }, [openLinkedUnlock, checkWindowsHello, checkSecurityKeys, keepInProfile, primaryNumbers]);
 
   const afterAccountsReady = useCallback((list: SerializedAccount[]) => {
     const sid = sessionRef.current;
@@ -3524,6 +3575,289 @@ function useFintsState() {
     connectAttemptRef.current = null;
     attempt.ctrl.abort();
     post('/api/connect/cancel', { attemptId: attempt.id }).catch(() => { /* the 30-minute sweep remains */ });
+  }, []);
+
+  // ---- the profile (Girovo 7, the desktop) --------------------------------
+  // One password (or Windows Hello) opens the profile, and the profile logs
+  // every bank in with the PINs it keeps (lib/profile.ts, app/api/profile).
+  // Inside, the bank the app logs in to first still carries the session the
+  // vault calls go through; the vault itself is the profile's.
+
+  /** Whether there is a profile and how it stands; only where the desktop shell can keep one. */
+  const refreshProfile = useCallback(async () => {
+    if (IS_ANDROID || typeof window === 'undefined' || !window.electronLinkedUnlock) return;
+    try {
+      const r = await post<{ exists: boolean; name?: string; hello?: boolean; open?: boolean; damaged?: boolean }>('/api/profile', { op: 'status' });
+      setProfileBoth(() => ({
+        served: true, checked: true, exists: r.exists, name: r.name ?? '', hello: r.hello === true, open: r.open === true, damaged: r.damaged === true,
+      }));
+    } catch {
+      // Not to be asked: the bank's login as before for this run, and no
+      // dialog that asks for a profile which might exist already.
+      setProfileBoth(() => ({ ...NO_PROFILE, checked: true }));
+    }
+  }, [setProfileBoth]);
+
+  useEffect(() => {
+    void refreshProfile();
+  }, [refreshProfile]);
+
+  /** A bank of the profile as the login takes it: logo and town from this machine's bank list, else its name alone. */
+  const chosenFor = useCallback(async (ref: LinkedBankRef): Promise<ChosenBank> => {
+    const listed = await get<{ bank: BankSearchHit | null }>(`/api/banks?blz=${encodeURIComponent(ref.blz)}`)
+      .then((r) => r.bank).catch(() => null);
+    return listed
+      ? { blz: listed.blz, name: listed.name, brand: listed.brand, bic: listed.bic, ...(listed.location ? { location: listed.location } : {}) }
+      : { blz: ref.blz, name: ref.name, brand: 'generic', bic: null };
+  }, []);
+
+  /**
+   * After an unlock: the first bank with a PIN logs in, and the others with
+   * one follow through the further banks' chain. A kept PIN its bank turns
+   * down goes from the profile at once (never tried twice: a few wrong tries
+   * lock the online banking), and the next bank is tried instead. With no PIN
+   * left, the first bank's login form comes up, the login name filled in.
+   */
+  const startProfileLogins = useCallback(async (banks: UnlockedBank[]) => {
+    let left = [...banks];
+    for (;;) {
+      const plan = loginPlan(left);
+      if (!plan.first) break;
+      const first = plan.first;
+      const chosen = await chosenFor(first);
+      setProfileSigningIn(chosen.name);
+      try {
+        await connect(chosen, first.userId, first.pin ?? '', { linked: plan.rest, hello: true });
+        return;
+      } catch (err) {
+        if ((err as Error)?.name === 'AbortError') return;
+        const message = (err as Error)?.message || '';
+        if (!isBankOutage(message) && !isNotAboutPin(err)) {
+          void post('/api/profile', { op: 'forgetPin', login: { blz: first.blz, userId: first.userId } }).catch(() => {});
+          toast(msgs().profile.pinRefused(chosen.name), 'error', 15_000);
+        } else if (message) {
+          toast(message, 'error');
+        }
+        left = left.filter((b) => !sameLogin(b, first));
+      } finally {
+        setProfileSigningIn(null);
+      }
+    }
+    const typed = left.find((b) => !b.pin) ?? banks[0];
+    if (!typed) return;
+    const chosen = await chosenFor(typed);
+    store.set(`fints.userId.${chosen.blz}`, typed.userId);
+    setBank(chosen);
+  }, [chosenFor, connect, toast]);
+
+  /**
+   * The unlock screen: the password typed, or null for Windows Hello. Resolves
+   * null once open (the banks then log in), '' when Windows Hello was called
+   * off, or what went wrong.
+   */
+  const unlockProfile = useCallback(async (password: string | null): Promise<string | null> => {
+    const said = msgs().profile;
+    const secret = await linkedUnlockSecret();
+    if (!secret) return said.server.noKey;
+    let key: string | undefined;
+    if (password === null) {
+      const shell = helloShell();
+      const gesture = shell ? await shell.unlock().catch(() => null) : null;
+      if (gesture?.result === 'canceled' || gesture?.result === 'busy') return '';
+      if (gesture?.result !== 'unlocked' || !gesture.key) return said.unlock.helloFailed;
+      key = gesture.key;
+    }
+    try {
+      const r = await post<{ name: string; banks: UnlockedBank[]; hello: boolean }>(
+        '/api/profile', { op: 'unlock', secret, ...(key ? { key } : { password }) },
+      );
+      profileBanksRef.current = r.banks.map(({ pin: _pin, ...ref }) => ref);
+      // Named before the profile shows as open: the unlock screen stays up,
+      // and no bank's own login form (with its own Windows Hello) flashes in between.
+      const first = loginPlan(r.banks).first;
+      if (first) setProfileSigningIn(first.name);
+      setProfileBoth((p) => ({ ...p, open: true, name: r.name, hello: r.hello }));
+      void startProfileLogins(r.banks);
+      return null;
+    } catch (err) {
+      // A Windows Hello key that no longer opens it: not the password's fault.
+      if (key) return said.unlock.helloFailed;
+      return (err as Error).message || said.server.wrong;
+    }
+  }, [setProfileBoth, startProfileLogins]);
+
+  /** Windows Hello opens the profile from now on: Windows asks for the gesture (and sets its key up the first time). */
+  const enrollProfileHello = useCallback(async (): Promise<boolean> => {
+    const shell = helloShell();
+    const secret = await linkedUnlockSecret();
+    if (!shell || !secret) return false;
+    const gesture = await shell.enroll().catch(() => null);
+    if (gesture?.result !== 'enrolled' || !gesture.key) return false;
+    try {
+      await post('/api/profile', { op: 'hello', key: gesture.key, secret });
+      setProfileBoth((p) => ({ ...p, hello: true }));
+      return true;
+    } catch {
+      return false;
+    }
+  }, [setProfileBoth]);
+
+  /**
+   * "Profil anlegen" after a bank's login: the vault this login opened, the
+   * banks of the view (with the PINs the server holds for them) and the
+   * further banks' PINs 6.x kept beside it move into the new profile. The
+   * old files stay as they are, for 6.x. Resolves null when done, else what
+   * went wrong.
+   */
+  const createProfile = useCallback(async (input: { name: string; password: string; hello: boolean }): Promise<string | null> => {
+    const sid = sessionRef.current;
+    const own = bankRef.current;
+    if (!sid || !own) return null;
+    const said = msgs().profile;
+    const secret = await linkedUnlockSecret();
+    if (!secret) return said.server.noKey;
+    // The saved data is still being read: the profile would begin without it.
+    // The saved data must have been read: an unreadable file (another PIN at
+    // the bank) is reset first, and after a wipe nothing is kept this session.
+    if (vaultStatusRef.current !== 'ready') return said.server.io;
+    // What the vault holds now is on disk first: the profile takes it from
+    // there. Edits made meanwhile wait ('loading' queues them, and one made
+    // during this save stays unsaved in memory); once the profile is open,
+    // the vault in memory with all of them is saved into it.
+    await flushVault();
+    const before = vaultStatusRef.current;
+    setVaultStatusBoth('loading');
+    const links = linksRef.current;
+    const banks = startingOrder(
+      { blz: own.blz, name: own.name, userId: userIdRef.current, accounts: primaryNumbers() },
+      links.map((l) => ({ blz: l.bank.blz, name: l.bank.name, userId: l.userId })),
+      vaultRef.current?.linkedBanks ?? [],
+    );
+    try {
+      const r = await post<{ name: string; banks: LinkedBankRef[] }>('/api/profile', {
+        op: 'create', sessionId: sid, linked: links.flatMap((l) => (l.sessionId ? [l.sessionId] : [])),
+        banks, name: input.name, password: input.password, secret,
+      });
+      if (!isCurrent(sid)) {
+        // Logged out while it was being made: made, and closed again.
+        setProfileBoth((p) => ({ ...p, exists: true, open: false, name: r.name, hello: false }));
+        void post('/api/profile', { op: 'lock' }).catch(() => {});
+        return null;
+      }
+      profileBanksRef.current = r.banks;
+      setProfileBoth((p) => ({ ...p, exists: true, open: true, name: r.name, hello: false }));
+      // From now on the vault is the profile's. It began with what was on
+      // disk; what was changed since is saved into it now.
+      adoptVault(vaultRef.current ?? EMPTY_VAULT, 'ready');
+      // A PIN its bank had not taken yet was left out: each joins once it has.
+      void keepInProfile(sid, own.name, primaryNumbers());
+      for (const l of links) if (l.sessionId) void keepInProfile(l.sessionId, l.bank.name, []);
+      if (input.hello) toast((await enrollProfileHello()) ? said.create.done : said.create.helloLater, 'success');
+      else toast(said.create.done, 'success');
+      return null;
+    } catch (err) {
+      if (isCurrent(sid)) adoptVault(vaultRef.current ?? EMPTY_VAULT, before);
+      return (err as Error).message || said.server.io;
+    }
+  }, [flushVault, primaryNumbers, isCurrent, setProfileBoth, setVaultStatusBoth, adoptVault, keepInProfile, enrollProfileHello, toast]);
+
+  const renameProfile = useCallback(async (name: string): Promise<string | null> => {
+    try {
+      const r = await post<{ name: string }>('/api/profile', { op: 'name', name });
+      setProfileBoth((p) => ({ ...p, name: r.name }));
+      return null;
+    } catch (err) {
+      return (err as Error).message;
+    }
+  }, [setProfileBoth]);
+
+  const changeProfilePassword = useCallback(async (current: string, next: string): Promise<string | null> => {
+    const secret = await linkedUnlockSecret();
+    if (!secret) return msgs().profile.server.noKey;
+    try {
+      await post('/api/profile', { op: 'password', current, next, secret });
+      return null;
+    } catch (err) {
+      return (err as Error).message;
+    }
+  }, []);
+
+  /** The switch in Einstellungen → Profil: on asks Windows for the gesture, off takes Windows Hello's way in away. */
+  const setProfileHello = useCallback(async (on: boolean) => {
+    const said = msgs().profile.settings;
+    if (on) {
+      const done = await enrollProfileHello();
+      toast(done ? said.helloOn : said.helloFailed, done ? 'success' : 'error');
+      return;
+    }
+    const secret = await linkedUnlockSecret();
+    if (!secret) return;
+    try {
+      await post('/api/profile', { op: 'hello', key: null, secret });
+      setProfileBoth((p) => ({ ...p, hello: false }));
+      toast(said.helloOff, 'info');
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    }
+  }, [enrollProfileHello, setProfileBoth, toast]);
+
+  /** "Profil löschen": gone from this computer, and the session with it. Resolves null when done. */
+  const deleteProfile = useCallback(async (password: string): Promise<string | null> => {
+    const secret = await linkedUnlockSecret();
+    if (!secret) return msgs().profile.server.noKey;
+    // Saved first, then every way to write the vault shut before the request
+    // (as wipeVaultWith does): a save landing after the profile is gone would
+    // begin a bank's old file anew with all of it.
+    await flushVault();
+    const before = vaultStatusRef.current;
+    if (vaultTimerRef.current) { clearTimeout(vaultTimerRef.current); vaultTimerRef.current = null; }
+    vaultStatusRef.current = 'unavailable';
+    await vaultChainRef.current;
+    try {
+      await post('/api/profile', { op: 'delete', password, secret });
+    } catch (err) {
+      setVaultStatusBoth(before);
+      if (before === 'ready' && vaultDirtyRef.current) scheduleVaultSave();
+      return (err as Error).message;
+    }
+    profileBanksRef.current = [];
+    vaultDirtyRef.current = false;
+    setVaultStatusBoth('unavailable');
+    setProfileBoth((p) => ({ ...p, exists: false, open: false, name: '', hello: false }));
+    toast(msgs().profile.settings.deleted, 'info');
+    void logoutRef.current('user');
+    return null;
+  }, [flushVault, setProfileBoth, setVaultStatusBoth, scheduleVaultSave, toast]);
+
+  /**
+   * "Profil sperren" on the bank's login form after an unlock, and its idle
+   * time there: the profile closes, the unlock screen is back. A login still
+   * being asked is called off first: it would open the Übersicht over a
+   * locked profile.
+   */
+  const lockProfile = useCallback(() => {
+    if (!profileRef.current.open) return;
+    cancelConnect();
+    setProfileBoth((p) => ({ ...p, open: false }));
+    void post('/api/profile', { op: 'lock' }).catch(() => {});
+  }, [setProfileBoth, cancelConnect]);
+
+  /** "Passwort vergessen": the profile is set aside, and the bank's login comes back. */
+  const forgetProfile = useCallback(async () => {
+    try {
+      await post('/api/profile', { op: 'aside' });
+    } catch (err) {
+      toast((err as Error).message, 'error');
+      return;
+    }
+    profileBanksRef.current = [];
+    setProfileBoth((p) => ({ ...p, exists: false, open: false, name: '', hello: false, damaged: false }));
+  }, [setProfileBoth, toast]);
+
+  const openProfileCreate = useCallback(() => setProfileCreateOpen(true), []);
+  const closeProfileCreate = useCallback(() => {
+    profileDeferredRef.current = true;
+    setProfileCreateOpen(false);
   }, []);
 
   const chooseTanMethod = useCallback(async (method: SerializedTanMethod, tanMediaName?: string) => {
@@ -3749,6 +4083,12 @@ function useFintsState() {
    */
   const forgetLinkedPin = useCallback(async (login: { blz: string; userId: string }) => {
     const primary = sessionRef.current;
+    // Girovo 7, the profile open: the PIN is the profile's.
+    if (profileRef.current.open) {
+      await post('/api/profile', { op: 'forgetPin', login: { blz: login.blz, userId: login.userId } })
+        .catch(() => { /* the next refusal asks again */ });
+      return;
+    }
     if (IS_ANDROID) {
       const own = bankRef.current;
       if (primary && own && userIdRef.current) {
@@ -3908,9 +4248,11 @@ function useFintsState() {
     // A bank logged in on its own after the fingerprint leaves the account on
     // screen where it was: the user did not ask for that bank.
     if (!flow.auto) selectAccount(joined.added[0]);
-    if (!flow.sealed) void (IS_ANDROID ? offerSeal(link) : offerLinkedUnlock(link));
+    // Girovo 7, the profile open: the bank joins the profile, its PIN once its bank has taken it.
+    if (profileRef.current.open && link.sessionId) void keepInProfile(link.sessionId, chosen.name, list.map((a) => a.accountNumber));
+    else if (!flow.sealed) void (IS_ANDROID ? offerSeal(link) : offerLinkedUnlock(link));
     return null;
-  }, [releaseFlowBusy, updateAddBank, purgeAccounts, setLinksBoth, updateVault, setAddBankBoth, toast, selectAccount, loadLinkedHistory, offerSeal, offerLinkedUnlock]);
+  }, [releaseFlowBusy, updateAddBank, purgeAccounts, setLinksBoth, updateVault, setAddBankBoth, toast, selectAccount, loadLinkedHistory, offerSeal, offerLinkedUnlock, keepInProfile]);
 
   /**
    * Step two of the flow: the bank is asked for this login, a session of its
@@ -4049,13 +4391,30 @@ function useFintsState() {
    * forgets it. A remembered one is only forgotten.
    */
   const removeBank = useCallback((entry: BankEntry) => {
-    if (entry.state === 'primary') return;
     if (busyRef.current) {
       toast(msgs().provider.busy, 'info');
       return;
     }
+    if (entry.state === 'primary') {
+      // Girovo 7, the profile open: no bank holds the data any more, so the
+      // bank the app opened with can go too. Its session carries the view, so
+      // the view ends with it; the next unlock logs the other banks in.
+      if (!profileRef.current.open || !userIdRef.current) return;
+      const own = { blz: entry.bank.blz, userId: userIdRef.current };
+      profileBanksRef.current = profileBanksRef.current.filter((b) => !sameLogin(b, own));
+      void post('/api/profile', { op: 'remove', login: own })
+        .catch(() => { /* still in the profile: it logs in again next time */ })
+        .finally(() => void logoutRef.current('user'));
+      return;
+    }
     const link = linksRef.current.find((l) => l.id === entry.key) ?? null;
     const login = link ? { blz: link.bank.blz, userId: link.userId } : entry.ref;
+    // Girovo 7, the profile open: the bank leaves the profile too (synchronously
+    // here first, so the list does not take it back in from the profile's banks).
+    if (login && profileRef.current.open) {
+      profileBanksRef.current = profileBanksRef.current.filter((b) => !sameLogin(b, login));
+      void post('/api/profile', { op: 'remove', login: { blz: login.blz, userId: login.userId } }).catch(() => {});
+    }
     if (link) {
       dropSession(link.sessionId);
       const gone = new Set(link.accountNumbers);
@@ -4257,6 +4616,8 @@ function useFintsState() {
     setShortcutsOpenState(false);
     setLogoutConfirmOpen(false);
     setForgetDeviceOpenState(false);
+    // The next login asks again, after its own checks (the further banks first).
+    setProfileCreateOpen(false);
     setAppliedRange(defaultRange());
 
     messagesRef.current = [];
@@ -4295,6 +4656,12 @@ function useFintsState() {
     if (reason !== 'idle' && reason !== 'expired' && reason !== 'cancelled' && reason !== 'hidden') reason = 'user';
     const sid = sessionRef.current;
     if (!sid) {
+      // Girovo 7: a profile open without a bank logged in (none had a PIN
+      // that worked) is closed all the same.
+      if (profileRef.current.open) {
+        setProfileBoth((p) => ({ ...p, open: false }));
+        void post('/api/profile', { op: 'lock' }).catch(() => { /* closing the window closes it */ });
+      }
       // A straggling idle tick or 401 after the session already ended, or a
       // second press on "Abmelden": nothing is left to end or to announce.
       if (reason === 'user' || reason === 'cancelled') resetSession();
@@ -4321,6 +4688,11 @@ function useFintsState() {
     // added (still being asked: called off).
     const sids = [sid, ...linksRef.current.map((l) => l.sessionId), addBankRef.current?.sessionId]
       .filter((s): s is string => !!s);
+    // Girovo 7: logging out locks the profile. The unlock screen comes up at
+    // once; the profile is closed on the server after the last save below.
+    const lockAfter = profileRef.current.open;
+    if (lockAfter) setProfileBoth((p) => ({ ...p, open: false }));
+    profileKeepRef.current.clear();
     cancelConnect();
     resetSession();
     setAutoLoggedOut(reason === 'idle' || reason === 'expired');
@@ -4339,6 +4711,7 @@ function useFintsState() {
     }
 
     await Promise.race([saved, delay(LOGOUT_FLUSH_TIMEOUT_MS)]);
+    if (lockAfter) await post('/api/profile', { op: 'lock' }).catch(() => { /* closing the window closes it */ });
     // Best effort — the server's 30-minute sweep remains. The PIN is said to
     // be gone only once every session that held one confirmed it.
     const results = await Promise.allSettled(sids.map((s) => post('/api/logout', { sessionId: s })));
@@ -4346,7 +4719,7 @@ function useFintsState() {
     if (notice != null && said && dropped) {
       rewordToast(notice, logoutNotice(said, true, unclear));
     }
-  }, [flushVault, cancelConnect, resetSession, toast, rewordToast]);
+  }, [flushVault, cancelConnect, resetSession, toast, rewordToast, setProfileBoth]);
 
   logoutRef.current = logout;
 
@@ -4428,8 +4801,11 @@ function useFintsState() {
         void forgetSecurityKeys({ blz: own.blz, userId: userIdRef.current });
         if (securityKeysRef.current?.length) setSecurityKeysBoth([]);
       }
-      // …and so is the one the checks for new Umsätze would use.
+      // …and so is the one the checks for new Umsätze would use, and the profile's (Girovo 7).
       if (userIdRef.current) void forgetBackgroundLogin({ blz: own.blz, userId: userIdRef.current });
+      if (profileRef.current.open && userIdRef.current) {
+        void post('/api/profile', { op: 'forgetPin', login: { blz: own.blz, userId: userIdRef.current } }).catch(() => {});
+      }
       // The route took the further banks' PINs sealed with it too (.linked): the switch says so.
       if (linkedUnlockRef.current) setLinkedUnlockBoth(false);
       toast(said.firstPinRefused(own.name), 'error', 20_000);
@@ -5194,6 +5570,66 @@ function useFintsState() {
     }, 1500);
     return () => clearTimeout(timer);
   }, [view, busy, addBankKept, vaultStatus, banks, plus.state, openAddBank, openedLinkedTick]);
+
+  // Girovo 7, the profile open: every bank it knows shows in the list, the
+  // ones not logged in as banks to log in to (and the chain above finds them).
+  useEffect(() => {
+    if (!profile.open || vaultStatus !== 'ready' || !bank || !userId) return;
+    updateVault((v) => {
+      const next = withProfileBanks(v.linkedBanks ?? [], profileBanksRef.current, { blz: bank.blz, userId });
+      return next ? withLinkedBanks(v, next) : v;
+    });
+  }, [profile.open, vaultStatus, bank, userId, updateVault]);
+
+  // A bank whose PIN waited for its bank's word (keepInProfile) is asked
+  // again after each read: by then a remembered device's PIN has been taken.
+  useEffect(() => {
+    if (!profile.open) return;
+    for (const [sid, w] of profileKeepRef.current) {
+      if (w.asking) continue;
+      const live = sid === sessionRef.current || linksRef.current.some((l) => l.sessionId === sid);
+      if (!live) profileKeepRef.current.delete(sid);
+      else void keepInProfile(sid, w.name, w.accounts);
+    }
+  }, [profile.open, balanceAt, fetches, keepInProfile]);
+
+  // Girovo 7: the profile open on the login screen (no bank logged in after
+  // the unlock) closes by itself after the idle time, as a session would.
+  // It counts from the last key or click, and waits while a login is asked.
+  useEffect(() => {
+    if (!profile.open || view !== 'login' || profileSigningIn) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const arm = () => {
+      clearTimeout(timer);
+      timer = setTimeout(fire, idleMinutes * 60_000);
+    };
+    const fire = () => {
+      if (connectAttemptRef.current || busyRef.current || waitRef.current.open) arm();
+      else lockProfile();
+    };
+    window.addEventListener('keydown', arm, true);
+    window.addEventListener('pointerdown', arm, true);
+    arm();
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('keydown', arm, true);
+      window.removeEventListener('pointerdown', arm, true);
+    };
+  }, [profile.open, view, profileSigningIn, idleMinutes, lockProfile]);
+
+  // No profile yet on a desktop that keeps one: Girovo 7 needs one (owner,
+  // 2026-11-15), so after a login its dialog comes up and stays until it is
+  // made, the further banks the login opened logged in first, so they move
+  // in with it. Abmelden is the only other way out; "Später" only where this
+  // computer cannot keep a profile at all (CreateProfileDialog).
+  useEffect(() => {
+    if (view !== 'dashboard' || busy || addBankKept || openedLinkedRef.current.length || profileDeferredRef.current) return;
+    // Only over saved data that was read: not while it is unreadable (reset
+    // first, in Einstellungen) and not after a wipe, which keeps nothing this session.
+    if (!profile.served || profile.exists || vaultStatus !== 'ready') return;
+    const timer = setTimeout(() => setProfileCreateOpen(true), 1200);
+    return () => clearTimeout(timer);
+  }, [view, busy, addBankKept, profile.served, profile.exists, vaultStatus]);
 
   const categoryRules = vault?.categoryRules;
   // As shown: entries not moved yet under the booking they lead to (shownFiled).
@@ -6116,6 +6552,9 @@ function useFintsState() {
     forgetLinkedPin,
     // Windows Hello in place of the first login's PIN on the desktop (lib/windows-hello.ts)
     windowsHello, setWindowsHello,
+    // Girovo 7: the profile above all banks on the desktop (lib/profile.ts)
+    profile, profileSigningIn, profileCreateOpen, openProfileCreate, closeProfileCreate,
+    unlockProfile, lockProfile, createProfile, renameProfile, changeProfilePassword, setProfileHello, deleteProfile, forgetProfile,
     securityKeys, addSecurityKey, renameSecurityKey, removeSecurityKey,
     // "Neue Umsätze melden" (lib/background-check.ts)
     backgroundChecks, backgroundAsk, setBackgroundChecks, openBackgroundAsk, closeBackgroundAsk,

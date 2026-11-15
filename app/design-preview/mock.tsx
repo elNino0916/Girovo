@@ -102,6 +102,7 @@ import {
 import type { AnalysisPeriod, AnalysisScope } from '@/lib/app-types';
 import { PAGE_OF, type SettingsPage } from '@/lib/settings-pages';
 import { IS_ANDROID } from '@/lib/platform';
+import { NO_PROFILE, type ProfileInfo } from '@/lib/profile-client';
 import type { ManualContract, ManualDay } from '@/lib/manual-contracts';
 import type {
   BankOrderKind, Merchant, SerializedAccount, SerializedBalance, SerializedBankOrder, SerializedPortfolio, SerializedTanMethod,
@@ -210,6 +211,13 @@ export type MockOptions = {
   windowsHello?: boolean;
   /** The desktop's security keys: how many are set up; left out, the row is not there. */
   securityKeys?: number;
+  /**
+   * Girovo 7, the profile above all banks (lib/profile.ts): `none` a desktop
+   * without one yet, `create` with its dialog open, `locked` (and
+   * `locked-hello`) the unlock screen, `signing-in` right after the unlock,
+   * `open` the logged-in view with one. Left out: no profile at all (no shell).
+   */
+  profile?: 'none' | 'create' | 'locked' | 'locked-hello' | 'signing-in' | 'open';
   /**
    * "Neue Umsätze melden" (lib/background-check.ts): the row in Sicherheit,
    * off or on; left out, the row is not there (no shell). `'ask'`: off, with
@@ -831,6 +839,15 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
   const [linkedUnlockAsk, setLinkedUnlockAsk] = useState(opts.linkedUnlock === 'ask');
   // The desktop's Windows Hello: a switch, nothing kept.
   const [windowsHello, setWindowsHelloState] = useState<boolean | null>(opts.windowsHello ?? null);
+  // Girovo 7's profile: how it stands, nothing kept, any password opens it.
+  const [profile, setProfile] = useState<ProfileInfo>(() => (opts.profile === undefined ? NO_PROFILE : {
+    served: true,
+    exists: opts.profile !== 'none' && opts.profile !== 'create',
+    name: opts.profile === 'none' || opts.profile === 'create' ? '' : 'Max',
+    hello: opts.profile === 'locked-hello',
+    open: opts.profile === 'open' || opts.profile === 'signing-in',
+  }));
+  const [profileCreateOpen, setProfileCreateOpen] = useState(opts.profile === 'create');
   const [securityKeys, setSecurityKeysState] = useState<Array<{ id: string; added: string; name?: string }> | null>(
     opts.securityKeys === undefined ? null : Array.from({ length: opts.securityKeys }, (_, i) => ({ id: `key${i}`, added: '2026-11-08T10:00:00.000Z' })),
   );
@@ -3105,6 +3122,36 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
       setWindowsHelloState(on);
       toast(on ? msgs().settings.windowsHello.nowOn : msgs().settings.windowsHello.nowOff, on ? 'success' : 'info');
     },
+    profile,
+    profileSigningIn: opts.profile === 'signing-in' ? data.bank.name : null,
+    profileCreateOpen,
+    openProfileCreate: () => setProfileCreateOpen(true),
+    closeProfileCreate: () => setProfileCreateOpen(false),
+    unlockProfile: async (password: string | null) => {
+      if (password !== null && password.length < 8) return msgs().profile.server.wrong;
+      setProfile((p) => ({ ...p, open: true }));
+      return null;
+    },
+    createProfile: async (input: { name: string; password: string; hello: boolean }) => {
+      setProfile((p) => ({ ...p, exists: true, open: true, name: input.name, hello: input.hello }));
+      toast(msgs().profile.create.done, 'success');
+      return null;
+    },
+    renameProfile: async (name: string) => {
+      setProfile((p) => ({ ...p, name }));
+      return null;
+    },
+    changeProfilePassword: async () => null,
+    setProfileHello: async (on: boolean) => {
+      setProfile((p) => ({ ...p, hello: on }));
+      toast(on ? msgs().profile.settings.helloOn : msgs().profile.settings.helloOff, on ? 'success' : 'info');
+    },
+    deleteProfile: async () => {
+      setProfile((p) => ({ ...p, exists: false, open: false, name: '', hello: false }));
+      return null;
+    },
+    forgetProfile: async () => setProfile((p) => ({ ...p, exists: false, open: false, name: '', hello: false })),
+    lockProfile: () => setProfile((p) => ({ ...p, open: false })),
     securityKeys,
     addSecurityKey: async () => {
       setSecurityKeysState((k) => [...(k ?? []), { id: `key${Date.now()}`, added: new Date().toISOString() }]);

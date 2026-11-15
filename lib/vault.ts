@@ -62,6 +62,7 @@ import { sanitizeNotes } from './notes.ts';
 import { sanitizeLinkedBanks } from './linked-banks.ts';
 import { sanitizeGoals } from './savings-goal.ts';
 import { moveAside, removeFamily, serialized, writeFileAtomic } from './sealed-file.ts';
+import { isProfileOpen, ProfileError, profileFile, profileKey, profileVault, saveProfileVault } from './profile.ts';
 import { sanitizeSentOrders } from './sent-orders.ts';
 import { sanitizeSplitRequests, splitRequestId } from './split-requests.ts';
 import { categoryValidator, sanitizeCustomCategories, sanitizeSplits } from './splits.ts';
@@ -369,6 +370,8 @@ const unlocked = new WeakMap<Session, Unlocked>();
  * file name. Null until the vault was loaded or saved this session.
  */
 export function vaultKeyOf(s: Session): { key: Buffer; salt: Buffer; base: string } | null {
+  // Girovo 7: with the profile open, what is kept beside the vault is kept beside the profile.
+  if (isProfileOpen()) return profileKey();
   const entry = unlocked.get(s);
   if (!entry) return null;
   return { key: entry.key, salt: entry.salt, base: path.basename(entry.file, '.vault') };
@@ -447,6 +450,40 @@ async function writeVault(entry: Unlocked, data: VaultData): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// The profile (Girovo 7 on the desktop, lib/profile.ts)
+// ---------------------------------------------------------------------------
+//
+// With a profile open, the vault is the profile's, whichever bank's session
+// asks: no bank holds the data any more. Each operation below takes this way
+// first. A profile that exists but is closed never lets a bank's own vault be
+// written: the data moved into the profile, and an old file written behind
+// its back would only fork it. Reading one stays possible, so the profile can
+// take a 6.x vault over when it begins (app/api/profile).
+
+/** Whether a profile exists on this computer, open or not. */
+function profileExists(): boolean {
+  try {
+    return fs.existsSync(profileFile());
+  } catch {
+    return false;
+  }
+}
+
+async function writeToProfile(data: VaultData): Promise<VaultPutResponse> {
+  const updatedAt = new Date().toISOString();
+  const next = { ...data, updatedAt };
+  if (Buffer.byteLength(JSON.stringify(next), 'utf8') > VAULT_LIMITS.bytes) throw new VaultError(msgs().provider.vault.tooLarge, 413);
+  try {
+    await saveProfileVault(next);
+  } catch (err) {
+    if (err instanceof ProfileError && err.code === 'tooLarge') throw new VaultError(msgs().provider.vault.tooLarge, 413);
+    if (err instanceof ProfileError && err.code === 'locked') throw new VaultError(msgs().provider.vault.locked, 409);
+    throw new VaultError(msgs().provider.vault.write, 500);
+  }
+  return { ok: true, updatedAt };
+}
+
+// ---------------------------------------------------------------------------
 // Operations (one per /api/vault op)
 // ---------------------------------------------------------------------------
 
@@ -456,6 +493,15 @@ async function writeVault(entry: Unlocked, data: VaultData): Promise<void> {
  * untouched until the user resets it.
  */
 export async function loadVault(s: Session): Promise<VaultGetResponse> {
+  if (isProfileOpen()) {
+    const raw = profileVault();
+    if (raw == null) return { status: 'ready', data: null };
+    const data = sanitizeVault(raw);
+    return data ? { status: 'ready', data } : { status: 'error', reason: 'corrupt' };
+  }
+  // A closed profile: the bank's old file is stale, and edits could not be
+  // saved anyway. Reading it for the profile's beginning happens before one exists.
+  if (profileExists()) return { status: 'error', reason: 'decrypt' };
   const id = identityOf(s);
   const file = vaultFile(id);
   return serialized(file, async (): Promise<VaultGetResponse> => {
@@ -475,9 +521,11 @@ export async function loadVault(s: Session): Promise<VaultGetResponse> {
  * Refused (409) while the file on disk cannot be opened with this PIN.
  */
 export async function saveVault(s: Session, input: unknown): Promise<VaultPutResponse> {
-  const id = identityOf(s);
   const data = sanitizeVault(input);
   if (!data) throw new VaultError(msgs().provider.vault.format, 400);
+  if (isProfileOpen()) return writeToProfile(data);
+  if (profileExists()) throw new VaultError(msgs().provider.vault.locked, 409);
+  const id = identityOf(s);
   const file = vaultFile(id);
   return serialized(file, async (): Promise<VaultPutResponse> => {
     let entry = unlocked.get(s);
@@ -503,6 +551,9 @@ export async function saveVault(s: Session, input: unknown): Promise<VaultPutRes
  * set the real vault aside and begin an empty one under the typo (409).
  */
 export async function resetVault(s: Session): Promise<VaultPutResponse> {
+  // The profile always opens once it is open: starting over is an empty vault in it.
+  if (isProfileOpen()) return writeToProfile(EMPTY_VAULT);
+  if (profileExists()) throw new VaultError(msgs().provider.vault.locked, 409);
   if (s?.pinAccepted !== true) throw new VaultError(msgs().provider.vault.notYet, 409);
   const id = identityOf(s);
   const file = vaultFile(id);
@@ -541,6 +592,10 @@ export async function wipeVault(s: Session): Promise<number> {
   const blz = s?.meta?.blz;
   const userId = s?.client?.config?.userId;
   if (!blz || !userId) throw new VaultError(msgs().provider.vault.unavailable, 409);
+  // With the profile open its vault is emptied first (the banks and their PINs
+  // stay: "Profil löschen" is the way to end it), then this login's own 6.x
+  // file goes as before, since it holds the same kind of data.
+  if (isProfileOpen()) await writeToProfile(EMPTY_VAULT);
   const stem = `${vaultBaseName(String(blz), String(userId))}.vault`;
   const file = path.join(STATE_DIR, stem);
   return serialized(file, async () => {
@@ -557,6 +612,20 @@ export async function wipeVault(s: Session): Promise<number> {
       throw new VaultError(msgs().provider.vault.wipe, 500);
     }
     console.log(`[vault] wiped ${removed} file(s)${failed ? `, ${failed} left` : ''} (blz=${blz})`);
+    if (failed) throw new VaultError(msgs().provider.vault.wipe, 500);
+    return removed;
+  });
+}
+
+/**
+ * Girovo 7: a login's 6.x vault and every copy of it, without a session or
+ * its PIN. "Profil löschen" takes the files the profile was made from along
+ * (app/api/profile), so the next login with that bank cannot bring them back.
+ */
+export async function removeLegacyVault(blz: string, userId: string): Promise<number> {
+  const stem = `${vaultBaseName(blz, userId)}.vault`;
+  return serialized(path.join(STATE_DIR, stem), async () => {
+    const { removed, failed } = await removeFamily(STATE_DIR, stem, (code) => console.warn('[vault] could not delete a file:', code));
     if (failed) throw new VaultError(msgs().provider.vault.wipe, 500);
     return removed;
   });

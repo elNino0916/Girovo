@@ -38,6 +38,7 @@ import { TransferSheet } from './TransferSheet';
 import { AddBankSheet } from './AddBank';
 import { ShareAccount } from './ShareAccount';
 import { LinkedUnlockDialog } from './settings/LinkedUnlock';
+import { CreateProfileDialog } from './settings/ProfileSettings';
 import { BackgroundDialog } from './settings/BackgroundChecks';
 import { AlertWatch } from './settings/BackgroundAlerts';
 import { SyncDialog } from './settings/Sync';
@@ -304,6 +305,7 @@ function ShellLayers({ frame = false }: { frame?: boolean }) {
       <ForgetDeviceDialog open={forgetDeviceOpen} onClose={() => setForgetDeviceOpen(false)} />
       <LogoutConfirmDialog />
       <LinkedUnlockDialog />
+      <CreateProfileDialog />
       <BackgroundDialog />
       <NightlyUsageDialog />
       {/* Verträge & Abos' contracts for the checks' alerts: only while they are on. */}

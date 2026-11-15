@@ -42,6 +42,7 @@ import { HistoryError, fillKeptGaps, loadHistory } from './history-store.ts';
 import { compactHistory, sanitizeHistory } from './history.ts';
 import { msgs } from './i18n/index.ts';
 import { loadVault, restoreVault, sanitizeVault } from './vault.ts';
+import { isProfileOpen } from './profile.ts';
 import { isoDate } from './format.ts';
 
 const AAD = Buffer.from('girovo/backup/v1', 'utf8');
@@ -190,18 +191,24 @@ export async function makeBackup(sessions: readonly Session[], password: string,
   const blobs: Buffer[] = [];
   const summary: BackupSummary[] = [];
   let offset = 0;
+  // Girovo 7 (lib/profile.ts): with the profile open every session's vault
+  // is the profile's, so the first login carries it and the others none.
+  let vaultTaken = false;
   for (const s of sessions) {
     const who = loginOf(s);
     if (!who.blz || !who.userId) continue;
     const missing: BackupSummary['missing'] = [];
 
     let vault: unknown = null;
-    try {
-      const v = await loadVault(s);
-      if (v.status === 'ready') vault = v.data;
-      else missing.push('vault');
-    } catch {
-      missing.push('vault');
+    if (!(vaultTaken && isProfileOpen())) {
+      try {
+        const v = await loadVault(s);
+        if (v.status === 'ready') vault = v.data;
+        else missing.push('vault');
+      } catch {
+        missing.push('vault');
+      }
+      vaultTaken = true;
     }
 
     let history: unknown = null;

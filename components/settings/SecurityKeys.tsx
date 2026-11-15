@@ -19,9 +19,10 @@ const KEYS_MAX = 5;
 /** The row, where this Windows can use a security key (securityKeys is null elsewhere). */
 export function SecurityKeysRow() {
   const t = useT();
-  const { bank, securityKeys } = useFints();
+  const { bank, securityKeys, profile } = useFints();
   const [open, setOpen] = useState(false);
-  if (securityKeys === null || !bank) return null;
+  // Girovo 7: with the profile open, its password or Windows Hello opens everything.
+  if (securityKeys === null || !bank || profile.open) return null;
   const words = t.settings.securityKeys;
   return (
     <>

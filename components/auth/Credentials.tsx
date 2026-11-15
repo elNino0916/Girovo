@@ -140,7 +140,7 @@ export function Credentials({
   const inFront = useWindowInFront();
   // The intro covers the screen for a moment: Windows Hello asks once it has gone.
   const intro = useIntroPlaying();
-  const { autoLoggedOut } = useFints();
+  const { autoLoggedOut, profile } = useFints();
   const pinRef = useRef<HTMLInputElement>(null);
   const loginRef = useRef<HTMLInputElement>(null);
   // One login at a time, and none for a form that has gone. `submitting` is
@@ -428,10 +428,12 @@ export function Credentials({
   }, [bank.blz, login]);
 
   // The desktop: whether this login name opens with Windows Hello. Never for
-  // a further bank's form (openedPin) — its PIN is already here.
+  // a further bank's form (openedPin) — its PIN is already here — and never
+  // with the profile open (Girovo 7): Windows Hello opens the profile, and a
+  // PIN 6.x kept for this bank would log in behind its back.
   useEffect(() => {
     const name = login.trim();
-    if (IS_ANDROID || demo || openedPin || !name) {
+    if (IS_ANDROID || demo || openedPin || !name || profile.open) {
       setHello(false);
       return;
     }
@@ -447,12 +449,12 @@ export function Credentials({
     };
     // Per bank and login name.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bank.blz, login]);
+  }, [bank.blz, login, profile.open]);
 
-  // The desktop: whether this login name opens with a security key.
+  // The desktop: whether this login name opens with a security key (not with the profile open, as above).
   useEffect(() => {
     const name = login.trim();
-    if (IS_ANDROID || demo || openedPin || !name) {
+    if (IS_ANDROID || demo || openedPin || !name || profile.open) {
       setSecurityKey(false);
       return;
     }
@@ -468,7 +470,7 @@ export function Credentials({
     };
     // Per bank and login name.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bank.blz, login]);
+  }, [bank.blz, login, profile.open]);
 
   // …and if so, Windows asks for the gesture once by itself, like the
   // fingerprint — but only with Girovo's window in front: never from a window

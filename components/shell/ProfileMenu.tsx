@@ -91,7 +91,7 @@ export function ProfileMenu() {
   const t = useT();
   const {
     accounts, vault, vaultStatus, requestLogout, openAddBank, openSettings,
-    unreadCount, setInboxOpen, tab,
+    unreadCount, setInboxOpen, tab, profile,
   } = useFints();
   const [removing, setRemoving] = useState<BankEntry | null>(null);
   // Where the top bar has no bell — a phone, and the Übersicht, whose head is
@@ -102,8 +102,9 @@ export function ProfileMenu() {
   const updateUnseen = unseenUpdate(useUpdates());
   const news = noBell && (unreadCount > 0 || updateUnseen);
   // The session's holder, as in the greeting — not the active account's.
-  const holder = sessionHolder(accounts);
-  const full = holderName(holder);
+  // Girovo 7: with the profile open, its own name (lib/profile.ts).
+  const holder = profile.open && profile.name ? profile.name : sessionHolder(accounts);
+  const full = profile.open && profile.name ? profile.name : holderName(holder);
   const initials = nameInitials(holder);
   // An unreadable store is the one thing in here worth a mark on the chip:
   // until it is reset, nothing the user changes is kept. The dot is only a
@@ -234,7 +235,7 @@ function SessionPanel({
 }) {
   const t = useT();
   const {
-    bank, sessionStartedAt, idleDeadline, vaultStatus, vault, updateVault, banks, logoFiles,
+    bank, sessionStartedAt, idleDeadline, vaultStatus, vault, updateVault, banks, logoFiles, profile,
   } = useFints();
   const left = useCountdown(idleDeadline);
   const [picking, setPicking] = useState(false);
@@ -321,10 +322,11 @@ function SessionPanel({
                 </span>
               )}
               title={b.bank.name}
-              hint={bankHint(b, t)}
+              hint={bankHint(b, t, profile.open)}
               // Anmelden stays a button; Entfernen sits behind the ⋮, away from it,
               // so a tap meant for one never hits the other.
-              action={b.state !== 'primary' && (
+              // Girovo 7: with the profile open no bank is the Hauptbank, and each can go.
+              action={(b.state !== 'primary' || profile.open) && (
                 <span className="-mr-2 flex shrink-0 items-center gap-1">
                   {(b.state === 'remembered' || b.state === 'loggedOut') && (
                     <Button
@@ -401,8 +403,8 @@ function SessionPanel({
 }
 
 /** Where a bank of the view stands, in the panel's one-line hint. */
-function bankHint(b: BankEntry, t: ReturnType<typeof useT>): string {
-  if (b.state === 'primary') return t.banks.state.primary;
+function bankHint(b: BankEntry, t: ReturnType<typeof useT>, profileOpen: boolean): string {
+  if (b.state === 'primary' && !profileOpen) return t.banks.state.primary;
   if (b.state === 'loggedOut') return t.banks.state.loggedOut;
   if (b.state === 'remembered') return t.banks.state.remembered;
   return b.deviceRemembered ? `${t.banks.state.active} · ${t.session.deviceRemembered}` : t.banks.state.active;
@@ -620,9 +622,12 @@ export function LogoutConfirmDialog() {
  */
 export function ForgetDeviceDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const t = useT();
-  const { bank, forgetDevice, linkedUnlock, windowsHello, securityKeys, backgroundChecks } = useFints();
+  const { bank, forgetDevice, linkedUnlock, windowsHello, securityKeys, backgroundChecks, profile } = useFints();
   const [busy, setBusy] = useState(false);
   const [wipe, setWipe] = useState(false);
+  // Girovo 7: with the profile open the saved data is the profile's, not this
+  // bank's; "Profil löschen" in Einstellungen is the way to remove it.
+  const wipeOffered = !profile.open;
   const close = () => {
     setWipe(false);
     onClose();
@@ -630,7 +635,7 @@ export function ForgetDeviceDialog({ open, onClose }: { open: boolean; onClose: 
   const run = async () => {
     setBusy(true);
     try {
-      await forgetDevice({ wipeData: wipe });
+      await forgetDevice({ wipeData: wipe && wipeOffered });
     } finally {
       setBusy(false);
       close();
@@ -660,14 +665,16 @@ export function ForgetDeviceDialog({ open, onClose }: { open: boolean; onClose: 
         {windowsHello === true && <p className="mt-2 text-[14px] leading-relaxed text-ink-2">{t.settings.windowsHello.goesToo}</p>}
         {!!securityKeys?.length && <p className="mt-2 text-[14px] leading-relaxed text-ink-2">{t.settings.securityKeys.goesToo}</p>}
         {backgroundChecks === true && <p className="mt-2 text-[14px] leading-relaxed text-ink-2">{t.background.goesToo}</p>}
-        <Checkbox
-          className="mt-3"
-          label={t.session.forgetDialog.wipe}
-          description={t.session.forgetDialog.wipeHint}
-          checked={wipe}
-          disabled={busy}
-          onChange={(e) => setWipe(e.target.checked)}
-        />
+        {wipeOffered && (
+          <Checkbox
+            className="mt-3"
+            label={t.session.forgetDialog.wipe}
+            description={t.session.forgetDialog.wipeHint}
+            checked={wipe}
+            disabled={busy}
+            onChange={(e) => setWipe(e.target.checked)}
+          />
+        )}
       </div>
     </Dialog>
   );
@@ -680,8 +687,10 @@ export function ForgetDeviceDialog({ open, onClose }: { open: boolean; onClose: 
  */
 function RemoveBankDialog({ entry, onClose }: { entry: BankEntry | null; onClose: () => void }) {
   const t = useT();
-  const { removeBank } = useFints();
+  const { removeBank, profile } = useFints();
   const words = t.banks.removeDialog;
+  // Girovo 7: the bank the app opened with carries the session; removing it ends the session too.
+  const endsSession = profile.open && entry?.state === 'primary';
   return (
     <Dialog
       open={!!entry}
@@ -706,6 +715,7 @@ function RemoveBankDialog({ entry, onClose }: { entry: BankEntry | null; onClose
     >
       {/* Indented to the title's edge, under the header's pictogram. */}
       <p className="pl-[54px] text-[14px] leading-relaxed text-ink-2">{words.body}</p>
+      {endsSession && <p className="mt-2 pl-[54px] text-[14px] leading-relaxed text-ink-2">{t.profile.removeFirst}</p>}
     </Dialog>
   );
 }

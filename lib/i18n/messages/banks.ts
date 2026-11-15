@@ -35,7 +35,7 @@ export const de = {
       `${accounts} ${count === 1 ? 'hat' : 'haben'} dieselbe Kontonummer wie ein Konto, das schon angezeigt wird. `
       + `${bank} wurde deshalb nicht hinzugefügt.`,
     nothingNew: (bank: string) => `Diese Konten werden schon angezeigt. ${bank} wurde nicht noch einmal hinzugefügt.`,
-    tooMany: (n: number) => `Neben deiner Hauptbank kann Girovo höchstens ${n} weitere Banken zeigen.`,
+    tooMany: (n: number) => `Girovo kann höchstens ${n + 1} Banken zusammen zeigen.`,
   },
   added: (bank: string, n: number) => `Bei ${bank} angemeldet, ${n === 1 ? '1 Konto' : `${n} Konten`} hinzugefügt.`,
   cancelled: (bank: string) => `Anmeldung bei ${bank} abgebrochen.`,
@@ -94,7 +94,7 @@ export const en: typeof de = {
       `${accounts} ${count === 1 ? 'has' : 'have'} the same account number as an account already shown. `
       + `So ${bank} was not added.`,
     nothingNew: (bank) => `These accounts are already shown. ${bank} was not added again.`,
-    tooMany: (n) => `Besides your main bank, Girovo can show at most ${n} more banks.`,
+    tooMany: (n) => `Girovo can show at most ${n + 1} banks together.`,
   },
   added: (bank, n) => `Logged in to ${bank}, ${n === 1 ? '1 account' : `${n} accounts`} added.`,
   cancelled: (bank) => `Login to ${bank} cancelled.`,

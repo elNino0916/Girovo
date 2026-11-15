@@ -9,6 +9,7 @@ import * as android from './android.ts';
 import * as api from './api.ts';
 import * as ask from './ask.ts';
 import * as plus from './plus.ts';
+import * as profile from './profile.ts';
 import * as auth from './auth.ts';
 import * as background from './background.ts';
 import * as backup from './backup.ts';
@@ -60,6 +61,7 @@ const de = {
   ask: ask.de,
   plus: plus.de,
   api: api.de,
+  profile: profile.de,
 };
 
 export type Messages = typeof de;
@@ -90,6 +92,7 @@ const en: Messages = {
   ask: ask.en,
   plus: plus.en,
   api: api.en,
+  profile: profile.en,
 };
 
 // The Android app says "Telefon" where the desktop says "Rechner" (phone.ts).

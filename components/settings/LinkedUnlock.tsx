@@ -20,9 +20,10 @@ import { SwitchItem } from './rows';
  */
 export function LinkedUnlockSwitch() {
   const t = useT();
-  const { bank, banks, linkedUnlock, setLinkedUnlock, openLinkedUnlockAsk } = useFints();
+  const { bank, banks, linkedUnlock, setLinkedUnlock, openLinkedUnlockAsk, profile } = useFints();
   const [working, setWorking] = useState(false);
-  if (linkedUnlock === null || !bank || (!linkedUnlock && banks.length < 2)) return null;
+  // Girovo 7: with the profile open, every bank logs in with it anyway.
+  if (linkedUnlock === null || !bank || profile.open || (!linkedUnlock && banks.length < 2)) return null;
   const words = t.settings.linkedUnlock;
   const change = async (next: boolean) => {
     // Turning it on keeps PINs: the dialog says so first.
