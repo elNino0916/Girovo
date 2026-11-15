@@ -77,6 +77,12 @@ publisher, so any change asks again.
 helper (signed by MT-Media), the shell also identifies the helper's **parent
 process** (the assistant that started it) the same way, and the dialog shows
 that one: "Claude (Anthropic PBC) über Girovo MCP". The grant is the parent's.
+On Windows a program can start the helper naming any other process as its
+parent, so the helper's `girovo.hello` also carries `launcher`: the process
+that made the pipe on its stdin. The shell takes it out of the params and,
+when it is not the parent, identifies it instead (only if it started before
+the helper); a hello without one, or a launcher that can't be identified,
+leaves the helper without a parent, and the user is asked again.
 
 ## The dialog
 

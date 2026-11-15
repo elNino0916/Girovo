@@ -209,9 +209,13 @@ struct Assistant {
 
 impl Assistant {
   fn start(address: &str) -> Assistant {
+    Assistant::start_with(address, None)
+  }
+
+  fn start_with(address: &str, launcher: Option<u32>) -> Assistant {
     let (input, lines) = mpsc::channel::<String>();
     let (out, output) = mpsc::channel::<String>();
-    let config = Config { address: Some(address.to_string()), version: "1.0.0".into() };
+    let config = Config { address: Some(address.to_string()), version: "1.0.0".into(), launcher };
     let server = std::thread::spawn(move || serve(lines.into_iter().map(Ok), Arc::new(Lines(Mutex::new(out))), config));
     Assistant { input: Some(input), output, server: Some(server), others: Vec::new() }
   }
@@ -340,6 +344,32 @@ fn initialize_and_tools_list() {
   let transfer = tools.iter().find(|t| t["name"] == "request_transfer").unwrap();
   assert_eq!(transfer["inputSchema"]["required"], json!(["iban", "name", "cents"]));
   assert_eq!(transfer["annotations"]["readOnlyHint"], false);
+}
+
+#[test]
+fn every_hello_names_the_launcher_when_it_is_known() {
+  let address = unique_address();
+  let girovo = state(&[], Dialog::AllowAll);
+  let fake = fake_at(&address, girovo.clone(), 1, None);
+  let mut a = Assistant::start_with(&address, Some(4242));
+  a.initialize("2025-06-18");
+  assert_eq!(a.call(1, "list_accounts", json!({}))["isError"], false);
+  let seen = girovo.lock().unwrap().seen.clone();
+  assert_eq!(seen[0].0, "girovo.hello");
+  assert_eq!(seen[0].1["launcher"], 4242);
+  drop(a);
+  fake.join().unwrap();
+
+  // Not known (stdin no pipe, or not Windows): no key at all.
+  let address = unique_address();
+  let girovo = state(&[], Dialog::AllowAll);
+  let fake = fake_at(&address, girovo.clone(), 1, None);
+  let mut a = Assistant::start(&address);
+  a.initialize("2025-06-18");
+  assert_eq!(a.call(1, "list_accounts", json!({}))["isError"], false);
+  assert!(girovo.lock().unwrap().seen[0].1.get("launcher").is_none());
+  drop(a);
+  fake.join().unwrap();
 }
 
 #[test]

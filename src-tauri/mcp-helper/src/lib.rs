@@ -3,6 +3,9 @@
 // Desktop's claude_desktop_config.json names it as "command"); Girovo's shell
 // sees a program signed by MT-Media with a parent, and the dialog, the grant
 // and the Verlauf are the parent's: "Claude (Anthropic PBC) über Girovo MCP".
+// On Windows any program can name another as the parent of what it starts, so
+// every hello also carries `launcher`: the process that made the pipe on this
+// helper's stdin. The shell trusts that one over the parent Windows reports.
 //
 // MCP: JSON-RPC 2.0, one message per line on stdin and stdout. initialize,
 // notifications/initialized, ping, tools/list and tools/call; the tools are
@@ -61,11 +64,13 @@ pub struct Config {
   /// The pipe or socket; None: GIROVO_API_ADDRESS, else this user's.
   pub address: Option<String>,
   pub version: String,
+  /// Who started this helper, by the pipe on its stdin (Windows); sent in every hello.
+  pub launcher: Option<u32>,
 }
 
 impl Config {
   pub fn from_env() -> Config {
-    Config { address: None, version: env!("CARGO_PKG_VERSION").to_string() }
+    Config { address: None, version: env!("CARGO_PKG_VERSION").to_string(), launcher: girovo::launcher() }
   }
 }
 
@@ -106,7 +111,7 @@ pub fn serve<I: Iterator<Item = io::Result<String>>>(lines: I, out: Arc<dyn Out>
     let shared = shared.clone();
     let out = out.clone();
     std::thread::spawn(move || {
-      let mut girovo = Girovo::new(config.address, config.version, shared.granted.clone());
+      let mut girovo = Girovo::new(config.address, config.version, config.launcher, shared.granted.clone());
       for job in queue {
         let before = shared.granted.lock().unwrap().clone();
         let outcome = girovo.call(job.tool, &job.args);

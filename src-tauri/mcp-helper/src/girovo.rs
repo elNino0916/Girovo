@@ -39,6 +39,14 @@ pub enum CallError {
 }
 
 /// Where Girovo listens: GIROVO_API_ADDRESS, else the pipe or socket of this user.
+/// The process that started this helper, as the pipe on its stdin tells:
+/// the end that is not this helper's belongs to whoever made the pipe. A
+/// program that starts girovo-mcp naming Claude as its parent still made its
+/// own pipe. None when stdin is no pipe (a console, a file) or not on Windows.
+pub fn launcher() -> Option<u32> {
+  os::launcher()
+}
+
 pub fn default_address() -> io::Result<String> {
   if let Some(a) = std::env::var_os("GIROVO_API_ADDRESS").filter(|a| !a.is_empty()) {
     return Ok(a.to_string_lossy().into_owned());
@@ -83,6 +91,7 @@ fn read_line(reader: &mut BufReader<os::Stream>) -> Option<Vec<u8>> {
 pub struct Girovo {
   address: Option<String>,
   app_version: String,
+  launcher: Option<u32>,
   conn: Option<Conn>,
   /// The connection's hello was answered.
   said_hello: bool,
@@ -92,8 +101,8 @@ pub struct Girovo {
 }
 
 impl Girovo {
-  pub fn new(address: Option<String>, app_version: String, granted: Arc<Mutex<Option<BTreeSet<String>>>>) -> Girovo {
-    Girovo { address, app_version, conn: None, said_hello: false, next_id: 1, granted }
+  pub fn new(address: Option<String>, app_version: String, launcher: Option<u32>, granted: Arc<Mutex<Option<BTreeSet<String>>>>) -> Girovo {
+    Girovo { address, app_version, launcher, conn: None, said_hello: false, next_id: 1, granted }
   }
 
   fn connect(&mut self) -> Result<(), CallError> {
@@ -161,7 +170,10 @@ impl Girovo {
 
   /// girovo.hello for these permissions; what Girovo allows afterwards.
   fn hello(&mut self, permissions: &[&str], reason: &str) -> Result<BTreeSet<String>, CallError> {
-    let params = json!({ "app": "Girovo MCP", "version": self.app_version, "permissions": permissions, "reason": reason });
+    let mut params = json!({ "app": "Girovo MCP", "version": self.app_version, "permissions": permissions, "reason": reason });
+    if let Some(launcher) = self.launcher {
+      params["launcher"] = json!(launcher);
+    }
     match self.request("girovo.hello", params) {
       Ok(result) => {
         let granted: BTreeSet<String> = result
@@ -263,6 +275,20 @@ mod os {
   /// `\\.\pipe\girovo-api-<SID>`, as Girovo's shell names it (src-tauri/src/api/transport.rs).
   pub fn default_address() -> io::Result<String> {
     Ok(format!(r"\\.\pipe\girovo-api-{}", user_sid()?))
+  }
+
+  /// An anonymous pipe is a named pipe too: its server end belongs to the
+  /// process that called CreatePipe, whichever end stdin is. Else the client's.
+  pub fn launcher() -> Option<u32> {
+    use windows::Win32::System::Console::{GetStdHandle, STD_INPUT_HANDLE};
+    use windows::Win32::System::Pipes::GetNamedPipeClientProcessId;
+    let stdin = unsafe { GetStdHandle(STD_INPUT_HANDLE) }.ok().filter(|h| !h.is_invalid() && !h.0.is_null())?;
+    let mut pid = 0u32;
+    if unsafe { GetNamedPipeServerProcessId(stdin, &mut pid) }.is_ok() && pid != 0 {
+      return Some(pid);
+    }
+    pid = 0;
+    (unsafe { GetNamedPipeClientProcessId(stdin, &mut pid) }.is_ok() && pid != 0).then_some(pid)
   }
 
   fn user_sid() -> io::Result<String> {
@@ -368,6 +394,11 @@ mod os {
   use std::path::PathBuf;
 
   pub type Stream = std::os::unix::net::UnixStream;
+
+  /// Only Windows lets a program name another as its child's parent.
+  pub fn launcher() -> Option<u32> {
+    None
+  }
 
   /// `$XDG_RUNTIME_DIR/girovo-api.sock`, else in Girovo's data folder (~/.config/Girovo), as the shell does.
   pub fn default_address() -> io::Result<String> {

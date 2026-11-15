@@ -6,9 +6,74 @@ use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::mpsc;
 
-use super::identify::{self, Kind};
+use super::identify::{self, Kind, ParentFrom};
 use super::rpc::{self, LineError, Message, PageError, Reply};
 use super::server::{Call, Limits, NotSent, Router, Server};
+
+// --- whom Girovo MCP stands for ---
+
+#[test]
+fn the_helper_stands_for_its_launcher_not_a_parent_it_was_given() {
+  const HELPER: u32 = 30;
+  // The launcher is the parent: as Windows reports it.
+  assert_eq!(identify::parent_from(HELPER, Some(10), Some(10), true), ParentFrom::Parent);
+  // Started by another program that named Claude (10) as the parent: that program is asked about.
+  assert_eq!(identify::parent_from(HELPER, Some(10), Some(20), true), ParentFrom::Launcher(20));
+  assert_eq!(identify::parent_from(HELPER, None, Some(20), true), ParentFrom::Launcher(20));
+  // A launcher that is the helper itself, or none where parents can be made up: nobody.
+  assert_eq!(identify::parent_from(HELPER, Some(10), Some(HELPER), true), ParentFrom::Nobody);
+  assert_eq!(identify::parent_from(HELPER, Some(10), None, true), ParentFrom::Nobody);
+  // Linux: no launcher, the parent stands.
+  assert_eq!(identify::parent_from(HELPER, Some(10), None, false), ParentFrom::Parent);
+  assert_eq!(identify::parent_from(HELPER, None, None, false), ParentFrom::Parent);
+  assert_eq!(identify::LAUNCHER_REQUIRED, cfg!(windows));
+}
+
+#[test]
+fn launcher_is_taken_out_of_the_hello() {
+  let mut params = json!({ "app": "Girovo MCP", "launcher": 4242 });
+  assert_eq!(super::server::take_launcher(&mut params), Some(4242));
+  assert_eq!(params, json!({ "app": "Girovo MCP" }));
+  for bad in [json!(0), json!(-1), json!(1.5), json!("4242"), json!(u64::from(u32::MAX) + 1), Value::Null] {
+    let mut params = json!({ "app": "x", "launcher": bad });
+    assert_eq!(super::server::take_launcher(&mut params), None);
+    assert!(params.get("launcher").is_none());
+  }
+  assert_eq!(super::server::take_launcher(&mut json!({ "app": "x" })), None);
+  assert_eq!(super::server::take_launcher(&mut json!([1, 2])), None);
+}
+
+#[test]
+fn only_girovo_mcp_signed_by_mt_media_is_the_helper() {
+  let helper = identify::Client {
+    pid: 30,
+    exe: r"C:\Program Files\Girovo\girovo-mcp.exe".into(),
+    sha256: "a".repeat(64),
+    name: "Girovo MCP".into(),
+    publisher: identify::Publisher { kind: Kind::Mtmedia, name: Some("MT-Media".into()), thumbprint: None },
+    parent: None,
+  };
+  assert!(identify::is_mcp_helper(&helper));
+  assert!(identify::is_mcp_helper(&identify::Client { exe: "/usr/bin/girovo-mcp".into(), ..helper.clone() }));
+  assert!(identify::is_mcp_helper(&identify::Client { exe: r"C:\Girovo\Girovo-MCP.EXE".into(), ..helper.clone() }));
+  for exe in [r"C:\Program Files\Girovo\Girovo.exe", r"C:\Temp\girovo-mcp.exe.bak", "girovo-mcp2"] {
+    assert!(!identify::is_mcp_helper(&identify::Client { exe: exe.into(), ..helper.clone() }), "{exe}");
+  }
+  let unsigned = identify::Client { publisher: identify::Publisher::unknown(), ..helper.clone() };
+  assert!(!identify::is_mcp_helper(&unsigned));
+  let other = identify::Client { publisher: identify::Publisher { kind: Kind::Verified, name: Some("Andere AG".into()), thumbprint: None }, ..helper };
+  assert!(!identify::is_mcp_helper(&other));
+}
+
+#[test]
+fn a_launcher_that_started_after_the_helper_is_not_identified() {
+  let me = std::process::id();
+  let parent = identify::client(me).and_then(|c| c.parent).expect("a parent process");
+  // The parent started before this test process: it may launch it; not the other way round.
+  assert_eq!(identify::launcher(parent.pid, me).map(|c| c.pid), Some(parent.pid));
+  assert!(identify::launcher(me, parent.pid).is_none());
+  assert!(identify::launcher(u32::MAX - 2, me).is_none());
+}
 
 // --- the wire ---
 

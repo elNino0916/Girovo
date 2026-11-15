@@ -6,7 +6,10 @@
 //
 // The parent process is identified the same way and sent along: Girovo's own
 // MCP helper (phase 3) stands for the assistant that started it, and the
-// dialog shows that one.
+// dialog shows that one. On Windows a program may name any other as the
+// parent of what it starts, so the helper's hello also says `launcher`: the
+// process behind the pipe on its stdin, which Windows reports and no program
+// can choose for another. The server weighs the two (parent_from).
 
 use std::collections::HashMap;
 use std::io::Read;
@@ -69,6 +72,54 @@ pub fn client(pid: u32) -> Option<Client> {
   let mut me = process(pid)?;
   me.parent = os::parent_of(pid).and_then(process).map(Box::new);
   Some(me)
+}
+
+/// The process that started Girovo's MCP helper `helper`, by the pipe on the
+/// helper's stdin: identified only when it started before the helper, since a
+/// process id that came free since belongs to someone else.
+pub fn launcher(pid: u32, helper: u32) -> Option<Client> {
+  if !os::started_before(pid, helper) {
+    return None;
+  }
+  let who = process(pid)?;
+  os::started_before(pid, helper).then_some(who)
+}
+
+/// Girovo's MCP helper, as the page tells it (lib/api/grants.ts isMcpHelper):
+/// signed by MT-Media and named girovo-mcp(.exe). Only it may speak for another program.
+pub fn is_mcp_helper(client: &Client) -> bool {
+  let file = client.exe.rsplit(['\\', '/']).next().unwrap_or(&client.exe).to_ascii_lowercase();
+  client.publisher.kind == Kind::Mtmedia && (file == "girovo-mcp" || file == "girovo-mcp.exe")
+}
+
+/// Windows lets a program name another as its child's parent: there the
+/// helper's hello must say who launched it, or its parent counts for nothing.
+pub const LAUNCHER_REQUIRED: bool = cfg!(windows);
+
+/// Whom Girovo's MCP helper stands for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParentFrom {
+  /// The parent the system reports.
+  Parent,
+  /// Another process: the one that made the helper's stdin, to be identified.
+  Launcher(u32),
+  /// Nobody: the connection is the helper alone, and the user is asked again.
+  Nobody,
+}
+
+/// The helper `helper` with the parent the system reports and the launcher
+/// its hello names. A launcher that is the parent changes nothing; another
+/// one is who started the helper, whatever parent Windows was told; the
+/// helper itself is nobody. Without a launcher the parent stands only where
+/// a parent can't be made up (`required` false: Linux).
+pub fn parent_from(helper: u32, parent: Option<u32>, launcher: Option<u32>, required: bool) -> ParentFrom {
+  match launcher {
+    Some(l) if l == helper => ParentFrom::Nobody,
+    Some(l) if Some(l) == parent => ParentFrom::Parent,
+    Some(l) => ParentFrom::Launcher(l),
+    None if required => ParentFrom::Nobody,
+    None => ParentFrom::Parent,
+  }
 }
 
 fn process(pid: u32) -> Option<Client> {
@@ -213,6 +264,11 @@ mod os {
     Some(((created.dwHighDateTime as u64) << 32) | created.dwLowDateTime as u64)
   }
 
+  /// Whether `pid` started no later than `other`; false when either can't be read.
+  pub fn started_before(pid: u32, other: u32) -> bool {
+    started(pid).zip(started(other)).is_some_and(|(a, b)| a <= b)
+  }
+
   /// The parent as Windows remembers it. Windows reuses process ids, and a
   /// parent that has ended leaves its id behind for anyone: a "parent" that
   /// started after the child is someone else.
@@ -263,6 +319,11 @@ mod os {
     Some((fields.get(1)?.parse().ok()?, fields.get(19)?.parse().ok()?))
   }
 
+  /// Whether `pid` started no later than `other`; false when either can't be read.
+  pub fn started_before(pid: u32, other: u32) -> bool {
+    stat(pid).zip(stat(other)).is_some_and(|((_, a), (_, b))| a <= b)
+  }
+
   /// The parent, unless its id now belongs to a process that started after the child.
   pub fn parent_of(pid: u32) -> Option<u32> {
     let (parent, child_start) = stat(pid)?;
@@ -288,5 +349,8 @@ mod os {
   }
   pub fn parent_of(_pid: u32) -> Option<u32> {
     None
+  }
+  pub fn started_before(_pid: u32, _other: u32) -> bool {
+    false
   }
 }

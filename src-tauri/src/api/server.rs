@@ -28,7 +28,7 @@ use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::sync::{Notify, mpsc, oneshot, watch};
 use tokio::task::JoinSet;
 
-use super::identify::Client;
+use super::identify::{self, Client, ParentFrom};
 use super::rpc::{self, LineError, Message, Reply, WireError};
 use super::transport;
 
@@ -144,6 +144,13 @@ enum Handed {
   Locked,
   /// Held until the page is ready.
   Held(oneshot::Receiver<bool>),
+}
+
+/// The `launcher` Girovo's MCP helper puts in its hello, taken out of the
+/// params: the page never sees it. None when missing or no process id.
+pub(super) fn take_launcher(params: &mut Value) -> Option<u32> {
+  let value = params.as_object_mut()?.remove("launcher")?;
+  value.as_u64().and_then(|n| u32::try_from(n).ok()).filter(|&n| n != 0)
 }
 
 /// Finds out who a process is (identify::client in the app).
@@ -508,11 +515,21 @@ where
   // Identified only while it is still the process that connected; the peer is held until here.
   let client = client.filter(|_| peer.as_ref().is_some_and(transport::Peer::same_process));
   drop(peer);
-  let Some(client) = client else {
+  let Some(mut client) = client else {
     let _ = write.write_all(&refuse("denied", "Girovo could not tell which program this is")).await;
     let _ = write.shutdown().await;
     return;
   };
+  // Girovo's MCP helper stands for its parent. Where a parent can be made up
+  // (Windows), only once its hello has said who launched it; the page answers
+  // nothing before a hello anyway.
+  let helper = identify::is_mcp_helper(&client);
+  let reported = client.parent.clone();
+  if helper && identify::LAUNCHER_REQUIRED {
+    client.parent = None;
+  }
+  // The launcher last identified, by process id: a second hello names the same one.
+  let mut launched: Option<(u32, Option<Box<Client>>)> = None;
 
   let id = uuid::Uuid::new_v4().to_string();
   let _announced = Announced { shared: shared.clone(), id: id.clone() };
@@ -565,7 +582,7 @@ where
         continue;
       }
       let allowed = bucket.take(Instant::now());
-      let (request_id, method, params) = match rpc::parse(&line) {
+      let (request_id, method, mut params) = match rpc::parse(&line) {
         Message::Request { id, method, params } => (id, method, params),
         Message::Invalid { id, error } => {
           if allowed {
@@ -584,6 +601,25 @@ where
       if calls.len() >= shared.limits.max_pending {
         out.send(rpc::error_line(&request_id, &WireError::from_reason("busy", "Too many requests waiting", None))).await;
         continue;
+      }
+
+      if method == "girovo.hello" {
+        let launcher = take_launcher(&mut params);
+        if helper {
+          client.parent = match identify::parent_from(client.pid, reported.as_ref().map(|p| p.pid), launcher, identify::LAUNCHER_REQUIRED) {
+            ParentFrom::Parent => reported.clone(),
+            ParentFrom::Nobody => None,
+            ParentFrom::Launcher(pid) => match &launched {
+              Some((known, who)) if *known == pid => who.clone(),
+              _ => {
+                let helper_pid = client.pid;
+                let who = tokio::task::spawn_blocking(move || identify::launcher(pid, helper_pid)).await.ok().flatten().map(Box::new);
+                launched = Some((pid, who.clone()));
+                who
+              }
+            },
+          };
+        }
       }
 
       let limit = if LONG_CALLS.contains(&method.as_str()) { shared.limits.long_call_timeout } else { shared.limits.call_timeout };
