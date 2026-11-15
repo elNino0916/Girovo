@@ -1,0 +1,1 @@
+Konten lassen sich ausblenden, mit dem Auge unter Konten anordnen; sie zählen dann nicht zum Gesamtsaldo. Nach unten ziehen in der Übersicht lädt alle Salden neu. Gemeinschaftskonten zeigen den richtigen Namen. Entfernen für eine Bank liegt jetzt in einem Menü. Die Anmeldung auf einem gemerkten Telefon widerspricht sich nicht mehr.
