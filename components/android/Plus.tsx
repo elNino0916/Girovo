@@ -4,7 +4,7 @@
 // row and the Plus screen. The Google Play build only — elsewhere the state is
 // 'free', the row is not there and nothing asks for Plus.
 //
-// The screen says what Plus brings (several banks, the month-end forecast,
+// The screen says what Plus brings (the month-end forecast, Aufteilen, Sparziele,
 // "Frag deine Umsätze" where the phone can ask, the gold icon), Play's own prices with the trial Play offers this user, and
 // once subscribed the thanks, the icon and Play's subscription page. A phone
 // without Google Play billing is pointed to the GitHub version, which has
@@ -16,7 +16,7 @@ import type { ReactNode } from 'react';
 import { iconChoosable, type PlusOffer, type PlusPlan } from '@/lib/plus';
 import { useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
-import { BuildingIcon, ChartIcon, FlagIcon, AiMarkIcon, SplitIcon } from '../icons';
+import { ChartIcon, FlagIcon, AiMarkIcon, SplitIcon } from '../icons';
 import { useAskable } from '../insights/Ask';
 import { ActionItem } from '../settings/rows';
 import { AiWordmark, BrandPlate } from '../shell/BrandMark';
@@ -218,7 +218,6 @@ export function PlusScreen() {
           <>
             <p className="text-center text-[15px] leading-snug text-ink">{w.lead}</p>
             <ul className="flex flex-col gap-3">
-              <Perk icon={<BuildingIcon size={18} />} title={w.perks.banks.title} text={w.perks.banks.text} />
               <Perk icon={<ChartIcon size={18} />} title={w.perks.forecast.title} text={w.perks.forecast.text} />
               <Perk icon={<SplitIcon size={18} />} title={w.perks.split.title} text={w.perks.split.text} />
               <Perk icon={<FlagIcon size={18} />} title={w.perks.goals.title} text={w.perks.goals.text} />

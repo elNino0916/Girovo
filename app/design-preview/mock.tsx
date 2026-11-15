@@ -79,7 +79,7 @@ import { withNote } from '@/lib/notes';
 import {
   counterpartyKey, setCustomCategories, txKey, type CategoryId, type CategoryResult, type CustomCategoryId,
 } from '@/lib/categories';
-import { bankAllowed, type PlusStatus } from '@/lib/plus';
+import type { PlusStatus } from '@/lib/plus';
 import {
   categoryValidator, cleanCategoryName, CUSTOM_LIMITS, nameKey, newCustomId, sanitizeSplit, withoutCategory, type SplitPart,
 } from '@/lib/splits';
@@ -156,6 +156,8 @@ export type MockOptions = {
   depot?: boolean;
   /** The bank lists a US dollar account too (data.ts MOCK_USD), its balance read: a figure no euro sum counts. */
   usdAccount?: boolean;
+  /** The Girokonto holds bookings shaped as Targobank's camt sends them (data.ts targobankBookings). */
+  targobank?: boolean;
   /** A receipt is attached to a booking from the start (the drawer's "Belege"), and two of the bank's statements are kept. */
   docs?: boolean;
   // First-frame navigation. Part of the initial state rather than set from an
@@ -510,7 +512,7 @@ function mockList(
   acct: string,
   span: DateRange,
   kept: HistoryData | null,
-  o: { broken?: boolean; empty?: boolean } = {},
+  o: { broken?: boolean; empty?: boolean; targobank?: boolean } = {},
 ): { fetchFrom: string | null; statement: MockStatement | null; txs: SerializedTransaction[]; info: Omit<StatementInfo, 'loadedAt'> } {
   const plan = planFetch(span, kept?.accounts[acct]?.coverage, data.today);
   const fetchFrom = plan ? plan.from : null;
@@ -576,7 +578,7 @@ function initialState(data: MockData, preset: MockPreset, opts: MockOptions) {
 
   const load = (acct: string, r: DateRange) => {
     const span = spanOf(acct, r);
-    const l = mockList(data, acct, span, kept, { broken: broken && acct === ACCT.giro, empty });
+    const l = mockList(data, acct, span, kept, { broken: broken && acct === ACCT.giro, empty, targobank: opts.targobank });
     txCache[acct] = { key: `${span.from}|${span.to}`, txs: l.txs };
     statementInfo[acct] = { ...l.info, loadedAt: now - 60_000 };
     if (l.statement?.balance) balances[acct] = l.statement.balance;
@@ -829,8 +831,6 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
       : [],
     icon: 'standard',
   }));
-  const plusRef = useRef(plus);
-  plusRef.current = plus;
   const [plusOpen, setPlusOpen] = useState(opening === 'plus');
   // The desktop's "Weitere Banken mit anmelden": a switch and its dialog, nothing kept.
   const [linkedUnlock, setLinkedUnlockState] = useState<boolean | null>(
@@ -1216,7 +1216,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     };
     const apply = () => {
       const now = keptOf();
-      const l = mockList(data, acct, span, now, { broken: preset === 'unverified' && acct === ACCT.giro, empty: preset === 'empty' });
+      const l = mockList(data, acct, span, now, { broken: preset === 'unverified' && acct === ACCT.giro, empty: preset === 'empty', targobank: opts.targobank });
       const s = l.statement;
       // As the provider: a balance up to today, never one older than the known one.
       if (s?.balance && span.to >= today) {
@@ -2108,10 +2108,6 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
 
   const openAddBank = useCallback((from?: { bank: ChosenBank; userId?: string }) => {
     if (addBankRef.current) return;
-    if (!bankAllowed(plusRef.current.state, false)) {
-      setPlusOpen(true);
-      return;
-    }
     clearTransients();
     setAddBank({
       step: from ? 'credentials' : 'bank',

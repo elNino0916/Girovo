@@ -10,6 +10,7 @@ import type { SerializedTransaction } from './fints-types';
 import { cleanMerchantName } from './card-purpose.ts';
 import { bankDay } from './format.ts';
 import { msgs } from './i18n/index.ts';
+import { filledFromPurpose } from './purpose-party.ts';
 
 /** The app's own categories: translated, with a glyph each, known to the model and the keywords. */
 export type BuiltinCategoryId =
@@ -353,12 +354,17 @@ export function counterpartyRule<T>(
 export type KeyedBooking = Pick<
   SerializedTransaction,
   'bankDay' | 'entryDate' | 'valueDate' | 'amount' | 'remoteIban' | 'remoteName' | 'e2eReference' | 'bankReference'
->;
+> & { fromPurpose?: string };
 
 /** A booking's key on `day`: the amount, the counterparty and the strongest reference after it. */
 function keyOn(day: string, tx: KeyedBooking): string {
   const ref = (tx.e2eReference && tx.e2eReference !== 'NOTPROVIDED' ? tx.e2eReference : '') || tx.bankReference || '';
-  const who = String(tx.remoteIban || '').replace(/\s+/g, '') || squash(tx.remoteName);
+  // A name or IBAN read out of the purpose lines (lib/purpose-party.ts) was
+  // not part of the key, which the bank's empty field made: what the user
+  // filed for the booking before stays with it.
+  const iban = filledFromPurpose(tx, 'remoteIban') ? '' : tx.remoteIban;
+  const name = filledFromPurpose(tx, 'remoteName') ? '' : tx.remoteName;
+  const who = String(iban || '').replace(/\s+/g, '') || squash(name);
   return `${day}|${Number(tx.amount).toFixed(2)}|${who}|${ref}`;
 }
 

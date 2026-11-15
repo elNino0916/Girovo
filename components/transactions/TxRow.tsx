@@ -5,6 +5,7 @@ import { categoryLabel, txKey, type CategoryId, type CategoryPart } from '@/lib/
 import type { Merchant, SerializedTransaction } from '@/lib/fints-types';
 import { useT } from '@/lib/i18n/react';
 import { maskAmounts } from '@/lib/mask';
+import { reservedAmount } from '@/lib/purpose-party';
 import { BankText } from '../BankText';
 import { CategoryIcon, NoteIcon, PaperclipIcon, PieIcon } from '../icons';
 import { Money, usePrivacy } from '../Money';
@@ -57,6 +58,8 @@ export const TxRow = memo(function TxRow({
   const frame = useDesktopFrame();
   const { name, summary, bankName } = txText(tx);
   const credit = tx.amount > 0;
+  // A card reservation booked as 0,00 shows the sum it holds, muted: not taken yet.
+  const reserved = reservedAmount(tx);
   // A booked row leaves its Wertstellung to its details; a Buchungstag still
   // ahead it keeps — that one changes what the row means.
   const fullNote = rowNote(tx, pending);
@@ -128,8 +131,10 @@ export const TxRow = memo(function TxRow({
           </span>
         )}
         <span className="w-[112px] shrink-0 text-right">
-          <span className="sr-only">{credit ? t.common.booking.credit : t.common.booking.debit}</span>
-          <Money value={tx.amount} currency={tx.currency} signed tone="credit" className="text-[14px] leading-5 font-medium" />
+          <span className="sr-only">{reserved ? t.transactions.card.reserved : credit ? t.common.booking.credit : t.common.booking.debit}</span>
+          {reserved
+            ? <Money value={reserved.amount} currency={reserved.currency} signed tone="plain" className="text-[14px] leading-5 font-medium text-ink-3" />
+            : <Money value={tx.amount} currency={tx.currency} signed tone="credit" className="text-[14px] leading-5 font-medium" />}
         </span>
       </button>
     );
@@ -211,13 +216,13 @@ export const TxRow = memo(function TxRow({
         </span>
       )}
       <span className="shrink-0 pl-1 text-right">
-        <span className="sr-only">{credit ? t.common.booking.credit : t.common.booking.debit}</span>
+        <span className="sr-only">{reserved ? t.transactions.card.reserved : credit ? t.common.booking.credit : t.common.booking.debit}</span>
         <Money
-          value={tx.amount}
-          currency={tx.currency}
+          value={reserved ? reserved.amount : tx.amount}
+          currency={reserved ? reserved.currency : tx.currency}
           signed
-          tone="credit"
-          className="block text-[15px] leading-snug font-semibold"
+          tone={reserved ? 'plain' : 'credit'}
+          className={cx('block text-[15px] leading-snug font-semibold', reserved && 'text-ink-3')}
         />
         {note && (
           <span title={note.title} className="tnum mt-0.5 block text-[12.5px] leading-snug text-ink-3">

@@ -12,6 +12,7 @@ import { intlLocale, msgs, type Messages } from '@/lib/i18n';
 import { useT } from '@/lib/i18n/react';
 import { AMOUNT_MASK } from '@/lib/mask';
 import { splitAllowed } from '@/lib/plus';
+import { reservedAmount } from '@/lib/purpose-party';
 import { BankText } from '../BankText';
 import { useFints } from '../FintsProvider';
 import { BrandPlate } from '../shell/BrandMark';
@@ -85,6 +86,7 @@ export function TxDetail({
   const text = txText(tx);
   const credit = tx.amount > 0;
   const tags = statusTags(tx, pending);
+  const reserved = reservedAmount(tx);
   // Labels in words: built again when the language changes.
   const refs = useMemo(() => referenceRows(tx), [tx, tr]);
   // The values of the SEPA tags that are amounts by definition (OAMT, COAM).
@@ -292,8 +294,11 @@ export function TxDetail({
         </div>
       </div>
       <p data-figure className="mt-4">
-        <span className="sr-only">{credit ? tr.common.booking.credit : tr.common.booking.debit}</span>
-        <Money value={tx.amount} currency={tx.currency} signed tone="credit" split className="text-[40px] leading-[48px] font-medium" centsClassName="text-[0.58em]" />
+        <span className="sr-only">{reserved ? tr.transactions.card.reserved : credit ? tr.common.booking.credit : tr.common.booking.debit}</span>
+        {/* A card reservation booked as 0,00: the sum it holds, muted; its tag says "Reserviert". */}
+        {reserved
+          ? <Money value={reserved.amount} currency={reserved.currency} signed tone="plain" split className="text-[40px] leading-[48px] font-medium text-ink-3" centsClassName="text-[0.58em]" />
+          : <Money value={tx.amount} currency={tx.currency} signed tone="credit" split className="text-[40px] leading-[48px] font-medium" centsClassName="text-[0.58em]" />}
       </p>
         {tags.length > 0 && (
           <ul className="mt-2 flex flex-wrap gap-1.5" aria-label={words.status}>

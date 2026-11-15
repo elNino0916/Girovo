@@ -25,6 +25,7 @@ import {
 import { aiNameKey } from '@/lib/ai-names-store';
 import { activeLocale, intlLocale, msgs, type Locale } from '@/lib/i18n';
 import { facilitatorOf, getMerchantKey, isFacilitatorName } from '@/lib/merchant-match';
+import { isCardRecordLine, purposePlace, reservedAmount } from '@/lib/purpose-party';
 import { condenseRefs, parsePurpose, purposeLines, type ParsedPurpose } from '@/lib/sepa-purpose';
 
 const cents = (v: number) => Math.round(Number(v) * 100);
@@ -234,14 +235,21 @@ export function txText(tx: SerializedTransaction): TxText {
   // A girocard terminal's record starts with its own descriptor ("REWE SAGT
   // DANKE//MUSTERSTADT/DE"): the shop again, and where it stood.
   const echo = card?.rest ? parseCardAcceptor(card.rest) : null;
-  // Where the terminal stood, from the shop's descriptor ("…/Kln/DE" → Köln).
-  const acceptor = parseCardAcceptor(rawCounterparty(tx)) ?? echo;
+  // Where the terminal stood, from the shop's descriptor ("…/Kln/DE" → Köln),
+  // or from the purpose lines a payee was read out of (lib/purpose-party.ts).
+  const lined = purposePlace(tx);
+  const acceptor = parseCardAcceptor(rawCounterparty(tx)) ?? echo
+    ?? (lined ? { street: null, city: lined.city, country: lined.country } : null);
   const place = acceptor && (acceptor.street || acceptor.city || acceptor.country)
     ? { street: acceptor.street, city: acceptor.city, country: acceptor.country }
     : null;
   const where = placeLabel(place);
   const atm = kind === 'bargeld' ? ATM_RECORD.exec(parsed.text) : null;
-  let summary = card
+  const reserved = reservedAmount(tx);
+  let summary = reserved
+    // "Reserviert · Urbar": the sum is the amount's, shown where the amount is.
+    ? [words.card.reserved, where].filter(Boolean).join(' · ')
+    : card
     ? [
         cardLabel(card, tx.amount > 0),
         where,
@@ -258,9 +266,11 @@ export function txText(tx: SerializedTransaction): TxText {
   // A card payment's "purpose" is the terminal's own record — the shop name
   // again, a city, a timestamp, a card sequence number. On a scannable list
   // the words "Kartenzahlung" say more; the record stays in the details.
-  if (summary && kind === 'karte' && !card) {
+  if (summary && kind === 'karte' && !card && !reserved) {
     const head = foldText(rawName).split(' ')[0];
     if (!head || foldText(summary).startsWith(head)) summary = '';
+    // A terminal's record in lines ("/Urbar", "// 74003818", "KARTENNUMMER …").
+    else if (tx.fromPurpose && purposeLines(parsed.text).every(isCardRecordLine)) summary = '';
   }
   if (!summary && rawName) summary = bookingText || (kind === 'karte' ? words.card.payment : '');
   // The town is worth its place on the line even when the purpose said
@@ -503,6 +513,7 @@ export function statusTags(tx: SerializedTransaction, pending: boolean): StatusT
   const tags: StatusTag[] = [];
   // A Vormerkposten needs no tag: the drawer's title says "Vorgemerkter Umsatz".
   if (!pending && isFutureDate(tx.entryDate)) tags.push({ label: words.notBooked, tone: 'neutral', icon: 'clock' });
+  if (reservedAmount(tx)) tags.push({ label: words.card.reserved, tone: 'pending', icon: 'clock' });
   if (kind !== 'sonstige') {
     const label = words.kinds[kind];
     // The bank's own booking text is already shown beside the tags; a tag

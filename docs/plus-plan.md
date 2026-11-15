@@ -11,8 +11,8 @@ the desktop app keep everything free of charge.
   - yearly, 9,99 € (base plan `yearly`)
   - a 3-day free trial on both (Play's shortest; one per Google account)
 - What it unlocks:
-  1. **More than one bank.** Without Plus only the bank the app opens with
-     (the first, main login) works.
+  1. ~~More than one bank.~~ Free since 6.3 (owner, 2026-11-15): every bank
+     logs in without Plus.
   2. **The month-end forecast** ("Kontostand Ende Oktober").
   3. **"Frag deine Umsätze"** (Gemini Nano questions in the Umsatzanalyse).
      A phone without Nano v4 still says so first — Plus can't fix that — and
@@ -23,10 +23,7 @@ the desktop app keep everything free of charge.
 
 ## Without Plus
 
-- **Extra banks** stay linked with their accounts and kept data, nothing is
-  deleted. They show "Plus nötig"; logging in to one opens the Plus screen.
-  "Weitere Bank anmelden" opens the Plus screen too. When Plus ends, the same
-  happens — and returns to normal the moment it is active again.
+- **Extra banks**: free since 6.3, nothing about them asks for Plus.
 - **Forecast**: the card stays in place, its figure hidden, with
   "Mit Girovo Plus" leading to the Plus screen.
 - **Frag deine Umsätze**: the tile stays, with a line on what it does and

@@ -67,7 +67,7 @@ import {
 import { isCardPurpose, parseCardAcceptor } from '@/lib/card-purpose';
 import { merchantFor, setAiNames, setBrandNames } from './transactions/model';
 import { useAiNames } from './insights/ai/useAiNames';
-import { bankAllowed, reminderDue, type PlusStatus } from '@/lib/plus';
+import { reminderDue, type PlusStatus } from '@/lib/plus';
 import { reviewMoment } from './android/review';
 import { parsePurpose } from '@/lib/sepa-purpose';
 import {
@@ -316,8 +316,6 @@ function useFintsState() {
   // Girovo Plus (lib/plus.ts): 'free' wherever Plus does not apply — and on
   // Android until the bridge has answered, so nothing flashes locked.
   const [plus, setPlus] = useState<PlusStatus>({ state: 'free', offers: [], icon: 'standard' });
-  const plusRef = useRef(plus);
-  plusRef.current = plus;
   const [plusOpen, setPlusOpen] = useState(false);
   const [sharePrefill, setSharePrefill] = useState<SharePrefill | null>(null);
   const [inboxOpen, setInboxOpenState] = useState(false);
@@ -3955,15 +3953,11 @@ function useFintsState() {
   /**
    * `from`: a bank to start with — a remembered one, or one logged out — and
    * its login name, and (Android) its PIN when the first login's fingerprint
-   * opened it. Every bank beside the one the app opens with needs Girovo
-   * Plus in the Play build: without it, the Plus screen opens instead.
+   * opened it. Free for every bank since 6.3 (it was Girovo Plus in the
+   * Play build before).
    */
   const openAddBank = useCallback((from?: { bank: ChosenBank; userId?: string; pin?: string }) => {
     if (!sessionRef.current || addBankRef.current) return;
-    if (!bankAllowed(plusRef.current.state, false)) {
-      setPlusOpen(true);
-      return;
-    }
     clearTransients();
     setAddBankBoth({
       step: from ? 'credentials' : 'bank',
@@ -5563,14 +5557,9 @@ function useFintsState() {
   // one after another, each in the add sheet with its PIN filled in and the
   // approval as its bank asks — once the dashboard is up, nothing else is
   // under way and the vault says which banks it remembers. Only those: a
-  // bank removed since is not asked. Without Girovo Plus none are, and the
-  // Plus screen does not open for them either.
+  // bank removed since is not asked.
   useEffect(() => {
     if (view !== 'dashboard' || busy || addBankKept || vaultStatus !== 'ready' || !openedLinkedRef.current.length) return;
-    if (!bankAllowed(plus.state, false)) {
-      openedLinkedRef.current = [];
-      return;
-    }
     // A moment of quiet first: the first bank's reads come one after another,
     // and a login started between two of them would find the bank busy.
     const timer = setTimeout(() => {
@@ -5584,7 +5573,7 @@ function useFintsState() {
       }
     }, 1500);
     return () => clearTimeout(timer);
-  }, [view, busy, addBankKept, vaultStatus, banks, plus.state, openAddBank, openedLinkedTick]);
+  }, [view, busy, addBankKept, vaultStatus, banks, openAddBank, openedLinkedTick]);
 
   // Girovo 7, the profile open: every bank it knows shows in the list, the
   // ones not logged in as banks to log in to (and the chain above finds them).

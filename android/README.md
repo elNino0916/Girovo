@@ -344,8 +344,8 @@ Before the first upload:
 #### Girovo Plus
 
 The Play build's supporter subscription (docs/plus-plan.md, `lib/plus.ts`):
-more than one bank and the month-end forecast, and a gold app icon on
-request. The GitHub build's `PlusPlugin` (src/github) answers "free".
+the month-end forecast, Frag deine Umsätze, Aufteilen and Sparziele, and a
+gold app icon on request (several banks are free since 6.3). The GitHub build's `PlusPlugin` (src/github) answers "free".
 
 - **Play Console:** a subscription `girovo_plus` with the base plans
   `monthly` (0,99 €) and `yearly` (9,99 €), each with a 3-day free-trial
