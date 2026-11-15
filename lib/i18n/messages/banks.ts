@@ -52,6 +52,8 @@ export const de = {
   /** Opens the confirmation; the bank's name for screen readers. */
   remove: 'Entfernen …',
   removeNamed: (bank: string) => `${bank} entfernen …`,
+  /** The ⋮ on a bank's row in the Sitzung panel, which holds Entfernen. */
+  moreFor: (bank: string) => `Mehr zu ${bank}`,
   removeDialog: {
     title: 'Bank entfernen?',
     description: (bank: string) => `${bank} und ihre Konten verschwinden aus deiner Übersicht.`,
@@ -98,6 +100,7 @@ export const en: typeof de = {
   firstPinRefused: (bank) => `${bank} didn’t accept your PIN. Log out and back in with your current PIN.`,
   remove: 'Remove…',
   removeNamed: (bank) => `Remove ${bank}…`,
+  moreFor: (bank) => `More for ${bank}`,
   removeDialog: {
     title: 'Remove bank?',
     description: (bank) => `${bank} and its accounts leave your overview.`,

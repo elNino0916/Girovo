@@ -273,7 +273,7 @@ function ClassicDashboard() {
       </div>
 
       <BottomBar actions={actions} />
-      {IS_ANDROID && <PullToRefresh scrollRef={scrollRef} />}
+      {IS_ANDROID && <PullToRefresh scrollRef={scrollRef} overview={allAccounts} />}
     </div>
   );
 }

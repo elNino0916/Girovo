@@ -3,7 +3,8 @@
 // Pull to refresh, in the Android app: pulling the page down past its top
 // fetches the account's Umsätze and balance again — what the Umsätze tile's
 // refresh button does (refreshAccount), so it may ask for an approval as that
-// one may. M3E's contained loading indicator comes down from under the top
+// one may. On the Übersicht of every account it reads every balance again
+// (loadAllBalances with `again`), the ones already known today too. M3E's contained loading indicator comes down from under the top
 // bar with the finger, its shape turning and growing until the pull is far
 // enough (a haptic tick says so), and morphs from shape to shape while the
 // fetch runs.
@@ -39,29 +40,41 @@ function onPage(target: EventTarget | null, root: HTMLElement): boolean {
   return true;
 }
 
-export function PullToRefresh({ scrollRef }: { scrollRef: RefObject<HTMLElement | null> }) {
-  const { activeAccount, refreshAccount, busy } = useFints();
+export function PullToRefresh({ scrollRef, overview = false }: {
+  scrollRef: RefObject<HTMLElement | null>;
+  /** The Übersicht of every account is on screen: a pull reads all balances. */
+  overview?: boolean;
+}) {
+  const { activeAccount, refreshAccount, loadAllBalances, loadingAllBalances, accounts, busy } = useFints();
   const t = useT();
   const [pull, setPull] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
 
   // The latest of what the touch handlers need, without re-binding them.
-  const can = !!activeAccount?.canStatements && !busy;
+  const can = !busy && (overview ? accounts.length > 0 : !!activeAccount?.canStatements);
   const live = useRef({ can, refresh: () => {} });
   live.current = {
     can,
     refresh: () => {
+      if (overview) {
+        setRefreshing(true);
+        loadAllBalances(undefined, { again: true });
+        return;
+      }
       if (!activeAccount) return;
       setRefreshing(true);
       refreshAccount(activeAccount);
     },
   };
 
-  // The indicator stays until the fetch it started has run.
+  // The indicator stays until the fetch it started has run: one account's
+  // read (busy), or the whole round of balances, which is busy and idle in
+  // turn between its accounts.
+  const working = overview ? loadingAllBalances : busy;
   const sawBusy = useRef(false);
   useEffect(() => {
     if (!refreshing) return;
-    if (busy) {
+    if (working) {
       sawBusy.current = true;
       return;
     }
@@ -73,7 +86,7 @@ export function PullToRefresh({ scrollRef }: { scrollRef: RefObject<HTMLElement 
     // Nothing started (already up to date in flight elsewhere): let it go.
     const timer = setTimeout(() => setRefreshing(false), 1200);
     return () => clearTimeout(timer);
-  }, [refreshing, busy]);
+  }, [refreshing, working]);
 
   useEffect(() => {
     const root = scrollRef.current;

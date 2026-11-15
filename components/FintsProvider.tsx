@@ -2071,22 +2071,32 @@ function useFintsState() {
    * own — each read can cost an approval.
    */
   /** Answers whether it started (false: a read was running, or nothing was left to read). */
-  const loadAllBalances = useCallback((only?: readonly string[]): boolean => {
+  const loadAllBalances = useCallback((only?: readonly string[], opts: { again?: boolean } = {}): boolean => {
     if (busyRef.current) {
       if (!only) toast(msgs().provider.busy, 'info');
       return false;
     }
     const sid = sessionRef.current;
+    // `again`: every balance read anew, the ones this session knows too
+    // (pull to refresh on the Übersicht); otherwise only what is missing.
+    const known = opts.again ? {} : balancesRef.current;
     // A linked bank that is logged out has nobody to ask; its list says so.
     // `only`: these accounts alone ("Salden beim Anmelden abrufen" for the
     // ones that just joined, never again for one whose approval was refused).
-    const reachable = accountsRef.current.filter((a) => sessionFor(a.accountNumber) && (!only || only.includes(a.accountNumber)));
+    // On the phone a hidden account (the eye in Konten anordnen) counts
+    // nowhere, so its balance is not asked for. Never all of them: the
+    // overview shows every account then. The desktop's layers are a view
+    // only; the sidebar shows every account's figure, so all are read.
+    let hidden = new Set(IS_ANDROID ? vaultRef.current?.accountsHidden ?? [] : []);
+    if (hidden.size && accountsRef.current.every((a) => hidden.has(a.accountNumber))) hidden = new Set();
+    const reachable = accountsRef.current.filter((a) => sessionFor(a.accountNumber) && !hidden.has(a.accountNumber)
+      && (!only || only.includes(a.accountNumber)));
     // And every Depot whose holdings were not read yet: on the overview its
     // value stands among the balances and counts in the Gesamtsaldo.
     const queue: Array<{ account: SerializedAccount; via: 'balance' | 'statement' | 'portfolio' }> = [
-      ...balanceQueue(reachable, balancesRef.current, resolveRange().to >= isoDate(new Date())),
+      ...balanceQueue(reachable, known, resolveRange().to >= isoDate(new Date())),
       ...reachable
-        .filter((a) => isDepot(a) && !portfoliosRef.current[a.accountNumber])
+        .filter((a) => isDepot(a) && (opts.again || !portfoliosRef.current[a.accountNumber]))
         .map((account) => ({ account, via: 'portfolio' as const })),
     ];
     if (!queue.length) {
@@ -2119,7 +2129,7 @@ function useFintsState() {
       };
       if (step.via === 'balance') void loadBalance(account, { quiet: true, onSettled });
       else if (step.via === 'portfolio') void loadPortfolio(account, { quiet: true, onSettled });
-      else void loadTransactions(account, undefined, undefined, { quiet: true, onSettled });
+      else void loadTransactions(account, undefined, undefined, { quiet: true, onSettled, force: opts.again });
     };
     next();
     return true;
@@ -4990,10 +5000,18 @@ function useFintsState() {
       return kept === had ? v : { ...v, keptBalances: kept };
     });
   }, [keepingBalances, balances, balanceAt, portfolios, updateVault]);
+  // On the phone a hidden account is out of the Gesamtsaldo for good, so out
+  // of its daily figure and the widget's too. The desktop's layers are a view
+  // that changes by the minute: its daily figure keeps every account.
+  const counted = useMemo(() => {
+    const off = IS_ANDROID ? new Set(accountsHidden ?? []) : null;
+    const left = off?.size ? accounts.filter((a) => !off.has(a.accountNumber)) : accounts;
+    return left.length ? left : accounts;
+  }, [accounts, accountsHidden]);
   useEffect(() => {
-    if (!keepingBalances || !accounts.length) return;
+    if (!keepingBalances || !counted.length) return;
     const absent = banks.filter((b) => b.state === 'remembered').length;
-    const f = overviewFigures(accounts, (a) => liveValue(a, balances[a.accountNumber], portfolios[a.accountNumber]), absent);
+    const f = overviewFigures(counted, (a) => liveValue(a, balances[a.accountNumber], portfolios[a.accountNumber]), absent);
     // A day's figure is a whole one: not while a Depot is still to be read.
     if (f.total == null || f.excluded.some((e) => e.reason === 'unread')) return;
     const entry: NetWorthDay = { day: isoDate(new Date()), total: f.total, assets: f.assets ?? 0, liabilities: f.liabilities ?? 0 };
@@ -5002,7 +5020,7 @@ function useFintsState() {
       const days = recordNetWorth(had, entry);
       return days === had ? v : { ...v, netWorth: days };
     });
-  }, [keepingBalances, accounts, banks, balances, portfolios, updateVault]);
+  }, [keepingBalances, counted, banks, balances, portfolios, updateVault]);
 
   // Android: the home screen widget (BalanceWidget.java) shows the Gesamtsaldo
   // the overview shows, with since when — handed over whenever a whole figure
@@ -5018,7 +5036,7 @@ function useFintsState() {
       return;
     }
     const absent = banks.filter((b) => b.state === 'remembered').length;
-    const f = overviewFigures(accounts, (a) => liveValue(a, balances[a.accountNumber], portfolios[a.accountNumber]), absent);
+    const f = overviewFigures(counted, (a) => liveValue(a, balances[a.accountNumber], portfolios[a.accountNumber]), absent);
     if (f.total == null || f.excluded.some((e) => e.reason === 'unread')) return;
     // The total is in cents (lib/account-overview.ts).
     const amount = fmtMoney(f.total / 100);
@@ -5033,7 +5051,7 @@ function useFintsState() {
       if (widgetClearedRef.current || keepsNothing(facts)) return;
       void phone.widget.update(amount, stamp, said.title);
     });
-  }, [view, accounts, banks, balances, balanceAt, portfolios, vault?.keepBalances, vaultStatus]);
+  }, [view, accounts, counted, banks, balances, balanceAt, portfolios, vault?.keepBalances, vaultStatus]);
 
   // "Neue Umsätze melden": whether the shell here can keep the PINs, and
   // whether the checks are on — asked once the Übersicht is up.
