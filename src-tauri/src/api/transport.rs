@@ -4,8 +4,8 @@
 // security descriptor (this user and SYSTEM, remote clients refused), the
 // socket by its mode 0600 and a check of the peer's uid.
 //
-// Each accepted connection comes with the process id the operating system
-// names for its other end; identify.rs takes it from there.
+// Each accepted connection comes with the process the operating system
+// names for its other end (a Peer); identify.rs takes it from there.
 
 use std::io;
 
@@ -14,6 +14,24 @@ pub use win::*;
 
 #[cfg(unix)]
 pub use unix::*;
+
+/// The process at a connection's other end, taken hold of the moment it
+/// connects. Process ids are reused: a client that ends right after
+/// connecting leaves its id to the next process started, which must not be
+/// identified in its place. On Windows an open handle keeps the id from being
+/// given out again; on Linux the start time is compared after identifying.
+pub struct Peer {
+  pub pid: u32,
+  hold: Hold,
+}
+
+impl Peer {
+  /// Still the process that connected (Linux: the same start time; Windows:
+  /// the held handle has kept its id from being reused).
+  pub fn same_process(&self) -> bool {
+    self.hold.same_process(self.pid)
+  }
+}
 
 #[cfg(windows)]
 mod win {
@@ -26,7 +44,7 @@ mod win {
   use windows::Win32::Security::Authorization::{ConvertSidToStringSidW, ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1};
   use windows::Win32::Security::{GetTokenInformation, PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES, TOKEN_QUERY, TOKEN_USER, TokenUser};
   use windows::Win32::System::Pipes::GetNamedPipeClientProcessId;
-  use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+  use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcess, OpenProcessToken, PROCESS_QUERY_LIMITED_INFORMATION};
   use windows::core::{PCWSTR, PWSTR};
 
   pub type Stream = NamedPipeServer;
@@ -74,7 +92,11 @@ mod win {
     /// stay out too: without a label of its own, the pipe gets the default
     /// medium label, which they can't write up to.
     fn current_user() -> io::Result<Descriptor> {
-      let sddl = format!("D:P(A;;GA;;;{})(A;;GA;;;SY)", user_sid()?);
+      let sid = user_sid()?;
+      // The owner is this user even when Girovo runs elevated (whose default
+      // owner is the Administrators group): Girovo MCP checks it when it
+      // can't read an elevated server's token.
+      let sddl = format!("O:{sid}D:P(A;;GA;;;{sid})(A;;GA;;;SY)");
       let wide: Vec<u16> = sddl.encode_utf16().chain(Some(0)).collect();
       let mut sd = PSECURITY_DESCRIPTOR::default();
       unsafe {
@@ -100,16 +122,16 @@ mod win {
       Ok(Listener { name: name.to_string(), descriptor, next })
     }
 
-    /// The next client, and its process id as Windows names it.
-    pub async fn accept(&mut self) -> io::Result<(Stream, Option<u32>)> {
+    /// The next client, and its process as Windows names it.
+    pub async fn accept(&mut self) -> io::Result<(Stream, Option<Peer>)> {
       let connected = self.next.connect().await;
       // A fresh instance waits before the connected one is handed on, so a
       // client arriving meanwhile finds the pipe there.
       let fresh = create(&self.name, &self.descriptor, false)?;
       let instance = std::mem::replace(&mut self.next, fresh);
       connected?;
-      let pid = client_pid(&instance);
-      Ok((instance, pid))
+      let peer = client_pid(&instance).and_then(|pid| Hold::open(pid).map(|hold| Peer { pid, hold }));
+      Ok((instance, peer))
     }
   }
 
@@ -125,6 +147,29 @@ mod win {
         .reject_remote_clients(true)
         .pipe_mode(PipeMode::Byte)
         .create_with_security_attributes_raw(name, &mut attributes as *mut SECURITY_ATTRIBUTES as *mut c_void)
+    }
+  }
+
+  /// An open handle to the client's process: while it is open, Windows gives
+  /// its id to no other process.
+  pub(super) struct Hold(HANDLE);
+  unsafe impl Send for Hold {}
+  unsafe impl Sync for Hold {}
+
+  impl Hold {
+    fn open(pid: u32) -> Option<Hold> {
+      unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid).ok().map(Hold) }
+    }
+    pub(super) fn same_process(&self, _pid: u32) -> bool {
+      true
+    }
+  }
+
+  impl Drop for Hold {
+    fn drop(&mut self) {
+      unsafe {
+        let _ = CloseHandle(self.0);
+      }
     }
   }
 
@@ -184,17 +229,34 @@ mod unix {
 
     /// The next client, and its process id; none for another user's process
     /// (root gets past the file's mode), which is then turned away.
-    pub async fn accept(&mut self) -> io::Result<(Stream, Option<u32>)> {
+    pub async fn accept(&mut self) -> io::Result<(Stream, Option<Peer>)> {
       let (stream, _) = self.inner.accept().await?;
-      let pid = stream
+      let peer = stream
         .peer_cred()
         .ok()
         .filter(|cred| cred.uid() == unsafe { libc::geteuid() })
         .and_then(|cred| cred.pid())
         .and_then(|pid| u32::try_from(pid).ok())
-        .filter(|&pid| pid != 0);
-      Ok((stream, pid))
+        .filter(|&pid| pid != 0)
+        .and_then(|pid| Some(Peer { pid, hold: Hold(started(pid)?) }));
+      Ok((stream, peer))
     }
+  }
+
+  /// The process's start time when it connected, in clock ticks since boot.
+  pub(super) struct Hold(u64);
+
+  impl Hold {
+    pub(super) fn same_process(&self, pid: u32) -> bool {
+      started(pid) == Some(self.0)
+    }
+  }
+
+  /// Field 22 of /proc/<pid>/stat, counted from the last ')' since the name may hold any.
+  fn started(pid: u32) -> Option<u64> {
+    let text = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    let rest = &text[text.rfind(')')? + 1..];
+    rest.split_whitespace().nth(19)?.parse().ok()
   }
 
   impl Drop for Listener {

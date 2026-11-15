@@ -27,7 +27,7 @@ const MAX_LINE: u64 = 32 * 1024 * 1024;
 pub enum CallError {
   /// No Girovo to reach: not running, the API off, or the connection gone.
   NotRunning,
-  /// What listens at Girovo's address runs as another user (Windows): not Girovo.
+  /// What listens at Girovo's address runs as another user: not Girovo.
   NotGirovo,
   /// The user said no: in the dialog, by switching the permission off, or earlier in this run.
   NotAllowed { refused_app: bool },
@@ -235,6 +235,11 @@ impl Girovo {
   }
 }
 
+#[cfg(all(test, windows))]
+pub(crate) mod for_tests {
+  pub(crate) use super::os::{connect, current_user_sid, pipe_owner};
+}
+
 #[cfg(windows)]
 mod os {
   use std::ffi::c_void;
@@ -242,8 +247,8 @@ mod os {
   use std::time::{Duration, Instant};
 
   use windows::Win32::Foundation::{CloseHandle, HANDLE, HLOCAL, LocalFree};
-  use windows::Win32::Security::Authorization::ConvertSidToStringSidW;
-  use windows::Win32::Security::{GetTokenInformation, TOKEN_QUERY, TOKEN_USER, TokenUser};
+  use windows::Win32::Security::Authorization::{ConvertSidToStringSidW, GetSecurityInfo, SE_KERNEL_OBJECT};
+  use windows::Win32::Security::{GetTokenInformation, OWNER_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, PSID, TOKEN_QUERY, TOKEN_USER, TokenUser};
   use windows::Win32::System::Pipes::GetNamedPipeServerProcessId;
   use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcess, OpenProcessToken, PROCESS_QUERY_LIMITED_INFORMATION};
   use windows::core::PWSTR;
@@ -302,20 +307,58 @@ mod os {
   /// Another Windows user on this machine could make a pipe of Girovo's name
   /// first and read what the assistant sends. Only a server that runs as
   /// this user is Girovo; otherwise PermissionDenied.
+  ///
+  /// The server's token says who it runs as. An elevated Girovo's token may
+  /// be closed to a helper that isn't; then the pipe's owner decides, which
+  /// Girovo sets to its user (src-tauri/src/api/transport.rs). Nobody can make
+  /// another user the owner of a pipe without the restore privilege, which
+  /// only an administrator has. An owner that is the Administrators group is
+  /// not accepted: any administrator's pipe would have it.
   fn this_users(stream: Stream) -> io::Result<Stream> {
     use std::os::windows::io::AsRawHandle;
     let not_girovo = || io::Error::new(io::ErrorKind::PermissionDenied, "the pipe's server runs as another user");
     let mut pid = 0u32;
     unsafe { GetNamedPipeServerProcessId(HANDLE(stream.as_raw_handle()), &mut pid) }.map_err(io::Error::other)?;
-    let server = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) }.map_err(|_| not_girovo())?;
-    let theirs = unsafe { user_sid_of(server) };
-    unsafe {
-      let _ = CloseHandle(server);
-    }
-    if theirs.map_err(|_| not_girovo())? != user_sid()? {
+    let theirs = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) }.ok().and_then(|server| {
+      let sid = unsafe { user_sid_of(server) };
+      unsafe {
+        let _ = CloseHandle(server);
+      }
+      sid.ok()
+    });
+    let theirs = match theirs {
+      Some(sid) => sid,
+      None => pipe_owner(&stream).map_err(|_| not_girovo())?,
+    };
+    if theirs != user_sid()? {
       return Err(not_girovo());
     }
     Ok(stream)
+  }
+
+  /// The owner of the pipe as an SID string.
+  pub(crate) fn pipe_owner(stream: &Stream) -> io::Result<String> {
+    use std::os::windows::io::AsRawHandle;
+    unsafe {
+      let mut owner = PSID::default();
+      let mut descriptor = PSECURITY_DESCRIPTOR::default();
+      GetSecurityInfo(HANDLE(stream.as_raw_handle()), SE_KERNEL_OBJECT, OWNER_SECURITY_INFORMATION, Some(&mut owner), None, None, None, Some(&mut descriptor))
+        .ok()
+        .map_err(io::Error::other)?;
+      let mut text = PWSTR::null();
+      let converted = ConvertSidToStringSidW(owner, &mut text).map_err(io::Error::other);
+      let sid = converted.and_then(|_| text.to_string().map_err(io::Error::other));
+      if !text.is_null() {
+        let _ = LocalFree(Some(HLOCAL(text.0 as *mut c_void)));
+      }
+      let _ = LocalFree(Some(HLOCAL(descriptor.0)));
+      sid
+    }
+  }
+
+  #[cfg(test)]
+  pub(crate) fn current_user_sid() -> io::Result<String> {
+    user_sid()
   }
 }
 
@@ -341,6 +384,25 @@ mod os {
   }
 
   pub fn connect(address: &str) -> io::Result<Stream> {
-    Stream::connect(address)
+    let stream = Stream::connect(address)?;
+    #[cfg(target_os = "linux")]
+    this_users(&stream)?;
+    Ok(stream)
+  }
+
+  /// The socket's mode keeps other users out, but root, or another user who
+  /// got to Girovo's address first, could listen there. Only a server that runs
+  /// as this user is Girovo; otherwise PermissionDenied.
+  #[cfg(target_os = "linux")]
+  fn this_users(stream: &Stream) -> io::Result<()> {
+    use std::os::unix::io::AsRawFd;
+    let not_girovo = || io::Error::new(io::ErrorKind::PermissionDenied, "the socket's server runs as another user");
+    let mut cred = libc::ucred { pid: 0, uid: 0, gid: 0 };
+    let mut len = std::mem::size_of::<libc::ucred>() as libc::socklen_t;
+    let read = unsafe { libc::getsockopt(stream.as_raw_fd(), libc::SOL_SOCKET, libc::SO_PEERCRED, &mut cred as *mut libc::ucred as *mut libc::c_void, &mut len) };
+    if read != 0 || cred.uid != unsafe { libc::getuid() } {
+      return Err(not_girovo());
+    }
+    Ok(())
   }
 }
