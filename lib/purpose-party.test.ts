@@ -30,7 +30,8 @@ test('a direct debit: the payee, the IBAN and the references move to their field
   assert.equal(t.mandateReference, '5TWJ2252J7QQE');
   assert.equal(t.customerReference, '1053918153621');
   assert.equal(t.purpose, '1053918153621/PP.1405.PP/. ZOEVA GmbH, Ihr Einkauf bei\nZOEVA GmbH');
-  assert.equal(t.fromPurpose, 'purpose customerReference creditorId mandateReference remoteIban remoteName');
+  assert.equal(t.fromPurpose, 'v1 purpose customerReference creditorId mandateReference remoteIban remoteName');
+  assert.equal(t.rawPurpose, LASTSCHRIFT.purpose);
 });
 
 test('a credit: the payer after the booking text', () => {
@@ -50,6 +51,42 @@ test('an instant transfer from online banking: the channel code is not the payee
   assert.equal(t.purpose, 'DEUTSCHLANDTICKET\nAM 03.11.2026 UM 15.48.36\nTBOL');
   const order = withPartyFromPurpose(tb('Dauerauftrag', -900, 'DAUERAUFTRAG', 'TBOL', 'Max Vermieter', 'Miete'));
   assert.equal(order.remoteName, 'Max Vermieter');
+});
+
+test('the channel is never the payee, even when the line after it is no name', () => {
+  for (const next of ['AOK', '1&1 Telecom GmbH', 'WEG Hauptstr. 12345']) {
+    const t = withPartyFromPurpose(tb('Überweisung', -10, 'ÜBERWEISUNG', 'TBOL', next, 'Beitrag 11/2026'));
+    assert.notEqual(t.remoteName, 'TBOL', next);
+    assert.match(t.purpose, /TBOL$/, next);
+  }
+});
+
+test('a payee that starts like a purpose keeps its name; a purpose line is no name', () => {
+  for (const name of ['Kunden-Service GmbH', 'Versicherung AG', 'RG Immobilien GmbH', 'Order Express GmbH', 'Einkaufszentrum Nord']) {
+    assert.equal(withPartyFromPurpose(tb('Gutschrift', 10, 'GUTSCHRIFT', name, 'Danke')).remoteName, name);
+  }
+  for (const line of ['Ratenzahlung 3/12', 'Rechnung 4711 vom', 'Kundennr. 12', 'RG 2026', 'Vertrag 1234', 'Ref. 4711', 'REF 1234',
+    'Mitglied 4711', 'Order 1234', 'Police 1234', 'Kunden 1234', 'Versicherung 1234', 'RG.-NR. 123']) {
+    assert.equal(withPartyFromPurpose(tb('Gutschrift', 10, 'GUTSCHRIFT', line, 'Danke')).remoteName, '', line);
+  }
+  // A loan paid out names its payer; cash names no one.
+  assert.equal(withPartyFromPurpose(tb('Kreditauszahlung', 5000, 'KREDITAUSZAHLUNG', 'Bausparkasse Mainz', 'Darlehen')).remoteName, 'Bausparkasse Mainz');
+  assert.equal(withPartyFromPurpose(tb('Barauszahlung', -50, 'BARAUSZAHLUNG', 'Filiale Koblenz')).remoteName, '');
+  assert.equal(withPartyFromPurpose(tb('Auszahlung', -50, 'AUSZAHLUNG', 'Filiale Koblenz')).remoteName, '');
+});
+
+test('read again from the bank\'s text when the rules changed; a mark without it stays', () => {
+  const now = withPartyFromPurpose(LASTSCHRIFT);
+  const older = { ...now, fromPurpose: now.fromPurpose!.replace('v1', 'v0'), remoteName: 'Wrong Name' };
+  const again = withPartyFromPurpose(older);
+  assert.equal(again.remoteName, 'PayPal Europe S.a.r.l. et Cie S.C.A');
+  assert.equal(again.fromPurpose, now.fromPurpose);
+  assert.equal(again.purpose, now.purpose);
+  // A 6.3 nightly's mark: no version, no original kept. Left as it is.
+  const nightly = { ...now, fromPurpose: 'purpose remoteName', rawPurpose: undefined };
+  assert.equal(withPartyFromPurpose(nightly), nightly);
+  // The original survives the kept history's round trip.
+  assert.equal(sanitizeBooking(compactBooking(now))!.rawPurpose, LASTSCHRIFT.purpose);
 });
 
 test('a short name in capitals is a payee, not a channel', () => {

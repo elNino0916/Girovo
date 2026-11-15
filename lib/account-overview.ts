@@ -12,7 +12,7 @@
 //
 // Pure and node-test-safe: no path aliases, `.ts` on sibling imports.
 
-import { qualifiedKey } from './account-key.ts';
+import { localKey, qualifiedKey } from './account-key.ts';
 import { canReportBalance, isCardAccount, isDepot } from './balances.ts';
 import type { SerializedAccount } from './fints-types';
 
@@ -236,27 +236,39 @@ export type StandInBank = {
  * never taken while an account on screen (`shown`) holds it: that figure is
  * the other bank's. Each kept figure counts once. Only euros: an account in
  * another currency is left out, as from the total.
+ *
+ * An account a login on screen shows already (the same number at the same
+ * bank, `shown` holding it as "number@BLZ", onScreenKeys) is counted there:
+ * never again here, and not as one without a balance. An account the user
+ * hid is left out and counted in `hidden`, so the screen can say so.
  */
 export function keptStandIns(
   absent: readonly AbsentBank[],
   kept: Readonly<Record<string, { cents: number; currency: string; readAt: string }>> | undefined,
   shown: ReadonlySet<string>,
   hidden: ReadonlySet<string> = new Set(),
-): { standIns: StandIn[]; stillAbsent: string[]; banks: StandInBank[] } {
+): { standIns: StandIn[]; stillAbsent: string[]; banks: StandInBank[]; hidden: number } {
   const standIns: StandIn[] = [];
   const stillAbsent: string[] = [];
   const banks: StandInBank[] = [];
   const used = new Set<string>();
+  let hiddenTotal = 0;
   for (const bank of absent) {
     let covered = false;
-    let every = true;
+    let pending = 0;
     let unkept = 0;
     const foreign: string[] = [];
     for (const n of bank.accounts ?? []) {
+      // Shown by a login on screen (logged in again under another name, or a
+      // joint account two logins see): counted there.
+      if (shown.has(qualifiedKey(localKey(n), bank.blz))) continue;
       const key = [qualifiedKey(n, bank.blz), n].find((k) => kept?.[k] && !shown.has(k) && !used.has(k));
       const isHidden = hidden.has(qualifiedKey(n, bank.blz)) || (!shown.has(n) && hidden.has(n));
-      if (isHidden) continue;
-      every = false;
+      if (isHidden) {
+        hiddenTotal++;
+        continue;
+      }
+      pending++;
       if (!key) {
         unkept++;
         continue;
@@ -272,9 +284,25 @@ export function keptStandIns(
       standIns.push({ key, bank: bank.name, cents: k.cents, readAt: k.readAt });
     }
     if (covered) banks.push({ name: bank.name, unkept, foreign });
-    else if (!(every && (bank.accounts?.length ?? 0) > 0)) stillAbsent.push(bank.name);
+    // Accounts not known (an older list), or some left with nothing to count: open.
+    else if (!(bank.accounts?.length) || pending > 0) stillAbsent.push(bank.name);
   }
-  return { standIns, stillAbsent, banks };
+  return { standIns, stillAbsent, banks, hidden: hiddenTotal };
+}
+
+/**
+ * The keys of the accounts on screen, each also as "number@BLZ" of its own
+ * bank where a German IBAN names it: how keptStandIns knows an account a
+ * login on screen shows already, whatever key the view gave it.
+ */
+export function onScreenKeys(accounts: readonly { accountNumber: string; iban?: string | null }[]): Set<string> {
+  const out = new Set<string>();
+  for (const a of accounts) {
+    out.add(a.accountNumber);
+    const iban = String(a.iban ?? '').replace(/\s+/g, '').toUpperCase();
+    if (/^DE\d{20}$/.test(iban)) out.add(qualifiedKey(localKey(a.accountNumber), iban.slice(4, 12)));
+  }
+  return out;
 }
 
 /**

@@ -1,0 +1,14 @@
+<en-US>
+• Several banks no longer need Girovo Plus
+• A bank that isn't logged in counts toward the total with its last balances
+• Logging in again to a bank you've used before is shorter
+• With several banks, each account shows its bank's logo. The last booking under each account can be turned off
+• Targobank: transactions show the right payee, reservations their amount
+</en-US>
+<de-DE>
+• Mehrere Banken brauchen kein Girovo Plus mehr
+• Eine Bank, die nicht angemeldet ist, zählt mit ihren letzten Salden zum Gesamtsaldo
+• Die Anmeldung bei einer Bank, die du schon kennst, ist kürzer
+• Mit mehreren Banken zeigt jedes Konto das Zeichen seiner Bank. Die letzte Buchung unter jedem Konto lässt sich abschalten
+• Targobank: Umsätze zeigen den richtigen Empfänger, Reservierungen ihren Betrag
+</de-DE>

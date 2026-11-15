@@ -29,8 +29,11 @@
 // in lines and starts with its own booking text, is touched; a line is moved
 // only when its field takes it.
 //
-// `fromPurpose` marks a booking done ("purpose remoteName remoteIban …": the
-// fields it filled). The booking's key (lib/categories.ts txKey) reads the
+// `fromPurpose` marks a booking done ("v1 purpose remoteName remoteIban …":
+// the rules' version and the fields it filled), and `rawPurpose` keeps the
+// bank's own text beside it. A booking read by older rules is read again from
+// that text, so a better rule reaches the kept Umsätze too, not only the days
+// the bank sends again. The booking's key (lib/categories.ts txKey) reads the
 // name and IBAN as they were before, so what the user filed for a booking
 // stays with it.
 //
@@ -41,7 +44,10 @@ import type { SerializedTransaction } from './fints-types';
 type Booking = Pick<
   SerializedTransaction,
   'purpose' | 'bookingText' | 'amount' | 'remoteName' | 'remoteIban' | 'remoteBic' | 'mandateReference' | 'customerReference'
-> & { creditorId?: string; ultimateName?: string; fromPurpose?: string };
+> & { creditorId?: string; ultimateName?: string; fromPurpose?: string; rawPurpose?: string };
+
+/** The version of the rules below: raise it when they change, and kept bookings are read again. */
+const READ_VERSION = 'v1';
 
 type Field = 'remoteIban' | 'remoteBic' | 'creditorId' | 'mandateReference' | 'customerReference';
 
@@ -65,14 +71,17 @@ const IDENTIFIERS: ReadonlyArray<{ re: RegExp; fields: Field[] }> = [
 
 // Bookings that name no one: the bank's own (a fee, interest, the account's
 // closing, a card's monthly bill) and cash.
-const OWN_BOOKING = /ENTGELT|GEBUEHR|GEBÜHR|ZINS|ABSCHLUSS|SALDO|KONTOFUEHRUNG|KONTOFÜHRUNG|PORTO|ABRECHNUNG|BARGELD|GELDAUTOMAT|AUSZAHLUNG|EINZAHLUNG/;
+const OWN_BOOKING = /ENTGELT|GEBUEHR|GEBÜHR|ZINS|ABSCHLUSS|SALDO|KONTOFUEHRUNG|KONTOFÜHRUNG|PORTO|ABRECHNUNG|BARGELD|GELDAUTOMAT|BARAUSZAHLUNG|BAREINZAHLUNG|^AUSZAHLUNG$|^EINZAHLUNG$/;
 // Matched on bare text: "NFC KARTENZAHLUNG" → "NFCKARTENZAHLUNG", "RESERV. BETRAG POS" → "RESERVBETRAGPOS".
-const CARD_BOOKING = /KARTENZAHLUNG|KARTENUMSATZ|POS$/;
+const CARD_BOOKING = /KARTENZAHLUNG|KARTENUMSATZ|KARTENVERFUEGUNG|KARTENVERFÜGUNG|DEBITKARTE|GIROCARD|APPLEPAY|GOOGLEPAY|POS$/;
 const RESERVATION = /RESERV/;
 // Targobank's channel of an order ("TBOL": online banking) before the payee.
 const CHANNEL = /^TB[A-Z0-9]{1,4}$/;
 // How a purpose starts, never a name: "Rechnung 4711 vom", "Miete Mai".
-const PURPOSE_WORD = /^(?:rechnung|rg\.?|re\.|beitrag|miete|kunden|vertrag|abrechnung|bestellung|auftrag|zahlung|rate|erstattung|einkauf|kaufpreis|mitglied|versicherung|police|referenz|ref\.?|order|invoice)\b/i;
+// Words only, so a payee that starts the same way keeps its name ("Kunden-Service GmbH",
+// "Versicherung AG", "RG Immobilien", "Einkaufszentrum").
+// A word that can also start a name counts only with a number after it ("Vertrag 1234", "Ref. 4711").
+const PURPOSE_WORD = /^(?:(?:rechnung|beitrag|miete|kundennr\.?|kundennummer|vertragsnr\.?|vertragsnummer|abrechnung|bestellung|auftrag|zahlung|rate|raten|ratenzahlung|teilzahlung|erstattung|einkauf|kaufpreis|mitgliedsbeitrag|referenz|invoice)\b|(?:rg|kunden|vertrag|mitglied|versicherung|police|ref|order)[.\s-]*(?:nr\b|\d))/i;
 
 /** A line that can be a name: words, not a reference, a date, a label or a terminal's record. */
 function nameLike(line: string | undefined): line is string {
@@ -90,8 +99,15 @@ function nameLike(line: string | undefined): line is string {
  * or the very booking when it names its payee already, is not in that shape,
  * or was done before.
  */
-export function withPartyFromPurpose<T extends Booking>(tx: T): T {
-  if (tx.fromPurpose) return tx;
+export function withPartyFromPurpose<T extends Booking>(input: T): T {
+  let tx = input;
+  if (tx.fromPurpose) {
+    if (tx.fromPurpose.split(' ')[0] === READ_VERSION) return tx;
+    // Read by older rules: back to the bank's own text, then read again.
+    // A mark from before versions (6.3 nightlies) kept no original: it stays.
+    if (tx.rawPurpose == null) return tx;
+    tx = unread(tx);
+  }
   if (String(tx.remoteName ?? '').trim() || String(tx.ultimateName ?? '').trim()) return tx;
   const purpose = String(tx.purpose ?? '');
   // SEPA tags: a bank that structures its purpose, read by lib/sepa-purpose.ts.
@@ -139,9 +155,9 @@ export function withPartyFromPurpose<T extends Booking>(tx: T): T {
     } else if (CARD_BOOKING.test(kind)) {
       if (nameLike(rest[0])) name = rest.shift()!;
     } else {
-      // An order from online banking names its channel first ("TBOL"); it
-      // stays in the purpose, after the rest.
-      const channel = CHANNEL.test(rest[0] ?? '') && nameLike(rest[1]) ? rest.shift()! : '';
+      // An order from online banking names its channel first ("TBOL"): never
+      // the payee, and kept in the purpose after the rest.
+      const channel = CHANNEL.test(rest[0] ?? '') ? rest.shift()! : '';
       if (nameLike(rest[0])) name = rest.shift()!;
       if (channel) rest.push(channel);
     }
@@ -151,7 +167,23 @@ export function withPartyFromPurpose<T extends Booking>(tx: T): T {
     filled.push('remoteName');
   }
   out.purpose = rest.join('\n');
-  out.fromPurpose = ['purpose', ...filled].join(' ');
+  out.fromPurpose = [READ_VERSION, 'purpose', ...filled].join(' ');
+  // The bank's text as it came, so a later version with better rules can read it again.
+  out.rawPurpose = purpose;
+  return out;
+}
+
+/** The booking as the bank sent it, from a mark and the purpose kept beside it. */
+function unread<T extends Booking>(tx: T): T {
+  const out: T = { ...tx };
+  for (const f of tx.fromPurpose!.split(' ')) {
+    if (f === 'remoteName' || f === 'remoteIban' || f === 'remoteBic' || f === 'creditorId' || f === 'mandateReference' || f === 'customerReference') {
+      (out as Record<string, unknown>)[f] = '';
+    }
+  }
+  out.purpose = tx.rawPurpose!;
+  delete out.fromPurpose;
+  delete out.rawPurpose;
   return out;
 }
 

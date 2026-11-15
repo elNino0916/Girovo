@@ -1,0 +1,1 @@
+Eine Bank, die nicht angemeldet ist, zählt mit ihren letzten Salden zum Gesamtsaldo. Die Anmeldung bei einer Bank, die du schon kennst, ist kürzer. Mit mehreren Banken zeigt jedes Konto das Zeichen seiner Bank, und die letzte Buchung darunter lässt sich abschalten. Targobank: Umsätze zeigen den richtigen Empfänger, Reservierungen ihren Betrag.

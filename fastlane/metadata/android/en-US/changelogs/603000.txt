@@ -1,0 +1,1 @@
+A bank that isn't logged in counts toward the total with its last balances. Logging in again to a bank you've used before is shorter. With several banks, each account shows its bank's logo, and the last booking under it can be turned off. Targobank: transactions show the right payee, reservations their amount.

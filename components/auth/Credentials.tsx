@@ -582,7 +582,9 @@ export function Credentials({
         <Field
           label={secret.label}
           htmlFor={`pin${uid}`}
-          hint={returning ? undefined : secret.hint}
+          // The short login leaves the hint out until something went wrong:
+          // after a refused PIN, "not your card's PIN" is the one that helps.
+          hint={returning && !shownError ? undefined : secret.hint}
           error={fieldErrors.pin ? secret.missing : undefined}
           className="mb-0"
         >
