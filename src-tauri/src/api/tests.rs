@@ -50,6 +50,7 @@ fn only_girovo_mcp_signed_by_mt_media_is_the_helper() {
     exe: r"C:\Program Files\Girovo\girovo-mcp.exe".into(),
     sha256: "a".repeat(64),
     name: "Girovo MCP".into(),
+    elevated: false,
     publisher: identify::Publisher { kind: Kind::Mtmedia, name: Some("MT-Media".into()), thumbprint: None },
     parent: None,
   };
@@ -927,4 +928,49 @@ fn after_set_foreground_the_next_step() {
 fn a_handle_that_is_no_window_is_never_in_front() {
   assert!(!super::focus::win::to_front(0));
   assert!(!super::focus::win::to_front(0x7ff0_0000_0001_u64 as isize));
+}
+
+/// A running program renames its own file and puts another program at the
+/// old path: Girovo checks the file that really runs, at its new path.
+#[cfg(windows)]
+#[test]
+fn a_renamed_running_program_is_checked_as_itself() {
+  use std::os::windows::process::CommandExt;
+  const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+  let dir = std::env::temp_dir().join(format!("girovo-rename-{}", std::process::id()));
+  std::fs::create_dir_all(&dir).unwrap();
+  let system = std::path::PathBuf::from(std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into())).join("System32");
+  let started = dir.join("app.exe");
+  let renamed = dir.join("moved-away.exe");
+  std::fs::copy(system.join("PING.EXE"), &started).unwrap();
+  let mut child = std::process::Command::new(&started)
+    .args(["-n", "30", "127.0.0.1"])
+    .creation_flags(CREATE_NO_WINDOW)
+    .stdout(std::process::Stdio::null())
+    .spawn()
+    .unwrap();
+  std::thread::sleep(std::time::Duration::from_millis(400));
+  std::fs::rename(&started, &renamed).expect("Windows lets a running program's file be renamed");
+  std::fs::copy(system.join("where.exe"), &started).unwrap();
+
+  let seen = identify::client(child.id()).expect("the child can be identified");
+  let _ = child.kill();
+  let _ = child.wait();
+  let ran = identify::sha256_of(&renamed).unwrap();
+  let swapped = identify::sha256_of(&started).unwrap();
+  let _ = std::fs::remove_dir_all(&dir);
+  assert!(seen.exe.to_lowercase().ends_with("moved-away.exe"), "the path it runs from now: {}", seen.exe);
+  assert_eq!(seen.sha256, ran, "the bytes that run");
+  assert_ne!(seen.sha256, swapped, "not the file put at the old path");
+  assert!(!seen.elevated);
+}
+
+/// The test process itself: found through its loaded program, at its own path.
+#[cfg(windows)]
+#[test]
+fn a_program_is_found_through_its_loaded_file() {
+  let me = identify::client(std::process::id()).unwrap();
+  let exe = std::env::current_exe().unwrap();
+  assert!(me.exe.eq_ignore_ascii_case(&exe.to_string_lossy()), "{} vs {}", me.exe, exe.display());
+  assert_eq!(me.sha256, identify::sha256_of(&exe).unwrap());
 }

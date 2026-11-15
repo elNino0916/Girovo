@@ -56,6 +56,11 @@ pub struct Client {
   pub sha256: String,
   pub name: String,
   pub publisher: Publisher,
+  /// Runs as administrator (Windows). Its running file can't be read from
+  /// here, so its path stands for it; such a program could change Girovo
+  /// itself anyway. The dialog says so.
+  #[serde(skip_serializing_if = "std::ops::Not::not")]
+  pub elevated: bool,
   /// Only on the client itself; a parent carries no parent of its own.
   #[serde(skip_serializing_if = "Option::is_none")]
   pub parent: Option<Box<Client>>,
@@ -122,17 +127,59 @@ pub fn parent_from(helper: u32, parent: Option<u32>, launcher: Option<u32>, requ
   }
 }
 
+/// The process `pid` as the file it really runs.
+///
+/// Windows reports the path a program started from, and a running program
+/// may rename its own file and put another (a signed app's copy) at that
+/// path. So on Windows the file is found through the loaded program itself,
+/// whose name follows renames, and held open while it is hashed and its
+/// signature checked: a renamed program is checked as itself, an app whose
+/// updater swapped its file while it runs as the file it still runs.
 fn process(pid: u32) -> Option<Client> {
-  let exe = os::exe_of(pid)?;
-  let facts = facts_of(&exe, &os::readable(&exe, pid))?;
+  let started_from = os::exe_of(pid)?;
+  let elevated = os::elevated(pid);
+  let running = os::running_file(pid);
+  let (exe, source, _held) = match running {
+    Running::File { path, held } => (path.clone(), path, Some(held)),
+    // Not readable from here (as administrator): the path it started from.
+    Running::NotReadable => (started_from.clone(), os::readable(&started_from, pid), None),
+    // It changed while it was looked at: nothing it shows can be trusted.
+    Running::Unsure => return Some(unidentified(pid, &started_from, elevated)),
+  };
+  let facts = facts_of(&exe, &source)?;
   Some(Client {
     pid,
     exe: exe.to_string_lossy().into_owned(),
     sha256: facts.sha256,
     name: facts.name,
     publisher: facts.publisher,
+    elevated,
     parent: None,
   })
+}
+
+/// What the running file is (os::running_file).
+pub(super) enum Running {
+  /// The file the process runs, at its current path, held open so nobody can rename or replace it.
+  File { path: PathBuf, held: std::fs::File },
+  /// Can't be read from here; the path it started from has to do.
+  NotReadable,
+  /// The file moved while it was looked at.
+  Unsure,
+}
+
+/// A client nothing is known about: unknown publisher, named by its file.
+fn unidentified(pid: u32, exe: &Path, elevated: bool) -> Client {
+  let file_name = exe.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+  Client {
+    pid,
+    exe: exe.to_string_lossy().into_owned(),
+    sha256: String::new(),
+    name: clean(&file_name),
+    publisher: Publisher::unknown(),
+    elevated,
+    parent: None,
+  }
 }
 
 #[derive(Debug, Clone)]
@@ -227,7 +274,14 @@ mod os {
   pub use crate::api::signature::publisher_and_name;
   use windows::Win32::Foundation::{CloseHandle, FILETIME, HANDLE};
   use windows::Win32::System::Diagnostics::ToolHelp::{CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW, TH32CS_SNAPPROCESS};
-  use windows::Win32::System::Threading::{GetProcessTimes, OpenProcess, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION, QueryFullProcessImageNameW};
+  use windows::Win32::Foundation::HMODULE;
+  use windows::Win32::Security::{GetTokenInformation, TOKEN_ELEVATION, TOKEN_QUERY, TokenElevation};
+  use windows::Win32::Storage::FileSystem::{FILE_NAME_NORMALIZED, GETFINALPATHNAMEBYHANDLE_FLAGS, GetFinalPathNameByHandleW, VOLUME_NAME_DOS, VOLUME_NAME_NT};
+  use windows::Win32::System::ProcessStatus::{K32EnumProcessModules, K32GetMappedFileNameW};
+  use windows::Win32::System::Threading::{
+    GetProcessTimes, OpenProcess, OpenProcessToken, PROCESS_NAME_WIN32, PROCESS_QUERY_INFORMATION, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_VM_READ,
+    QueryFullProcessImageNameW,
+  };
   use windows::core::PWSTR;
 
   struct Handle(HANDLE);
@@ -252,9 +306,69 @@ mod os {
     (!path.is_empty()).then(|| PathBuf::from(path))
   }
 
-  /// A running program's file can't be written while it runs, so the path is the file.
+  /// The path itself (used only when the running file can't be read, see running_file).
   pub fn readable(exe: &Path, _pid: u32) -> PathBuf {
     exe.to_path_buf()
+  }
+
+  /// Whether the process runs as administrator (an elevated token).
+  pub fn elevated(pid: u32) -> bool {
+    let Some(process) = open(pid) else { return false };
+    let mut token = HANDLE::default();
+    if unsafe { OpenProcessToken(process.0, TOKEN_QUERY, &mut token) }.is_err() {
+      return false;
+    }
+    let token = Handle(token);
+    let mut elevation = TOKEN_ELEVATION::default();
+    let mut len = 0u32;
+    let size = std::mem::size_of::<TOKEN_ELEVATION>() as u32;
+    let ok = unsafe { GetTokenInformation(token.0, TokenElevation, Some(&mut elevation as *mut _ as *mut _), size, &mut len) }.is_ok();
+    ok && elevation.TokenIsElevated != 0
+  }
+
+  /// The loaded program's file by its current name (\Device\HarddiskVolumeN\…).
+  fn mapped_name(process: &Handle) -> Option<String> {
+    let mut module = HMODULE::default();
+    let mut needed = 0u32;
+    // The first module is the program itself.
+    unsafe { K32EnumProcessModules(process.0, &mut module, std::mem::size_of::<HMODULE>() as u32, &mut needed).ok().ok()? };
+    let mut buf = vec![0u16; 32_768];
+    let len = unsafe { K32GetMappedFileNameW(process.0, module.0 as *const _, &mut buf) } as usize;
+    (len > 0).then(|| String::from_utf16_lossy(&buf[..len]))
+  }
+
+  fn final_path(file: &std::fs::File, flags: GETFINALPATHNAMEBYHANDLE_FLAGS) -> Option<String> {
+    use std::os::windows::io::AsRawHandle;
+    let mut buf = vec![0u16; 32_768];
+    let len = unsafe { GetFinalPathNameByHandleW(HANDLE(file.as_raw_handle() as _), &mut buf, flags) } as usize;
+    (len > 0 && len < buf.len()).then(|| String::from_utf16_lossy(&buf[..len]))
+  }
+
+  /// "\\?\C:\x" → "C:\x", "\\?\UNC\srv\x" → "\\srv\x": the path as people read it.
+  pub(crate) fn plain_path(path: &str) -> String {
+    if let Some(rest) = path.strip_prefix(r"\\?\UNC\") {
+      format!(r"\\{rest}")
+    } else {
+      path.strip_prefix(r"\\?\").unwrap_or(path).to_string()
+    }
+  }
+
+  /// The file the process really runs, found through its loaded program and
+  /// held open; then asked once more that the program still runs that very
+  /// file, so a rename in between can't slip another file in.
+  pub fn running_file(pid: u32) -> Running {
+    let Some(process) = (unsafe { OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, pid).ok().map(Handle) }) else {
+      return Running::NotReadable;
+    };
+    let Some(mapped) = mapped_name(&process) else { return Running::NotReadable };
+    let Ok(held) = open_unchangeable(Path::new(&format!(r"\\?\GLOBALROOT{mapped}"))) else { return Running::Unsure };
+    let same = |a: &str, b: &str| a.eq_ignore_ascii_case(b) || a.to_lowercase() == b.to_lowercase();
+    let still = mapped_name(&process);
+    let ours = final_path(&held, GETFINALPATHNAMEBYHANDLE_FLAGS(FILE_NAME_NORMALIZED.0 | VOLUME_NAME_NT.0));
+    match (still, ours, final_path(&held, GETFINALPATHNAMEBYHANDLE_FLAGS(FILE_NAME_NORMALIZED.0 | VOLUME_NAME_DOS.0))) {
+      (Some(still), Some(ours), Some(dos)) if same(&still, &mapped) && same(&ours, &mapped) => Running::File { path: PathBuf::from(plain_path(&dos)), held },
+      _ => Running::Unsure,
+    }
   }
 
   fn started(pid: u32) -> Option<u64> {
@@ -303,6 +417,15 @@ mod os {
     PathBuf::from(format!("/proc/{pid}/exe"))
   }
 
+  /// /proc/<pid>/exe already is the running file (readable).
+  pub fn running_file(_pid: u32) -> Running {
+    Running::NotReadable
+  }
+
+  pub fn elevated(_pid: u32) -> bool {
+    false
+  }
+
   /// Programs on Linux carry no signatures: every one is an unknown publisher, named by its file.
   pub fn publisher_and_name(_exe: &Path) -> (Publisher, Option<String>) {
     (Publisher::unknown(), None)
@@ -343,6 +466,12 @@ mod os {
   }
   pub fn readable(exe: &Path, _pid: u32) -> PathBuf {
     exe.to_path_buf()
+  }
+  pub fn running_file(_pid: u32) -> Running {
+    Running::NotReadable
+  }
+  pub fn elevated(_pid: u32) -> bool {
+    false
   }
   pub fn publisher_and_name(_exe: &Path) -> (Publisher, Option<String>) {
     (Publisher::unknown(), None)

@@ -50,6 +50,7 @@ export const de = {
     viaMcp: 'über Girovo MCP',
     /** The name the app gave itself, where it is not the one Girovo found. */
     saysItIs: (name: string) => `Nennt sich „${name}“`,
+    elevated: 'Läuft als Administrator',
     unknownWarning: 'Girovo kann nicht prüfen, von wem diese App stammt. Lass sie nur zu, wenn du ihr vertraust.',
     reasonLabel: 'Die App schreibt',
     asks: 'Sie möchte',
@@ -213,6 +214,7 @@ export const en: typeof de = {
     verified: 'Verified publisher',
     viaMcp: 'through Girovo MCP',
     saysItIs: (name: string) => `Calls itself “${name}”`,
+    elevated: 'Runs as administrator',
     unknownWarning: 'Girovo cannot check who made this app. Only allow it if you trust it.',
     reasonLabel: 'The app says',
     asks: 'It would like to',

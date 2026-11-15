@@ -21,6 +21,7 @@
 import { useEffect, useId, useState } from 'react';
 import { useT } from '@/lib/i18n/react';
 import { appName, grantSubject } from '@/lib/api/grants';
+import { showsPath } from '@/lib/api/host-state';
 import type { ApiPermission } from '@/lib/api/types';
 import { AlertTriangleIcon, MonitorIcon, ShieldIcon } from '../icons';
 import { Button, DialogActions, Overlay, Sheet, Switch } from '../ui';
@@ -128,7 +129,8 @@ function ConsentSheet({ waiting }: { waiting: NonNullable<ReturnType<typeof useC
             )}
             {viaMcp && <p className="text-[14px] leading-5 text-ink-2">{words.viaMcp}</p>}
             {claim && <p className="text-[14px] leading-5 text-ink-2">{words.saysItIs(claim)}</p>}
-            {unknown && <p className="mt-1 font-mono text-[12px] leading-4 break-all text-ink-2">{who.exe}</p>}
+            {who.elevated && <p className="text-[14px] leading-5 text-ink-2">{words.elevated}</p>}
+            {showsPath(who) && <p data-api-path className="mt-1 font-mono text-[12px] leading-4 break-all text-ink-2">{who.exe}</p>}
           </div>
         </div>
 

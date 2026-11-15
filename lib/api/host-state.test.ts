@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { pageReadyFor, publisherLabel, vaultSwitchMove, waitingNotice } from './host-state.ts';
+import { pageReadyFor, publisherLabel, vaultSwitchMove, waitingNotice, showsPath } from './host-state.ts';
 import type { ApiClient } from './types.ts';
 
 const SHA = 'a'.repeat(64);
@@ -48,4 +48,16 @@ test('the vault’s old switch moves to the shell once, and only while the shell
   // Nothing in the vault: the shell's switch stands, on or off.
   assert.deepEqual(vaultSwitchMove(false, false), { turnOn: false, dropFromVault: false });
   assert.deepEqual(vaultSwitchMove(false, true), { turnOn: false, dropFromVault: false });
+});
+
+test('the dialog shows the path for unknown apps and for signed ones outside the install folders', () => {
+  const signed = { pid: 1, sha256: 'a', name: 'Claude', publisher: { kind: 'verified' as const, name: 'Anthropic PBC' } };
+  const at = (exe: string) => showsPath({ ...signed, exe });
+  assert.equal(at('C:\\Users\\nina\\AppData\\Local\\Programs\\Claude\\Claude.exe'), false);
+  assert.equal(at('C:\\Program Files\\App\\app.exe'), false);
+  assert.equal(at('C:\\Program Files (x86)\\App\\app.exe'), false);
+  assert.equal(at('C:\\Users\\nina\\Downloads\\Claude.exe'), true, 'a signed copy in Downloads stands out');
+  assert.equal(at('D:\\Tools\\app.exe'), true);
+  assert.equal(showsPath({ ...signed, exe: 'C:\\Program Files\\App\\app.exe', publisher: { kind: 'unknown' } }), true, 'unknown: always');
+  assert.equal(at('/usr/bin/app'), false);
 });

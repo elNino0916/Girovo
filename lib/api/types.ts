@@ -33,6 +33,8 @@ export type ApiProcess = {
   /** The signature's program name, else the file's description, else its file name. */
   name: string;
   publisher: ApiPublisher;
+  /** Runs as administrator (Windows): its path stands for the file it runs. */
+  elevated?: boolean;
 };
 
 /**

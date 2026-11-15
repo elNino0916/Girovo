@@ -17,6 +17,21 @@ export function publisherLabel(p: ApiProcess): string | null {
   return null;
 }
 
+/** Where Windows installs programs; an app elsewhere (Downloads, the desktop) shows its path in the dialog. */
+const INSTALL_FOLDERS = ['\\program files\\', '\\program files (x86)\\', '\\appdata\\local\\programs\\', '\\windowsapps\\', ':\\windows\\'];
+
+/**
+ * Whether the dialog shows the app's path: always for an unknown publisher,
+ * and for a signed app outside the folders programs are installed to, so a
+ * signed app's copy in Downloads stands out. Linux programs are all unknown.
+ */
+export function showsPath(p: ApiProcess): boolean {
+  if (p.publisher.kind === 'unknown') return true;
+  const exe = p.exe.replace(/\//g, '\\').toLowerCase();
+  if (!/^[a-z]:\\|^\\\\/.test(exe)) return false;
+  return !INSTALL_FOLDERS.some((f) => exe.includes(f));
+}
+
 /** What the login's notice says: the first app waiting, its publisher, and how many more. Null when nobody waits. */
 export type WaitingNotice = { app: string; publisher: string | null; more: number };
 
