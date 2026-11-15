@@ -19,7 +19,7 @@ import { Money } from '../Money';
 import { ChevronIcon, PlusIcon, RefreshIcon, SwapVertIcon } from '../icons';
 import { PrivacyToggle } from '../shell/PrivacyToggle';
 import { txText } from '../transactions/model';
-import { Alert, Button, DotList, FilterChip, IconButton, Menu, MenuItemRadio, Skeleton, cx } from '../ui';
+import { Alert, Button, DotList, FilterChip, IconButton, Menu, MenuItemRadio, Overlay, Sheet, Skeleton, cx } from '../ui';
 import { accountIdent, vaultNote } from './AccountIdentity';
 import { AccountDisc, BankDisc } from './AccountMarks';
 import { useLastBookingShown } from './row-prefs';
@@ -80,6 +80,8 @@ export function AccountsOverview({ pane = false }: {
   const [arranging, setArranging] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const [curveOpen, setCurveOpen] = useState(false);
+  // The phone's "Hinweise" sheet: what the one line under the Gesamtsaldo leaves out (issue #22).
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const curveId = useId();
 
   // The explanation answers a press on "Anordnen"; once the vault is readable it is moot.
@@ -188,6 +190,29 @@ export function AccountsOverview({ pane = false }: {
   // The Gesamtsaldo's curve: one figure a day from the days every figure was known.
   const curve = kept ? netWorthPoints(vault?.netWorth ?? [], isoDate(new Date())) : null;
   const stand = figures.total != null && readTimes.length ? t.transactions.pending.asOf(sinceShort(Math.min(...readTimes))) : null;
+  // The phone's one line (issue #22): what else there is to say opens from a chip.
+  const standInLine = standInBanks.length
+    ? `${t.banks.standIn(namesList(standInBanks.map((b) => b.name)))}${standInUnkept > 0 ? `, ${t.banks.standInUnkept(standInUnkept)}` : ''}`
+    : '';
+  const notes = [
+    hiddenCount + standInHidden > 0 ? words.hiddenCount(hiddenCount + standInHidden) : '',
+    figures.total != null ? standInLine : '',
+    figures.total != null && excluded ? t.insights.without(excluded) : '',
+  ].filter(Boolean);
+  // Vermögen and Verbindlichkeiten, once something is owed (otherwise the first is the Gesamtsaldo again).
+  const owing = figures.total != null && figures.liabilities != null && figures.liabilities < 0;
+  const assetsList = (className: string) => (
+    <dl className={className}>
+      <div>
+        <dt className="text-[14px] leading-5 text-ink-2">{words.assets}</dt>
+        <dd><Money value={(figures.assets ?? 0) / 100} tone="plain" className="text-[16px] leading-6 font-medium text-ink" /></dd>
+      </div>
+      <div>
+        <dt className="text-[14px] leading-5 text-ink-2">{words.liabilities}</dt>
+        <dd><Money value={(figures.liabilities ?? 0) / 100} tone="plain" className="text-[16px] leading-6 font-medium text-ink" /></dd>
+      </div>
+    </dl>
+  );
   const bankCount = new Set([...accounts.map((a) => bankOf(a)?.key ?? 'primary'), ...banks.filter((b) => b.state === 'remembered').map((b) => b.key)]).size;
 
   const openArrange = () => {
@@ -313,20 +338,40 @@ export function AccountsOverview({ pane = false }: {
               )}
             </div>
           )}
-          <p className="tnum mt-1 text-[14px] leading-5 text-ink-2">
+          {/* The phone (issue #22): one line, the count and the Stand, and a chip when there is
+              more to say; what it says opens in a small sheet (DetailsSheet below). From 640px, every line. */}
+          {!pane && (
+            <div className="mt-1 flex min-h-8 items-center justify-between gap-3 sm:hidden">
+              <p className="tnum min-w-0 truncate text-[14px] leading-5 text-ink-2">
+                {words.countShort(accounts.length)}
+                {stand && ` · ${stand}`}
+              </p>
+              {(notes.length > 0 || (owing && !curve)) && (
+                <Button
+                  variant="secondary"
+                  size="xs"
+                  className="-mr-1 shrink-0"
+                  iconRight={<ChevronIcon dir="right" size={16} />}
+                  aria-haspopup="dialog"
+                  aria-label={`${notes.length ? words.notes(notes.length) : words.details}, ${words.detailsTitle}`}
+                  onClick={() => setDetailsOpen(true)}
+                >
+                  {notes.length ? words.notes(notes.length) : words.details}
+                </Button>
+              )}
+            </div>
+          )}
+          <p className={cx('tnum mt-1 text-[14px] leading-5 text-ink-2', !pane && 'max-sm:hidden')}>
             {words.count(accounts.length, bankCount)}
             {/* Hidden accounts of a bank not logged in count too: they are left out of the total as well. */}
             {hiddenCount + standInHidden > 0 && ` · ${words.hiddenCount(hiddenCount + standInHidden)}`}
             {stand && ` · ${stand}`}
           </p>
           {figures.total != null && standInBanks.length > 0 && (
-            <p className="text-[14px] leading-5 text-ink-2">
-              {t.banks.standIn(namesList(standInBanks.map((b) => b.name)))}
-              {standInUnkept > 0 && `, ${t.banks.standInUnkept(standInUnkept)}`}
-            </p>
+            <p className={cx('text-[14px] leading-5 text-ink-2', !pane && 'max-sm:hidden')}>{standInLine}</p>
           )}
           {figures.total != null && excluded && (
-            <p className="text-[14px] leading-5 text-ink-2" title={words.excludedHint}>{t.insights.without(excluded)}</p>
+            <p className={cx('text-[14px] leading-5 text-ink-2', !pane && 'max-sm:hidden')} title={words.excludedHint}>{t.insights.without(excluded)}</p>
           )}
           {/* Figures from an earlier read: the way to today's, on a phone (wider, the refresh at the chip row's end).
               In the Android app a pull reads them again (PullToRefresh), with a refresh icon in the title row. */}
@@ -350,17 +395,8 @@ export function AccountsOverview({ pane = false }: {
         </div>
 
         {/* Vermögen and Verbindlichkeiten — once something is owed; otherwise the first is the Gesamtsaldo again. */}
-        {figures.total != null && figures.liabilities != null && figures.liabilities < 0 && (
-          <dl className={pane ? 'mt-3 flex gap-8' : 'mt-4 flex gap-10 sm:mt-0 sm:mb-1 sm:shrink-0 sm:gap-12'}>
-            <div>
-              <dt className="text-[14px] leading-5 text-ink-2">{words.assets}</dt>
-              <dd><Money value={(figures.assets ?? 0) / 100} tone="plain" className="text-[16px] leading-6 font-medium text-ink" /></dd>
-            </div>
-            <div>
-              <dt className="text-[14px] leading-5 text-ink-2">{words.liabilities}</dt>
-              <dd><Money value={figures.liabilities / 100} tone="plain" className="text-[16px] leading-6 font-medium text-ink" /></dd>
-            </div>
-          </dl>
+        {owing && (
+          <div className={pane ? undefined : 'max-sm:hidden'}>{assetsList(pane ? 'mt-3 flex gap-8' : 'mt-4 flex gap-10 sm:mt-0 sm:mb-1 sm:shrink-0 sm:gap-12')}</div>
         )}
       </div>
 
@@ -372,7 +408,21 @@ export function AccountsOverview({ pane = false }: {
           </figcaption>
           <BalanceChart points={curve} card={false} />
           <p className="mt-1 text-[12px] leading-4 text-ink-2">{words.netWorthCaption}</p>
+          {/* The phone: what the total is made of, under its curve (from 640px beside the figure). */}
+          {owing && !pane && <div className="sm:hidden">{assetsList('mt-3 flex gap-10')}</div>}
         </figure>
+      )}
+
+      {detailsOpen && (
+        <Overlay open onClose={() => setDetailsOpen(false)} label={words.detailsTitle} align="bottom">
+          <Sheet onClose={() => setDetailsOpen(false)}>
+            <h2 className="text-[18px] leading-6 font-medium text-ink">{words.detailsTitle}</h2>
+            <ul className="mt-3 flex flex-col gap-2">
+              {notes.map((n) => <li key={n} className="text-[14px] leading-5 text-ink-2">{n}</li>)}
+            </ul>
+            {owing && !curve && assetsList('mt-4 flex gap-10')}
+          </Sheet>
+        </Overlay>
       )}
 
       {/* The kinds as filters; from 640px the grouping and "Alle Salden abrufen" at the row's end. */}

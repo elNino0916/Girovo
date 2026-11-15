@@ -522,6 +522,8 @@ export const de = {
     /** "6 Konten bei 2 Banken" */
     count: (accounts: number, banks: number) =>
       `${accounts === 1 ? '1 Konto' : `${accounts} Konten`}${banks > 1 ? ` bei ${banks} Banken` : ''}`,
+    /** The phone's one line: the accounts alone, the banks are in the list. */
+    countShort: (accounts: number) => (accounts === 1 ? '1 Konto' : `${accounts} Konten`),
     assets: 'Vermögen',
     liabilities: 'Verbindlichkeiten',
     /** In the Gesamtsaldo's place while a balance is missing: no partial sum. */
@@ -573,6 +575,10 @@ export const de = {
     hideHint: 'Ausgeblendete Konten zählen nicht zum Gesamtsaldo.',
     /** After the count under the Gesamtsaldo: "6 Konten · 2 ausgeblendet". */
     hiddenCount: (n: number) => `${n} ausgeblendet`,
+    /** The phone's one line under the Gesamtsaldo: the chip that opens what the total leaves out or takes from earlier. */
+    notes: (n: number) => (n === 1 ? '1 Hinweis' : `${n} Hinweise`),
+    details: 'Details',
+    detailsTitle: 'Zum Gesamtsaldo',
     /** Einstellungen → Sprache & Darstellung: the newest booking under each account in the overview. */
     lastBookingSetting: 'Letzte Buchung zeigen',
     lastBookingHint: 'In der Übersicht unter jedem Konto',
@@ -1069,6 +1075,7 @@ export const en: typeof de = {
     filterLabel: 'Show accounts by type',
     count: (accounts, banks) =>
       `${accounts === 1 ? '1 account' : `${accounts} accounts`}${banks > 1 ? ` at ${banks} banks` : ''}`,
+    countShort: (accounts) => (accounts === 1 ? '1 account' : `${accounts} accounts`),
     assets: 'Assets',
     liabilities: 'Liabilities',
     pending: 'Not complete yet',
@@ -1109,6 +1116,9 @@ export const en: typeof de = {
     show: (name) => `Show ${name} again`,
     hideHint: 'Hidden accounts don\'t count toward the total.',
     hiddenCount: (n) => `${n} hidden`,
+    notes: (n) => (n === 1 ? '1 note' : `${n} notes`),
+    details: 'Details',
+    detailsTitle: 'About the total',
     lastBookingSetting: 'Show latest transaction',
     lastBookingHint: 'On the overview, under each account',
     done: 'Done',
