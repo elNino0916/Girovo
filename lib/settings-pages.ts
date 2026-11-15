@@ -46,6 +46,7 @@ export const PAGE_OF: Record<SettingsTarget, SettingsPage> = {
   language: 'appearance',
   theme: 'appearance',
   black: 'appearance',
+  lastBooking: 'appearance',
   logos: 'privacy',
   usage: 'privacy',
   updates: 'about',

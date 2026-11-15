@@ -628,7 +628,7 @@ function initialState(data: MockData, preset: MockPreset, opts: MockOptions) {
     vault: vault && (opts.secondBank || opts.history)
       ? {
         ...vault,
-        ...(opts.secondBank ? { linkedBanks: [{ blz: data.second.bank.blz, name: data.second.bank.name, userId: data.second.userId }] } : {}),
+        ...(opts.secondBank ? { linkedBanks: [{ blz: data.second.bank.blz, name: data.second.bank.name, userId: data.second.userId, accounts: data.second.accounts.map((a) => a.accountNumber) }] } : {}),
         ...(opts.history ? { keepBookings: true as const } : {}),
       }
       : vault,

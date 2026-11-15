@@ -62,7 +62,7 @@ import { useThemePref } from './ThemeToggle';
 import {
   AccountTypeIcon, ArchiveIcon, BackIcon, BellIcon, CategoryIcon, CalendarIcon, ChartIcon, CheckIcon, ClockIcon, CloseIcon, DownloadIcon, EyeIcon, EyeOffIcon,
   FileIcon, GearIcon, GeminiSparkIcon, GlobeIcon, HomeIcon, ImageIcon, KeyboardIcon, LockIcon, LogoutIcon, MonitorIcon, MoonIcon, QrIcon,
-  BoltIcon, RefreshIcon, RepeatIcon, SearchIcon, ShieldIcon, SplitIcon, SunIcon, TagIcon, TransferIcon, WalletIcon,
+  BoltIcon, ReceiptIcon, RefreshIcon, RepeatIcon, SearchIcon, ShieldIcon, SplitIcon, SunIcon, TagIcon, TransferIcon, WalletIcon,
 } from './icons';
 import { listsOrders, useShowBankOrders } from './BankOrders';
 import { askInAnalysis, useAskable } from './insights/Ask';
@@ -259,6 +259,7 @@ export function usePalette({ onClose, steerFromStart = !IS_ANDROID }: { onClose:
       },
       setting('language', 'language', (m) => m.session.language, <GlobeIcon />),
       setting('black', 'black', (m) => m.common.theme.black, <MoonIcon filled />),
+      setting('lastBooking', 'lastBooking', (m) => m.insights.accounts.lastBookingSetting, <ReceiptIcon />),
       setting('idle', 'idle', (m) => m.settings.find.idle, <ClockIcon />),
       setting('loginBalances', 'loginBalances', (m) => m.settings.balances.atLogin, <RefreshIcon />),
       setting('loginBookings', 'loginBookings', (m) => m.settings.bookingsAtLogin.title, <RefreshIcon />),

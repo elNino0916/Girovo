@@ -63,6 +63,10 @@ export const de = {
   removed: (bank: string) => `${bank} entfernt.`,
   /** Gesamtsaldo: the linked banks that are not logged in, so their accounts are missing. */
   notLoggedIn: (banks: string) => `Nicht angemeldet: ${banks}`,
+  /** Under the Gesamtsaldo: banks not logged in that count with their last balances. */
+  standIn: (banks: string) => `Nicht angemeldet, letzter Stand: ${banks}`,
+  /** After standIn: that bank's accounts with no last balance, which the total leaves out. */
+  standInUnkept: (n: number) => (n === 1 ? '1 Konto ohne Saldo' : `${n} Konten ohne Saldo`),
   /** The approval overlay, once more than one bank is in the view. */
   asks: (bank: ReactNode): ReactNode[] => [bank, ' fragt nach dieser Freigabe'],
   /** Mitteilungen, once more than one bank is in the view: who sent it. */
@@ -109,6 +113,8 @@ export const en: typeof de = {
   },
   removed: (bank) => `${bank} removed.`,
   notLoggedIn: (banks) => `Not logged in: ${banks}`,
+  standIn: (banks) => `Not logged in, last balances: ${banks}`,
+  standInUnkept: (n) => (n === 1 ? '1 account without a balance' : `${n} accounts without a balance`),
   asks: (bank) => [bank, ' is asking for this approval'],
   from: (bank) => `From ${bank}`,
   accountsAt: (bank) => `Accounts at ${bank}`,

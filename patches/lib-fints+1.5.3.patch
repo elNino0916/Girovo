@@ -162,7 +162,7 @@ index 0022e5d..fafb06a 100644
          if (response.bankAnswers.some((answer) => answer.code === 100) ||
              response.bankAnswers.some((answer) => answer.code === 9000)) {
 diff --git a/node_modules/lib-fints/dist/interactions/initDialogInteraction.js b/node_modules/lib-fints/dist/interactions/initDialogInteraction.js
-index fb1b0de..a1cbccc 100644
+index fb1b0de..c05e5d5 100644
 --- a/node_modules/lib-fints/dist/interactions/initDialogInteraction.js
 +++ b/node_modules/lib-fints/dist/interactions/initDialogInteraction.js
 @@ -73,6 +73,10 @@ export class InitDialogInteraction extends CustomerInteraction {
@@ -176,6 +176,16 @@ index fb1b0de..a1cbccc 100644
                      decoupled: isDecoupledTanMethod(method)
                          ? {
                              maxStatusRequests: method.decoupledMaxStatusRequests ?? 0,
+@@ -159,6 +163,9 @@ export class InitDialogInteraction extends CustomerInteraction {
+                     product: upd.accountProduct,
+                     limit: upd.accountLimit,
+                     allowedTransactions: upd.allowedTransactions?.filter((t) => !!t),
++                    // Girovo: the Kontoart as the bank sent it, and the "Erweiterung, kontobezogen" (FinTS Formals E.3.1).
++                    accountTypeCode: upd.accountType,
++                    extension: upd.accountExtension,
+                 };
+             });
+             const upd = {
 diff --git a/node_modules/lib-fints/dist/interactions/statementInteractionCAMT.js b/node_modules/lib-fints/dist/interactions/statementInteractionCAMT.js
 index d6874b6..264b2cf 100644
 --- a/node_modules/lib-fints/dist/interactions/statementInteractionCAMT.js
@@ -239,6 +249,21 @@ index f1c795e..ae46246 100644
 +export function registerSegmentDefinition(definition) {
      registry.set(definition.id, definition);
  }
+diff --git a/node_modules/lib-fints/dist/types/bankAccount.d.ts b/node_modules/lib-fints/dist/types/bankAccount.d.ts
+index 5b447dc..d707c0d 100644
+--- a/node_modules/lib-fints/dist/types/bankAccount.d.ts
++++ b/node_modules/lib-fints/dist/types/bankAccount.d.ts
+@@ -20,6 +20,10 @@ export type BankAccount = SepaAccount & {
+     holder2?: string;
+     product?: string;
+     limit?: AccountLimit;
++    /** Girovo patch: the Kontoart as sent (1-99). */
++    accountTypeCode?: number;
++    /** Girovo patch: HIUPD "Erweiterung, kontobezogen", JSON from Version 01.00. */
++    extension?: string;
+     allowedTransactions?: AllowedTransactions[];
+ };
+ /**
 diff --git a/node_modules/lib-fints/dist/types/statement.d.ts b/node_modules/lib-fints/dist/types/statement.d.ts
 index 02aa9af..310450d 100644
 --- a/node_modules/lib-fints/dist/types/statement.d.ts
