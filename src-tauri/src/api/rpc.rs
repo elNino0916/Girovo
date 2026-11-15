@@ -85,7 +85,13 @@ impl WireError {
   pub fn from_reason(reason: &str, message: &str, data: Option<Value>) -> WireError {
     let data = match data {
       Some(Value::Object(mut fields)) => {
-        fields.insert("reason".into(), Value::String(reason.into()));
+        // data.reason is the error's code; the page's own finer reason
+        // ("never", "busy", "plus" …) moves to data.detail, not lost.
+        if let Some(own) = fields.insert("reason".into(), Value::String(reason.into())) {
+          if own.as_str() != Some(reason) {
+            fields.entry("detail").or_insert(own);
+          }
+        }
         Value::Object(fields)
       }
       Some(Value::Null) | None => json!({ "reason": reason }),

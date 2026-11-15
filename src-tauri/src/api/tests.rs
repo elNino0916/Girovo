@@ -157,6 +157,9 @@ fn the_pages_codes_go_out_as_numbers_with_the_reason() {
 
   let plain = rpc::WireError::from_reason("bank_error", "x", Some(json!("Die Bank sagt nein")));
   assert_eq!(plain.data, json!({ "reason": "bank_error", "detail": "Die Bank sagt nein" }));
+  // The page's finer reason stays, as detail.
+  let never = rpc::WireError::from_reason("not_permitted", "x", Some(json!({ "key": "pin", "reason": "never" })));
+  assert_eq!(never.data, json!({ "reason": "not_permitted", "detail": "never", "key": "pin" }));
   assert_eq!(rpc::number_of("something_new"), -32000);
   assert_eq!(rpc::number_of("locked"), -32001);
   assert_eq!(rpc::number_of("timeout"), -32006);
