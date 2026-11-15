@@ -10,26 +10,27 @@ import { fmtDate } from '@/lib/format';
 import { useT } from '@/lib/i18n/react';
 import { useFints } from '../FintsProvider';
 import { PencilIcon, ShieldIcon, TrashIcon } from '../icons';
-import { Button, Dialog, IconButton, Input, useFocusWhenDrawn } from '../ui';
+import { Button, Dialog, Field, IconButton, Input, PasswordInput, useFocusWhenDrawn } from '../ui';
 import { ActionItem } from './rows';
 
 /** How many keys one login can have (lib/security-key.ts KEYS_MAX). */
 const KEYS_MAX = 5;
 
 /** The row, where this Windows can use a security key (securityKeys is null elsewhere). */
-export function SecurityKeysRow() {
+export function SecurityKeysRow({ inProfile = false }: { inProfile?: boolean }) {
   const t = useT();
   const { bank, securityKeys, profile } = useFints();
   const [open, setOpen] = useState(false);
-  // Girovo 7: with the profile open, its password or Windows Hello opens everything.
-  if (securityKeys === null || !bank || profile.open) return null;
+  // Girovo 7: with the profile open the keys open the profile, and the row
+  // stands in its group (ProfileGroup); before, they open the first bank's login.
+  if (securityKeys === null || !bank || profile.open !== inProfile) return null;
   const words = t.settings.securityKeys;
   return (
     <>
       <ActionItem
         icon={<ShieldIcon />}
-        title={words.title}
-        summary={securityKeys.length ? words.count(securityKeys.length) : words.hint(bank.name)}
+        title={inProfile ? t.profile.settings.keys : words.title}
+        summary={securityKeys.length ? words.count(securityKeys.length) : inProfile ? t.profile.settings.keysHint : words.hint(bank.name)}
         onClick={() => setOpen(true)}
       />
       {open && <SecurityKeysDialog onClose={() => setOpen(false)} />}
@@ -39,8 +40,10 @@ export function SecurityKeysRow() {
 
 function SecurityKeysDialog({ onClose }: { onClose: () => void }) {
   const t = useT();
-  const { securityKeys, addSecurityKey, renameSecurityKey, removeSecurityKey } = useFints();
+  const { securityKeys, addSecurityKey, renameSecurityKey, removeSecurityKey, profile } = useFints();
   const [working, setWorking] = useState(false);
+  // Girovo 7: a key added to the profile needs its password, asked here before Windows asks for the touches.
+  const [password, setPassword] = useState('');
   const [asking, setAsking] = useState<string | null>(null);
   const [naming, setNaming] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
@@ -87,12 +90,33 @@ function SecurityKeysDialog({ onClose }: { onClose: () => void }) {
       actions={(
         <>
           <Button variant="secondary" disabled={working} onClick={onClose}>{t.common.close}</Button>
-          <Button variant="primary" data-autofocus busy={working} disabled={keys.length >= KEYS_MAX} onClick={() => void run(addSecurityKey)}>
+          <Button
+            variant="primary"
+            data-autofocus={profile.open ? undefined : true}
+            busy={working}
+            disabled={keys.length >= KEYS_MAX || (profile.open && !password)}
+            onClick={() => void run(async () => {
+              await addSecurityKey(profile.open ? password : undefined);
+              setPassword('');
+            })}
+          >
             {keys.length ? words.addAnother : words.add}
           </Button>
         </>
       )}
     >
+      {profile.open && keys.length < KEYS_MAX && (
+        <Field label={t.profile.settings.keyPassword} hint={t.profile.settings.keyPasswordHint}>
+          <PasswordInput
+            data-autofocus
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            readOnly={working}
+            concealed={working}
+          />
+        </Field>
+      )}
       {keys.length > 0 ? (
         <ul>
           {keys.map((key, i) => {

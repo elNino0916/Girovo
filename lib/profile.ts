@@ -12,8 +12,9 @@
 //
 // How it is sealed:
 //   - The content is sealed under a random key K (AES-256-GCM, lib/crypto-box).
-//   - K itself is sealed once per way in ("locks"): under the password and
-//     under Windows Hello. Each lock's key also takes the shell's DPAPI
+//   - K itself is sealed once per way in ("locks"): under the password, under
+//     Windows Hello and under each security key (FIDO2 hmac-secret, the
+//     shell's src-tauri/src/security_key.rs). Each lock's key also takes the shell's DPAPI
 //     secret (src-tauri/src/secret.rs), so a copy of the file taken off this
 //     computer cannot be tried against passwords elsewhere. The password's
 //     part goes through scrypt like every PIN here.
@@ -41,6 +42,7 @@ import { isAvatarChoice, isAvatarImage, OWN_PICTURE, type AvatarChoice } from '.
 import { isRecord } from './guards.ts';
 import { LINKED_BANK_LIMITS, sameLogin, sanitizeLinkedBanks, type LinkedBankRef } from './linked-banks.ts';
 import { sanitizeLogins } from './linked-unlock.ts';
+import { KEYS_MAX, keyIdOf, parseCredential, parseKeyName } from './security-key.ts';
 import { moveAside, removeFamily, serialized, writeFileAtomic } from './sealed-file.ts';
 import { PROFILE_PASSWORD_MIN } from './profile-client.ts';
 import { STATE_DIR } from './state-store.ts';
@@ -48,8 +50,11 @@ import { STATE_DIR } from './state-store.ts';
 /** A bank of the profile; `pin` only once the bank has taken it here. */
 export type ProfileBank = LinkedBankRef & { pin?: string };
 
-/** What a lock's key is made of: the password typed, or the shell's key after a Windows Hello gesture. */
-export type ProfileWay = { password: string } | { helloKey: Buffer };
+/** What a lock's key is made of: the password typed, the shell's key after a Windows Hello gesture, or a security key's touch. */
+export type ProfileWay = { password: string } | { helloKey: Buffer } | { securityKey: Buffer; credential: string };
+
+/** A security key of the profile as anyone may see it: what the shell asks the reader for. */
+export type ProfileKeyInfo = { id: string; credential: string; added: string; name?: string };
 
 /** The open profile as the routes hand it on. */
 export type ProfileContent = { name: string; banks: ProfileBank[]; vault: unknown };
@@ -60,7 +65,11 @@ export type ProfileFace = { avatar: AvatarChoice; image?: string };
 
 export type ProfileStatus =
   | { exists: false }
-  | { exists: true; name: string; hello: boolean; open: boolean; damaged?: true; face?: ProfileFace };
+  | {
+    exists: true; name: string; hello: boolean; open: boolean; damaged?: true; face?: ProfileFace;
+    /** The security keys that open it, and the salt the shell hands the reader (both needed before it opens). */
+    keys?: ProfileKeyInfo[]; keySalt?: string;
+  };
 
 export const PROFILE_LIMITS = {
   /** Characters of the profile's name. */
@@ -75,19 +84,21 @@ export const PROFILE_LIMITS = {
 };
 
 /** A file this big is not one of ours: base64 of the plaintext plus the envelope and the locks. */
-const FILE_MAX_BYTES = Math.ceil((PROFILE_LIMITS.bytes * 4) / 3) + 16 * 1024;
+const FILE_MAX_BYTES = Math.ceil((PROFILE_LIMITS.bytes * 4) / 3) + 128 * 1024;
 const KEY_BYTES = 32;
 /** Every key and box of the profile is kept apart from all others by these. */
 const DOMAIN = 'girovo/profile/v1';
 const CONTENT_AAD = Buffer.from(`${DOMAIN}|content`, 'utf8');
-const lockAad = (kind: 'password' | 'hello') => Buffer.from(`${DOMAIN}|lock|${kind}`, 'utf8');
+const lockAad = (kind: string) => Buffer.from(`${DOMAIN}|lock|${kind}`, 'utf8');
+/** The lock a way in opens: its kind, and a security key's id. */
+const kindOf = (way: ProfileWay) => ('password' in way ? 'password' : 'helloKey' in way ? 'hello' : `key|${keyIdOf(way.credential)}`);
 
 /**
  * A refusal the route turns into an HTTP status. `code` says which, so the
  * route words it in the request's language (msgs().profile.server).
  */
 export class ProfileError extends Error {
-  code: 'exists' | 'missing' | 'locked' | 'wrong' | 'short' | 'name' | 'damaged' | 'tooLarge' | 'full' | 'io';
+  code: 'exists' | 'missing' | 'locked' | 'wrong' | 'short' | 'name' | 'damaged' | 'tooLarge' | 'full' | 'keysFull' | 'keyExists' | 'keyBad' | 'io';
   status: number;
   constructor(code: ProfileError['code'], status: number) {
     super(code);
@@ -147,8 +158,29 @@ export function sanitizeBanks(v: unknown): ProfileBank[] {
 // The file
 // ---------------------------------------------------------------------------
 
-type Locks = { password: SealedBox; hello?: SealedBox };
-type ProfileFileShape = { v: 1; name: string; face?: ProfileFace; locks: Locks; box: SealedBox };
+type KeyLock = ProfileKeyInfo & { box: SealedBox };
+type Locks = { password: SealedBox; hello?: SealedBox; keys?: KeyLock[] };
+type ProfileFileShape = { v: 1; name: string; face?: ProfileFace; keySalt?: string; locks: Locks; box: SealedBox };
+
+const ISO = /^\d{4}-\d{2}-\d{2}T/;
+
+/** The security keys' locks as this version reads them: well formed, each once, at most KEYS_MAX. */
+function keyLocks(v: unknown): KeyLock[] {
+  const out: KeyLock[] = [];
+  for (const raw of Array.isArray(v) ? v : []) {
+    if (!isRecord(raw)) continue;
+    const credential = parseCredential(raw.credential);
+    const box = parseBox(raw.box);
+    if (!credential || !box || raw.id !== keyIdOf(credential) || out.some((k) => k.id === raw.id)) continue;
+    const name = parseKeyName(raw.name);
+    const added = typeof raw.added === 'string' && ISO.test(raw.added) ? raw.added : new Date(0).toISOString();
+    out.push({ id: keyIdOf(credential), credential, added, ...(name ? { name } : {}), box });
+    if (out.length === KEYS_MAX) break;
+  }
+  return out;
+}
+
+const keyInfo = ({ box: _box, ...info }: KeyLock): ProfileKeyInfo => info;
 
 /** A picture as the unlock screen may show it: a known glyph, or the own picture with an image that is one. */
 export function profileFace(v: unknown): ProfileFace | undefined {
@@ -170,7 +202,12 @@ function parseFile(raw: string): ProfileFileShape | null {
   const box = parseBox(parsed.box);
   if (!password || hello === null || !box) return null;
   const face = profileFace(parsed.face);
-  return { v: 1, name: profileName(parsed.name), ...(face ? { face } : {}), locks: { password, ...(hello ? { hello } : {}) }, box };
+  const keys = keyLocks(parsed.locks.keys);
+  const keySalt = typeof parsed.keySalt === 'string' && /^[A-Za-z0-9+/]{43}=$/.test(parsed.keySalt) ? parsed.keySalt : undefined;
+  return {
+    v: 1, name: profileName(parsed.name), ...(face ? { face } : {}), ...(keySalt ? { keySalt } : {}),
+    locks: { password, ...(hello ? { hello } : {}), ...(keys.length ? { keys } : {}) }, box,
+  };
 }
 
 type Read = { kind: 'missing' } | { kind: 'damaged' } | { kind: 'file'; file: ProfileFileShape };
@@ -203,19 +240,20 @@ async function writeFile(file: ProfileFileShape): Promise<void> {
 async function lockKey(way: ProfileWay, salt: Buffer, secret: Buffer): Promise<Buffer> {
   const h = crypto.createHash('sha256').update(DOMAIN).update(salt).update(secret);
   if ('password' in way) h.update('password').update(await deriveKey(way.password, salt));
-  else h.update('hello').update(way.helloKey);
+  else if ('helloKey' in way) h.update('hello').update(way.helloKey);
+  else h.update(kindOf(way)).update(way.securityKey);
   return h.digest();
 }
 
 async function sealLock(k: Buffer, way: ProfileWay, secret: Buffer): Promise<SealedBox> {
   const salt = newSalt();
-  return sealBox(await lockKey(way, salt, secret), salt, k, lockAad('password' in way ? 'password' : 'hello'));
+  return sealBox(await lockKey(way, salt, secret), salt, k, lockAad(kindOf(way)));
 }
 
 /** K from one lock, or null when this way does not open it. */
 async function openLock(box: SealedBox, way: ProfileWay, secret: Buffer): Promise<Buffer | null> {
   try {
-    const k = openBox(await lockKey(way, boxSalt(box), secret), box, lockAad('password' in way ? 'password' : 'hello'));
+    const k = openBox(await lockKey(way, boxSalt(box), secret), box, lockAad(kindOf(way)));
     return k.length === KEY_BYTES ? k : null;
   } catch {
     return null;
@@ -283,8 +321,10 @@ export async function profileStatus(): Promise<ProfileStatus> {
   if (r.kind === 'missing') return { exists: false };
   // A damaged file is still a profile: never offered a new one over it unasked.
   if (r.kind === 'damaged') return { exists: true, name: '', hello: false, open: false, damaged: true };
+  const keys = (r.file.locks.keys ?? []).map(keyInfo);
   return {
     exists: true, name: r.file.name, hello: !!r.file.locks.hello, open: opened !== null, ...(r.file.face ? { face: r.file.face } : {}),
+    ...(keys.length ? { keys } : {}), ...(r.file.keySalt ? { keySalt: r.file.keySalt } : {}),
   };
 }
 
@@ -324,7 +364,9 @@ export async function unlockProfile(way: ProfileWay, secret: Buffer): Promise<Pr
     const r = await readFile();
     if (r.kind === 'missing') throw new ProfileError('missing', 404);
     if (r.kind === 'damaged') throw new ProfileError('damaged', 409);
-    const box = 'password' in way ? r.file.locks.password : r.file.locks.hello;
+    const box = 'password' in way ? r.file.locks.password
+      : 'helloKey' in way ? r.file.locks.hello
+        : r.file.locks.keys?.find((key) => key.id === keyIdOf(way.credential))?.box;
     if (!box) throw new ProfileError('wrong', 403);
     const k = await openLock(box, way, secret);
     if (!k) throw new ProfileError('wrong', 403);
@@ -422,6 +464,68 @@ export function setProfileFace(input: unknown): Promise<ProfileFace | null> {
     if (JSON.stringify(face ?? null) === JSON.stringify(o.file.face ?? null)) return { next: o, result: face };
     const { face: _old, ...rest } = o.file;
     return { next: { ...o, file: face ? { ...rest, face } : rest }, result: face };
+  });
+}
+
+/**
+ * The salt the shell hands a security key (hmac-secret): the profile's own,
+ * made the first time a key is added and kept beside the name, since the
+ * unlock screen needs it before anything opens.
+ */
+export function profileKeySalt(): Promise<string> {
+  return change(async (o) => {
+    if (o.file.keySalt) return { next: o, result: o.file.keySalt };
+    const keySalt = crypto.randomBytes(32).toString('base64');
+    return { next: { ...o, file: { ...o.file, keySalt } }, result: keySalt };
+  });
+}
+
+/**
+ * One more security key opens the profile (its touch's key from the shell's
+ * register). Needs the password, as changing it does: a key someone brings to
+ * an unlocked computer would let them in for good. Answers the keys.
+ */
+export function addProfileKey(credential: unknown, securityKey: Buffer, secret: Buffer, password: unknown): Promise<ProfileKeyInfo[]> {
+  return change(async (o) => {
+    if (typeof password !== 'string' || !(await openLock(o.file.locks.password, { password }, secret))) {
+      throw new ProfileError('wrong', 403);
+    }
+    const cred = parseCredential(credential);
+    if (!cred || !o.file.keySalt) throw new ProfileError('keyBad', 400);
+    const keys = o.file.locks.keys ?? [];
+    if (keys.some((k) => k.id === keyIdOf(cred))) throw new ProfileError('keyExists', 409);
+    if (keys.length >= KEYS_MAX) throw new ProfileError('keysFull', 409);
+    const lock: KeyLock = {
+      id: keyIdOf(cred), credential: cred, added: new Date().toISOString(),
+      box: await sealLock(o.k, { securityKey, credential: cred }, secret),
+    };
+    const next = { ...o, file: { ...o.file, locks: { ...o.file.locks, keys: [...keys, lock] } } };
+    return { next, result: next.file.locks.keys.map(keyInfo) };
+  });
+}
+
+/** A key's name ('' takes it away). Answers the keys. */
+export function renameProfileKey(id: unknown, name: unknown): Promise<ProfileKeyInfo[]> {
+  const clean = parseKeyName(name);
+  return change(async (o) => {
+    if (clean === null) throw new ProfileError('name', 400);
+    const keys = (o.file.locks.keys ?? []).map((k) => {
+      if (k.id !== id) return k;
+      const { name: _old, ...rest } = k;
+      return clean ? { ...rest, name: clean } : rest;
+    });
+    const next = { ...o, file: { ...o.file, locks: { ...o.file.locks, keys } } };
+    return { next, result: keys.map(keyInfo) };
+  });
+}
+
+/** A key no longer opens the profile. Answers the keys left. */
+export function removeProfileKey(id: unknown): Promise<ProfileKeyInfo[]> {
+  return change(async (o) => {
+    const keys = (o.file.locks.keys ?? []).filter((k) => k.id !== id);
+    const { keys: _all, ...rest } = o.file.locks;
+    const next = { ...o, file: { ...o.file, locks: keys.length ? { ...rest, keys } : rest } };
+    return { next, result: keys.map(keyInfo) };
   });
 }
 

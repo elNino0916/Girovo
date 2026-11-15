@@ -15,6 +15,7 @@ import { FingerprintIcon, LockIcon, PencilIcon, TrashIcon, UserIcon } from '../i
 import { firstName, holderName, sessionHolder } from '../shell/session';
 import { Alert, Button, Checkbox, Dialog, Field, Input, PasswordInput } from '../ui';
 import { ActionItem, SettingsGroup, SwitchItem } from './rows';
+import { SecurityKeysRow } from './SecurityKeys';
 
 const MIN = PROFILE_PASSWORD_MIN;
 const charCount = (s: string) => Array.from(s).length;
@@ -66,6 +67,7 @@ export function ProfileGroup() {
           }}
         />
       )}
+      <SecurityKeysRow inProfile />
       <ActionItem icon={<TrashIcon />} title={words.delete} summary={words.deleteHint} onClick={() => setOpen('delete')} />
       {open === 'rename' && <RenameDialog onClose={() => setOpen(null)} />}
       {open === 'password' && <PasswordDialog onClose={() => setOpen(null)} />}

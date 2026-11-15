@@ -41,9 +41,9 @@ import {
 } from '@/lib/client-api';
 import { IS_ANDROID } from '@/lib/platform';
 import { forgetHello, helloAvailable, helloOn, helloShell, helloStoreBroken, sealWithHello } from '@/lib/windows-hello-client';
-import { NO_PROFILE, loginPlan, startingOrder, withProfileBanks, type ProfileInfo, type UnlockedBank } from '@/lib/profile-client';
+import { NO_PROFILE, loginPlan, startingOrder, withProfileBanks, type ProfileInfo, type UnlockedBank, type UnlockWay } from '@/lib/profile-client';
 import {
-  addSecurityKey as sealWithSecurityKey, forgetSecurityKeys, nameSecurityKey, removeSecurityKey as dropSecurityKey, securityKeyAvailable, securityKeysOf,
+  addSecurityKey as sealWithSecurityKey, forgetSecurityKeys, nameSecurityKey, removeSecurityKey as dropSecurityKey, securityKeyAvailable, securityKeyShell, securityKeysOf,
   type SecurityKeyInfo,
 } from '@/lib/security-key-client';
 import { withNoticed, type ContractNotice, type ContractReminder } from '@/lib/contract-watch';
@@ -1424,7 +1424,7 @@ function useFintsState() {
     // The login's PIN kept for Windows Hello went too (app/api/vault), and
     // every PIN kept for "Neue Umsätze melden".
     if (windowsHelloRef.current) setWindowsHelloBoth(false);
-    if (securityKeysRef.current?.length) setSecurityKeysBoth([]);
+    if (securityKeysRef.current?.length && !profileRef.current.open) setSecurityKeysBoth([]);
     if (backgroundRef.current) {
       setBackgroundBoth(false);
       void shellSchedule(false);
@@ -3052,11 +3052,47 @@ function useFintsState() {
     const login = helloLoginRef.current;
     if (IS_ANDROID || !login || !(await securityKeyAvailable())) return;
     const keys = await securityKeysOf({ blz: login.blz, userId: login.userId });
-    if (keys && isCurrent(sid)) setSecurityKeysBoth(keys);
+    // Not once a profile has opened meanwhile: its keys are the ones listed then.
+    if (keys && isCurrent(sid) && !profileRef.current.open) setSecurityKeysBoth(keys);
   }, [isCurrent, setSecurityKeysBoth]);
 
   /** One more security key: Windows asks for two touches, and the PIN the bank took is kept under it. */
-  const addSecurityKey = useCallback(async () => {
+  /**
+   * Girovo 7, the profile open: its security keys are what Einstellungen
+   * lists and changes (lib/profile.ts), not the first bank's.
+   */
+  const profileKeysChanged = useCallback((keys: NonNullable<ProfileInfo['keys']>) => {
+    setProfileBoth((p) => ({ ...p, ...(keys.length ? { keys } : { keys: undefined }) }));
+    setSecurityKeysBoth(keys.map(({ id, added, name }) => ({ id, added, ...(name ? { name } : {}) })));
+  }, [setProfileBoth, setSecurityKeysBoth]);
+
+  const addProfileKey = useCallback(async (password: string) => {
+    const said = msgs().settings.securityKeys;
+    const shell = securityKeyShell();
+    const secret = await linkedUnlockSecret();
+    if (!shell || !secret) return toast(said.failed, 'error');
+    try {
+      const { keySalt } = await post<{ keySalt: string }>('/api/profile', { op: 'keySalt', password, secret });
+      setProfileBoth((p) => ({ ...p, keySalt }));
+      const made = await shell.register(keySalt, (profileRef.current.keys ?? []).map((k) => k.credential))
+        .catch(() => ({ result: 'failed' as const, credential: undefined, key: undefined, code: undefined }));
+      if (made.result === 'canceled' || made.result === 'busy') return;
+      if (made.result === 'exists') return toast(said.exists, 'info');
+      if (made.result === 'unsupported') return toast(said.unsupported, 'error', 12_000);
+      if (made.result !== 'registered' || !made.key || !made.credential) {
+        return toast(made.code ? said.failedCode(made.code) : said.failed, 'error', 12_000);
+      }
+      const r = await post<{ keys: NonNullable<ProfileInfo['keys']> }>('/api/profile', { op: 'keyAdd', credential: made.credential, key: made.key, password, secret });
+      profileKeysChanged(r.keys);
+      toast(msgs().profile.settings.keyAdded, 'success');
+    } catch (err) {
+      toast((err as Error).message || said.failed, 'error');
+    }
+  }, [setProfileBoth, profileKeysChanged, toast]);
+
+  /** `password`: the profile's, which adding a key to it needs (Girovo 7). */
+  const addSecurityKey = useCallback(async (password?: string) => {
+    if (profileRef.current.open) { await addProfileKey(password ?? ''); return; }
     const sid = sessionRef.current;
     const login = helloLoginRef.current;
     if (!sid || !login || securityKeysRef.current === null) return;
@@ -3080,6 +3116,14 @@ function useFintsState() {
 
   /** A key's name, '' taking it away. */
   const renameSecurityKey = useCallback(async (id: string, name: string) => {
+    if (profileRef.current.open) {
+      try {
+        profileKeysChanged((await post<{ keys: NonNullable<ProfileInfo['keys']> }>('/api/profile', { op: 'keyRename', id, name })).keys);
+      } catch (err) {
+        toast((err as Error).message || msgs().settings.securityKeys.failed, 'error');
+      }
+      return;
+    }
     const sid = sessionRef.current;
     const login = helloLoginRef.current;
     if (!sid || !login) return;
@@ -3093,6 +3137,15 @@ function useFintsState() {
 
   /** One key goes, with the PIN kept under it. */
   const removeSecurityKey = useCallback(async (id: string) => {
+    if (profileRef.current.open) {
+      try {
+        profileKeysChanged((await post<{ keys: NonNullable<ProfileInfo['keys']> }>('/api/profile', { op: 'keyRemove', id })).keys);
+        toast(msgs().profile.settings.keyRemoved, 'info');
+      } catch (err) {
+        toast((err as Error).message || msgs().settings.securityKeys.failed, 'error');
+      }
+      return;
+    }
     const sid = sessionRef.current;
     const login = helloLoginRef.current;
     if (!sid || !login) return;
@@ -3590,10 +3643,14 @@ function useFintsState() {
       return;
     }
     try {
-      const r = await post<{ exists: boolean; name?: string; hello?: boolean; open?: boolean; damaged?: boolean; face?: ProfileInfo['face'] }>('/api/profile', { op: 'status' });
+      const r = await post<{
+        exists: boolean; name?: string; hello?: boolean; open?: boolean; damaged?: boolean; face?: ProfileInfo['face'];
+        keys?: ProfileInfo['keys']; keySalt?: string;
+      }>('/api/profile', { op: 'status' });
       setProfileBoth(() => ({
         served: true, checked: true, exists: r.exists, name: r.name ?? '', hello: r.hello === true, open: r.open === true, damaged: r.damaged === true,
         ...(r.face ? { face: r.face } : {}),
+        ...(r.keys?.length ? { keys: r.keys } : {}), ...(r.keySalt ? { keySalt: r.keySalt } : {}),
       }));
     } catch {
       // Not to be asked: the bank's login as before for this run, and no
@@ -3659,21 +3716,33 @@ function useFintsState() {
    * null once open (the banks then log in), '' when Windows Hello was called
    * off, or what went wrong.
    */
-  const unlockProfile = useCallback(async (password: string | null): Promise<string | null> => {
+  const unlockProfile = useCallback(async (way: UnlockWay): Promise<string | null> => {
     const said = msgs().profile;
     const secret = await linkedUnlockSecret();
     if (!secret) return said.server.noKey;
     let key: string | undefined;
-    if (password === null) {
+    let credential: string | undefined;
+    if ('via' in way && way.via === 'hello') {
       const shell = helloShell();
       const gesture = shell ? await shell.unlock().catch(() => null) : null;
       if (gesture?.result === 'canceled' || gesture?.result === 'busy') return '';
       if (gesture?.result !== 'unlocked' || !gesture.key) return said.unlock.helloFailed;
       key = gesture.key;
+    } else if ('via' in way) {
+      // A security key: the reader is asked for one of the profile's keys, with the profile's salt.
+      const shell = securityKeyShell();
+      const known = profileRef.current;
+      if (!shell || !known.keySalt || !known.keys?.length) return said.unlock.keyFailed;
+      const touch = await shell.open(known.keySalt, known.keys.map((k) => k.credential)).catch(() => null);
+      if (touch?.result === 'canceled' || touch?.result === 'busy') return '';
+      if (touch?.result === 'wrong') return msgs().settings.securityKeys.wrongKey;
+      if (touch?.result !== 'opened' || !touch.key || !touch.credential) return said.unlock.keyFailed;
+      key = touch.key;
+      credential = touch.credential;
     }
     try {
       const r = await post<{ name: string; banks: UnlockedBank[]; hello: boolean }>(
-        '/api/profile', { op: 'unlock', secret, ...(key ? { key } : { password }) },
+        '/api/profile', { op: 'unlock', secret, ...(key ? { key, ...(credential ? { credential } : {}) } : { password: 'password' in way ? way.password : '' }) },
       );
       profileBanksRef.current = r.banks.map(({ pin: _pin, ...ref }) => ref);
       // Named before the profile shows as open: the unlock screen stays up,
@@ -3684,7 +3753,8 @@ function useFintsState() {
       void startProfileLogins(r.banks);
       return null;
     } catch (err) {
-      // A Windows Hello key that no longer opens it: not the password's fault.
+      // A Windows Hello key or security key that no longer opens it: not the password's fault.
+      if (credential) return said.unlock.keyFailed;
       if (key) return said.unlock.helloFailed;
       return (err as Error).message || said.server.wrong;
     }
@@ -4511,7 +4581,7 @@ function useFintsState() {
       openedLinkedRef.current = [];
       if (linkedUnlockRef.current) setLinkedUnlockBoth(false);
       if (windowsHelloRef.current) setWindowsHelloBoth(false);
-      if (securityKeysRef.current?.length) setSecurityKeysBoth([]);
+      if (securityKeysRef.current?.length && !profileRef.current.open) setSecurityKeysBoth([]);
       if (backgroundRef.current) {
         setBackgroundBoth(false);
         void shellSchedule(false);
@@ -4814,7 +4884,7 @@ function useFintsState() {
         void forgetHello({ blz: own.blz, userId: userIdRef.current });
         if (windowsHelloRef.current) setWindowsHelloBoth(false);
         void forgetSecurityKeys({ blz: own.blz, userId: userIdRef.current });
-        if (securityKeysRef.current?.length) setSecurityKeysBoth([]);
+        if (securityKeysRef.current?.length && !profileRef.current.open) setSecurityKeysBoth([]);
       }
       // …and so is the one the checks for new Umsätze would use, and the profile's (Girovo 7).
       if (userIdRef.current) void forgetBackgroundLogin({ blz: own.blz, userId: userIdRef.current });
@@ -5590,6 +5660,18 @@ function useFintsState() {
       return next ? withLinkedBanks(v, next) : v;
     });
   }, [profile.open, vaultStatus, bank, userId, updateVault]);
+
+  // Girovo 7, the profile open: Einstellungen' security keys are the profile's.
+  useEffect(() => {
+    if (!profile.open || IS_ANDROID) return;
+    let live = true;
+    void securityKeyAvailable().then((available) => {
+      if (!live || !available) return;
+      const keys = profileRef.current.keys ?? [];
+      setSecurityKeysBoth(keys.map(({ id, added, name }) => ({ id, added, ...(name ? { name } : {}) })));
+    });
+    return () => { live = false; };
+  }, [profile.open, setSecurityKeysBoth]);
 
   // The picture chosen in the Sitzung panel goes beside the profile's name
   // too, so the unlock screen shows it (lib/profile.ts setProfileFace).

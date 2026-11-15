@@ -11,6 +11,10 @@
 //   forgetPin {login}  remove {login}  order {logins}   → { banks }   (no PINs)
 //   name    {name}                           → { name }
 //   face    {face: {avatar, image?} | null}   → { face }   the picture the unlock screen shows (kept unsealed, like the name)
+//   keySalt {password, secret}               → { keySalt }   the salt the shell hands a security key (made once)
+//   keyAdd  {credential, key, password, secret} → { keys }   one more security key opens it
+//   keyRename {id, name}  keyRemove {id}     → { keys }
+//   unlock with {credential, key, secret} opens it with a security key's touch
 //   password {current, next, secret}         → { ok }
 //   hello   {key | null, secret}             → { hello }
 //   aside                                    → { exists: false }   "Passwort vergessen": set aside as .bak
@@ -31,13 +35,14 @@ import { sanitizeLinkedBanks, sameLogin } from '@/lib/linked-banks';
 import { linkedUnlockServed, loginOfSession, openLogins, parseSecret, removeLinkedUnlock } from '@/lib/linked-unlock';
 import {
   PROFILE_BASE, PROFILE_LIMITS, ProfileError, changePassword, checkProfilePassword, createProfile, deleteProfile, forgetBankPin, keepBank,
-  lockProfile, openProfile, orderBanks, profileStatus, removeBank, renameProfile, setHello, setProfileAside, setProfileFace, unlockProfile,
+  addProfileKey, lockProfile, openProfile, orderBanks, profileKeySalt, profileStatus, removeBank, removeProfileKey, renameProfile,
+  renameProfileKey, setHello, setProfileAside, setProfileFace, unlockProfile,
   type ProfileBank, type ProfileContent,
 } from '@/lib/profile';
 import { getSession, type Session } from '@/lib/session';
 import { readMeta, removeMeta, syncMetaFile, writeMeta } from '@/lib/sync-meta';
 import { removeFamily } from '@/lib/sealed-file';
-import { removeSecurityKeys } from '@/lib/security-key';
+import { KEYS_MAX, parseKeyId, removeSecurityKeys } from '@/lib/security-key';
 import { loadVault, removeLegacyVault } from '@/lib/vault';
 import { DocError, wipeDocs, wipeDocsOf } from '@/lib/doc-store';
 import { HistoryError, wipeHistory, wipeHistoryOf } from '@/lib/history-store';
@@ -65,6 +70,8 @@ type ProfileBody = {
   login?: unknown;
   logins?: unknown;
   face?: unknown;
+  credential?: unknown;
+  id?: unknown;
 };
 
 const REQUEST_MAX_BYTES = 16 * 1024;
@@ -77,6 +84,7 @@ function refusal(err: unknown) {
   const said = msgs().profile.server;
   const text = err.code === 'short' ? said.short(PROFILE_LIMITS.passwordMin)
     : err.code === 'full' ? said.full(PROFILE_LIMITS.banks)
+      : err.code === 'keysFull' ? said.keysFull(KEYS_MAX)
       : err.code === 'name' ? said.name
       : said[err.code];
   return fail(text, err.status);
@@ -144,9 +152,13 @@ export const POST = wrap(async (req: Request) => {
       case 'unlock': {
         const secret = parseSecret(b.secret);
         if (!secret) return fail(said.noKey, 400);
-        const helloKey = b.key === undefined ? null : parseHelloKey(b.key);
-        if (b.key !== undefined && !helloKey) return fail(said.noKey, 400);
-        const opened = await unlockProfile(helloKey ? { helloKey } : { password: typeof b.password === 'string' ? b.password : '' }, secret);
+        // A security key's touch comes with its credential, Windows Hello's without; both as the shell's 32-byte key.
+        const key = b.key === undefined ? null : parseHelloKey(b.key);
+        if (b.key !== undefined && !key) return fail(said.noKey, 400);
+        const way = key && typeof b.credential === 'string' ? { securityKey: key, credential: b.credential }
+          : key ? { helloKey: key }
+            : { password: typeof b.password === 'string' ? b.password : '' };
+        const opened = await unlockProfile(way, secret);
         const status = await profileStatus();
         return json({ name: opened.name, banks: opened.banks, hello: status.exists && status.hello });
       }
@@ -185,6 +197,28 @@ export const POST = wrap(async (req: Request) => {
 
       case 'face':
         return json({ face: await setProfileFace(b.face) });
+
+      case 'keySalt': {
+        // Asked before the key is touched twice: a mistyped password costs no touch.
+        const secret = parseSecret(b.secret);
+        if (!secret) return fail(said.noKey, 400);
+        if (!(await checkProfilePassword(b.password, secret))) throw new ProfileError('wrong', 403);
+        return json({ keySalt: await profileKeySalt() });
+      }
+
+      case 'keyAdd': {
+        const secret = parseSecret(b.secret);
+        const key = parseHelloKey(b.key);
+        if (!secret || !key) return fail(said.noKey, 400);
+        return json({ keys: await addProfileKey(b.credential, key, secret, b.password) });
+      }
+
+      case 'keyRename':
+      case 'keyRemove': {
+        const id = parseKeyId(b.id);
+        if (!id) return fail(said.unknown, 400);
+        return json({ keys: b.op === 'keyRename' ? await renameProfileKey(id, b.name) : await removeProfileKey(id) });
+      }
 
       case 'password': {
         const secret = parseSecret(b.secret);

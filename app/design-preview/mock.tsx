@@ -102,7 +102,7 @@ import {
 import type { AnalysisPeriod, AnalysisScope } from '@/lib/app-types';
 import { PAGE_OF, type SettingsPage } from '@/lib/settings-pages';
 import { IS_ANDROID } from '@/lib/platform';
-import { NO_PROFILE, type ProfileInfo } from '@/lib/profile-client';
+import { NO_PROFILE, type ProfileInfo, type UnlockWay } from '@/lib/profile-client';
 import type { ManualContract, ManualDay } from '@/lib/manual-contracts';
 import type {
   BankOrderKind, Merchant, SerializedAccount, SerializedBalance, SerializedBankOrder, SerializedPortfolio, SerializedTanMethod,
@@ -845,6 +845,7 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     exists: opts.profile !== 'none' && opts.profile !== 'create',
     name: opts.profile === 'none' || opts.profile === 'create' ? '' : 'Max',
     hello: opts.profile === 'locked-hello',
+    ...(opts.profile === 'locked-hello' ? { keys: [{ id: '0123456789abcdef', credential: 'AAAA', added: '2026-11-15T10:00:00.000Z' }], keySalt: 'A'.repeat(43) + '=' } : {}),
     open: opts.profile === 'open' || opts.profile === 'signing-in',
   }));
   const [profileCreateOpen, setProfileCreateOpen] = useState(opts.profile === 'create');
@@ -3123,8 +3124,8 @@ function useMockFintsState(preset: MockPreset, opts: MockOptions) {
     profileCreateOpen,
     openProfileCreate: () => setProfileCreateOpen(true),
     closeProfileCreate: () => setProfileCreateOpen(false),
-    unlockProfile: async (password: string | null) => {
-      if (password !== null && password.length < 8) return msgs().profile.server.wrong;
+    unlockProfile: async (way: UnlockWay) => {
+      if ('password' in way && way.password.length < 8) return msgs().profile.server.wrong;
       setProfile((p) => ({ ...p, open: true }));
       return null;
     },

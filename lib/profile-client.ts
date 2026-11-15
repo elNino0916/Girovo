@@ -14,7 +14,13 @@ export type ProfileInfo = {
   served: boolean; exists: boolean; name: string; hello: boolean; open: boolean; damaged?: boolean; checked?: boolean;
   /** The picture the unlock screen shows (lib/profile.ts ProfileFace). */
   face?: { avatar: string; image?: string };
+  /** The security keys that open it, and the salt the shell hands the reader (lib/profile.ts). */
+  keys?: { id: string; credential: string; added: string; name?: string }[];
+  keySalt?: string;
 };
+
+/** How the unlock screen opens the profile: the password typed, Windows Hello, or a security key. */
+export type UnlockWay = { password: string } | { via: 'hello' | 'key' };
 
 /** Before the page asked: nothing is shown for a profile. */
 export const NO_PROFILE: ProfileInfo = { served: false, exists: false, name: '', hello: false, open: false };

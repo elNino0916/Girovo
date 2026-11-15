@@ -226,3 +226,42 @@ test('the picture beside the name: shown before the unlock, a glyph or the own p
   // Never readable without the password beside it: the PINs stay sealed.
   assert.ok(!fs.readFileSync(p.profileFile(), 'utf8').includes('12345'));
 });
+
+test('security keys: each opens it with its touch, only its own credential, named, removed, at most five', async () => {
+  await make();
+  const salt = await p.profileKeySalt();
+  assert.equal(await p.profileKeySalt(), salt, 'the salt is made once');
+  const credA = crypto.randomBytes(48).toString('base64');
+  const credB = crypto.randomBytes(48).toString('base64');
+  const touchA = crypto.randomBytes(32);
+  const touchB = crypto.randomBytes(32);
+  const pw = 'richtig gutes Passwort';
+  await assert.rejects(p.addProfileKey(credA, touchA, secret, 'falsch falsch'), (e: Error) => (e as InstanceType<typeof p.ProfileError>).code === 'wrong');
+  let keys = await p.addProfileKey(credA, touchA, secret, pw);
+  keys = await p.addProfileKey(credB, touchB, secret, pw);
+  assert.equal(keys.length, 2);
+  await assert.rejects(p.addProfileKey(credA, touchA, secret, pw), (e: Error) => (e as InstanceType<typeof p.ProfileError>).code === 'keyExists');
+  keys = await p.renameProfileKey(keys[0].id, '  Schlüsselbund ');
+  assert.equal(keys[0].name, 'Schlüsselbund');
+  p.lockProfile();
+  const st = await p.profileStatus() as { keys?: { credential: string }[]; keySalt?: string };
+  assert.deepEqual(st.keys?.map((k) => k.credential), [credA, credB]);
+  assert.equal(st.keySalt, salt);
+  // A key opens it with its own touch only, and with this computer's secret.
+  await assert.rejects(p.unlockProfile({ securityKey: touchB, credential: credA }, secret), (e: Error) => (e as InstanceType<typeof p.ProfileError>).code === 'wrong');
+  await assert.rejects(p.unlockProfile({ securityKey: touchA, credential: credA }, otherSecret));
+  await assert.rejects(p.unlockProfile({ securityKey: touchA, credential: crypto.randomBytes(48).toString('base64') }, secret));
+  assert.equal((await p.unlockProfile({ securityKey: touchA, credential: credA }, secret)).name, 'Max');
+  // Removed: it no longer opens; the password still does.
+  keys = await p.removeProfileKey(keys[0].id);
+  assert.deepEqual(keys.map((k) => k.credential), [credB]);
+  p.lockProfile();
+  await assert.rejects(p.unlockProfile({ securityKey: touchA, credential: credA }, secret));
+  assert.equal((await p.unlockProfile({ securityKey: touchB, credential: credB }, secret)).name, 'Max');
+  for (let i = 0; i < 4; i++) await p.addProfileKey(crypto.randomBytes(48).toString('base64'), crypto.randomBytes(32), secret, pw);
+  await assert.rejects(p.addProfileKey(crypto.randomBytes(48).toString('base64'), crypto.randomBytes(32), secret, pw), (e: Error) => (e as InstanceType<typeof p.ProfileError>).code === 'keysFull');
+  // A new password leaves every key working.
+  await p.changePassword('richtig gutes Passwort', 'neues Passwort!', secret);
+  p.lockProfile();
+  assert.equal((await p.unlockProfile({ securityKey: touchB, credential: credB }, secret)).name, 'Max');
+});
