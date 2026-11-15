@@ -24,7 +24,7 @@ import { appName, grantKey, withPermission, withoutGrant } from '@/lib/api/grant
 import { isWriteMethod, type ApiGrant, type ApiLogEntry, type ApiPermission } from '@/lib/api/types';
 import { useFints } from '../FintsProvider';
 import { CodeIcon, EyeIcon, HistoryIcon, InfoIcon, LockIcon, PencilIcon, TransferIcon } from '../icons';
-import { GroupHeading, MainSwitch, SettingItem, SettingsGroup, SwitchItem } from '../settings/rows';
+import { GroupHeading, LinkItem, MainSwitch, SettingItem, SettingsGroup, SwitchItem } from '../settings/rows';
 import { Button } from '../ui';
 import { AppIcon } from './ApiConsent';
 import { setApiOn, useApiOn } from './bridge';
@@ -80,7 +80,7 @@ export function ApiSettingsPage() {
       </SettingsGroup>
 
       <SettingsGroup title={words.developers}>
-        <SettingItem icon={<CodeIcon />} title={words.docs} summary={words.docsLater} />
+        <LinkItem icon={<CodeIcon />} title={words.docs} summary="developer.girovo.de" href={words.docsUrl} opensExternally={t.shell.opensExternally} />
       </SettingsGroup>
     </>
   );

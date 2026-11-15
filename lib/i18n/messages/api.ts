@@ -79,7 +79,8 @@ export const de = {
     showLess: 'Weniger anzeigen',
     developers: 'Für Entwickler',
     docs: 'Dokumentation',
-    docsLater: 'Kommt bald auf girovo.de.',
+    /** Girovo API and Girovo MCP for developers, in the reader's language. */
+    docsUrl: 'https://developer.girovo.de/',
     /** What a call did, in the Verlauf. */
     methods: {
       hello: 'Hat sich angemeldet',
@@ -240,7 +241,7 @@ export const en: typeof de = {
     showLess: 'Show less',
     developers: 'For developers',
     docs: 'Documentation',
-    docsLater: 'Coming soon on girovo.de.',
+    docsUrl: 'https://developer.girovo.de/en',
     methods: {
       hello: 'Signed in',
       'accounts.list': 'Read accounts',
