@@ -252,6 +252,8 @@ export interface GirovoBiometricPlugin {
   /** With `item`: that one beside `id`. Without: `id`'s entry and `id` wherever it is kept. */
   remove(opts: { id: string; item?: string }): Promise<void>;
   removeAll(): Promise<void>;
+  /** The logins whose PIN the check for new Umsätze saw refused (their names); asking changes nothing. */
+  refused(): Promise<{ ids: string[] }>;
 }
 
 export const GirovoBiometric = registerPlugin<GirovoBiometricPlugin>('GirovoBiometric');

@@ -36,6 +36,12 @@ declare global {
       forget(blz: string, userId: string): Promise<void>;
       /** "Bank entfernen": a further bank's PIN kept beside this login's. */
       forgetLinked(blz: string, userId: string, linkedBlz: string, linkedUserId: string): Promise<void>;
+      /** Girovo 7: the profile's key behind the fingerprint (lib/profile.ts), made, opened, forgotten. */
+      profileEnroll(texts: GirovoPromptTexts): Promise<{ result: 'enrolled'; key: string } | { result: 'canceled' | 'failed' }>;
+      profileUnlock(texts: GirovoPromptTexts): Promise<{ result: 'unlocked'; key: string } | { result: 'canceled' | 'invalidated' | 'missing' | 'failed' }>;
+      profileForget(): Promise<void>;
+      /** Of these logins, the ones whose PIN the check for new Umsätze saw refused. */
+      profileRefused(logins: readonly { blz: string; userId: string }[]): Promise<{ blz: string; userId: string }[]>;
     };
     /**
      * The category guess: Gemini Nano through AICore (mobile/bridges/categories.ts)

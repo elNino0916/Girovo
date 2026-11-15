@@ -113,6 +113,26 @@ export function profileFile(): string {
   return path.join(STATE_DIR, 'girovo.profile');
 }
 
+/**
+ * The phone's stand-in for the desktop's DPAPI secret: 32 random bytes in the
+ * app's own storage, made the first time. Android keeps that storage to the
+ * app, so the locks take it as the desktop's take its secret; it is no second
+ * factor on a phone someone has opened up (and Girovo keeps nothing there,
+ * lib/device-integrity.ts).
+ */
+export async function deviceSecret(): Promise<Buffer> {
+  const file = path.join(STATE_DIR, 'girovo-profile.key');
+  return serialized(file, async () => {
+    try {
+      const raw = Buffer.from((await fs.promises.readFile(file, 'utf8')).trim(), 'base64');
+      if (raw.length === KEY_BYTES) return raw;
+    } catch { /* made below */ }
+    const made = crypto.randomBytes(KEY_BYTES);
+    await writeFileAtomic(file, made.toString('base64'));
+    return made;
+  });
+}
+
 /** What sync keeps beside the profile is named after this (lib/sync-meta.ts). */
 export const PROFILE_BASE = 'girovo-profile';
 

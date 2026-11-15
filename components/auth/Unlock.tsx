@@ -16,6 +16,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { isAvatarId, OWN_PICTURE } from '@/lib/avatars';
 import { useT } from '@/lib/i18n/react';
+import { IS_ANDROID } from '@/lib/platform';
 import type { UnlockWay } from '@/lib/profile-client';
 import { securityKeyAvailable } from '@/lib/security-key-client';
 import { startDemo } from '../demo/demo-mode';
@@ -23,7 +24,7 @@ import { useFints } from '../FintsProvider';
 import { AvatarGlyph, FingerprintIcon, ShieldIcon } from '../icons';
 import { useIntroPlaying } from '../shell/Intro';
 import { useWindowInFront } from '../shell/useWindowInFront';
-import { Alert, Button, Dialog, Field, PasswordInput, Spinner } from '../ui';
+import { Alert, Button, Dialog, Field, PasswordInput, Spinner, cx } from '../ui';
 
 /** Windows Hello asks by itself once per start of the app, never again after a logout. */
 let helloAskedThisStart = false;
@@ -133,7 +134,7 @@ export function Unlock() {
   return (
     // The sheet's height less its bar and the page's own padding: the counter
     // stands a little above the middle, the demo at the foot.
-    <div className="flex min-h-[calc(100dvh-var(--barbar-h)-8rem)] flex-col items-center">
+    <div className={cx('flex flex-col items-center', !IS_ANDROID && 'min-h-[calc(100dvh-var(--barbar-h)-8rem)]')}>
       <div className="my-auto flex w-full max-w-[360px] flex-col items-center pt-6 pb-[6vh]">
         <Face name={profile.name} face={profile.face} />
         <h1 className="mt-4 max-w-full text-center text-[22px] leading-7 font-medium text-balance break-words text-ink">{name}</h1>
@@ -178,7 +179,7 @@ export function Unlock() {
                 <div className="flex flex-col gap-2">
                   {profile.hello && (
                     <Button variant="secondary" block iconLeft={<FingerprintIcon size={18} />} onClick={() => void run({ via: 'hello' })} disabled={busy}>
-                      {words.hello}
+                      {IS_ANDROID ? words.fingerprint : words.hello}
                     </Button>
                   )}
                   {hasKeys && keyReady && (

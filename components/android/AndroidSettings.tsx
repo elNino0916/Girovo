@@ -32,7 +32,7 @@ import { useDemo } from '../demo/demo-mode';
 export function FingerprintSwitch() {
   const t = useT();
   const b = t.android.biometric;
-  const { bank, sessionId, userId, links, toast } = useFints();
+  const { bank, sessionId, userId, links, toast, profile } = useFints();
   const integrity = useIntegrity();
   // The made-up bank has no PIN to seal: the phone's real fingerprint stays out of it.
   const demo = useDemo();
@@ -51,7 +51,8 @@ export function FingerprintSwitch() {
     };
   }, [bank, userId, demo]);
 
-  if (demo || !available || !bank || !userId || !sessionId || integrity === undefined) return null;
+  // Girovo 7: with the profile open, its own fingerprint row (ProfileGroup) is the one.
+  if (demo || profile.open || !available || !bank || !userId || !sessionId || integrity === undefined) return null;
   // Turning it on stores the PIN on the phone: never on an unsafe one, even
   // where the user lets Girovo keep its data anyway. Off stays possible — it
   // deletes what an earlier start sealed.

@@ -248,7 +248,11 @@ export function Credentials({
         // goes, and each other is checked the same way when it is used. A PIN
         // the bank refused goes from all of them at once.
         const from = unsealed.hello ? 'hello' : unsealed.securityKey ? 'securityKey' : unsealed.opened || !IS_ANDROID ? 'opened' : 'fingerprint';
-        if (IS_ANDROID) {
+        if (profile.open) {
+          // Girovo 7: the PIN came from the profile; its copy there goes, and only that one.
+          if (from === 'opened') onOpenedPinRefused?.(bank.blz, name);
+          if (!stale) setFingerprintNotice(tr.profile.pinRefused(bank.name));
+        } else if (IS_ANDROID) {
           if (stale && from === 'opened' && onOpenedPinRefused) {
             // A further bank's, from behind the first login's fingerprint: that copy alone.
             onOpenedPinRefused(bank.blz, name);
@@ -403,7 +407,8 @@ export function Credentials({
   // Android: whether this login name has a fingerprint login, and if so the
   // fingerprint is asked for once, straight away, as a bank's own app does.
   useEffect(() => {
-    const mobile = IS_ANDROID && !demo ? window.girovoMobile : undefined;
+    // Girovo 7: with the profile open, its fingerprint is the one (Unlock), never a bank's own.
+    const mobile = IS_ANDROID && !demo && !profile.open ? window.girovoMobile : undefined;
     const name = login.trim();
     if (!mobile || !name) {
       setFingerprint(false);
@@ -425,7 +430,7 @@ export function Credentials({
     };
     // Per bank and login name; withFingerprint is current when it runs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bank.blz, login]);
+  }, [bank.blz, login, profile.open]);
 
   // The desktop: whether this login name opens with Windows Hello. Never for
   // a further bank's form (openedPin) — its PIN is already here — and never

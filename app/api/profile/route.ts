@@ -32,9 +32,10 @@
 import { boundedBody, fail, json, sessionExpired, wrap } from '@/lib/api';
 import { msgs } from '@/lib/i18n';
 import { sanitizeLinkedBanks, sameLogin } from '@/lib/linked-banks';
-import { linkedUnlockServed, loginOfSession, openLogins, parseSecret, removeLinkedUnlock } from '@/lib/linked-unlock';
+import { loginOfSession, openLogins, parseSecret, profileServed, removeLinkedUnlock } from '@/lib/linked-unlock';
+import { IS_ANDROID } from '@/lib/platform';
 import {
-  PROFILE_BASE, PROFILE_LIMITS, ProfileError, changePassword, checkProfilePassword, createProfile, deleteProfile, forgetBankPin, keepBank,
+  PROFILE_BASE, PROFILE_LIMITS, ProfileError, changePassword, checkProfilePassword, createProfile, deleteProfile, deviceSecret, forgetBankPin, keepBank,
   addProfileKey, lockProfile, openProfile, orderBanks, profileKeySalt, profileStatus, removeBank, removeProfileKey, renameProfile,
   renameProfileKey, setHello, setProfileAside, setProfileFace, unlockProfile,
   type ProfileBank, type ProfileContent,
@@ -118,9 +119,12 @@ async function startingBanks(s: Session, linked: Session[], shown: unknown, secr
   });
 }
 
+/** The secret the locks take: the desktop shell's, from the request; the phone's own, kept here. */
+const secretOf = async (v: unknown): Promise<Buffer | null> => (IS_ANDROID ? deviceSecret() : parseSecret(v));
+
 export const POST = wrap(async (req: Request) => {
   const said = msgs().profile.server;
-  if (!linkedUnlockServed()) return fail(said.unavailable, 404);
+  if (!profileServed()) return fail(said.unavailable, 404);
   const b = await boundedBody<ProfileBody>(req, REQUEST_MAX_BYTES);
   if (!b) return fail(said.unknown, 413);
 
@@ -132,7 +136,7 @@ export const POST = wrap(async (req: Request) => {
       case 'create': {
         const s = getSession(b.sessionId ?? '');
         if (!s) return sessionExpired();
-        const secret = parseSecret(b.secret);
+        const secret = await secretOf(b.secret);
         if (!secret) return fail(said.noKey, 400);
         const linked = (Array.isArray(b.linked) ? b.linked : []).map((id) => getSession(id)).filter((x): x is Session => !!x);
         // The 6.x vault of the first login, read with its PIN while no profile
@@ -150,7 +154,7 @@ export const POST = wrap(async (req: Request) => {
       }
 
       case 'unlock': {
-        const secret = parseSecret(b.secret);
+        const secret = await secretOf(b.secret);
         if (!secret) return fail(said.noKey, 400);
         // A security key's touch comes with its credential, Windows Hello's without; both as the shell's 32-byte key.
         const key = b.key === undefined ? null : parseHelloKey(b.key);
@@ -200,14 +204,14 @@ export const POST = wrap(async (req: Request) => {
 
       case 'keySalt': {
         // Asked before the key is touched twice: a mistyped password costs no touch.
-        const secret = parseSecret(b.secret);
+        const secret = await secretOf(b.secret);
         if (!secret) return fail(said.noKey, 400);
         if (!(await checkProfilePassword(b.password, secret))) throw new ProfileError('wrong', 403);
         return json({ keySalt: await profileKeySalt() });
       }
 
       case 'keyAdd': {
-        const secret = parseSecret(b.secret);
+        const secret = await secretOf(b.secret);
         const key = parseHelloKey(b.key);
         if (!secret || !key) return fail(said.noKey, 400);
         return json({ keys: await addProfileKey(b.credential, key, secret, b.password) });
@@ -221,14 +225,14 @@ export const POST = wrap(async (req: Request) => {
       }
 
       case 'password': {
-        const secret = parseSecret(b.secret);
+        const secret = await secretOf(b.secret);
         if (!secret) return fail(said.noKey, 400);
         await changePassword(b.current, b.next, secret);
         return json({ ok: true });
       }
 
       case 'hello': {
-        const secret = parseSecret(b.secret);
+        const secret = await secretOf(b.secret);
         if (!secret) return fail(said.noKey, 400);
         const helloKey = b.key === null ? null : parseHelloKey(b.key);
         if (b.key !== null && !helloKey) return fail(said.noKey, 400);
@@ -240,7 +244,7 @@ export const POST = wrap(async (req: Request) => {
         return json({ exists: false });
 
       case 'delete': {
-        const secret = parseSecret(b.secret);
+        const secret = await secretOf(b.secret);
         if (!secret) return fail(said.noKey, 400);
         // The password first: nothing around the profile goes on a wrong one.
         if (!(await checkProfilePassword(b.password, secret))) throw new ProfileError('wrong', 403);

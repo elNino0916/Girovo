@@ -7,7 +7,7 @@ import { Unlock } from './auth/Unlock';
 import { TermsStep } from './auth/TermsStep';
 import { useFints } from './FintsProvider';
 import { store } from '@/lib/client-api';
-import { IS_DESKTOP_APP } from '@/lib/platform';
+import { IS_ANDROID, IS_DESKTOP_APP } from '@/lib/platform';
 import { useTermsAccepted } from '@/lib/terms';
 import { useDemo } from './demo/demo-mode';
 import { Button, Skeleton } from './ui';
@@ -49,7 +49,7 @@ export function Login() {
   // a first render that differs from that HTML makes React render the whole
   // document again, which drops what the head's script set on <html> (the
   // caption buttons' room, data-caption).
-  const asksProfile = IS_DESKTOP_APP && !demo;
+  const asksProfile = (IS_DESKTOP_APP || IS_ANDROID) && !demo;
   if (asksProfile && !profile.served && !profile.checked) return <AuthCard compact><LoginSkeleton /></AuthCard>;
   if (profile.exists && (!profile.open || profileSigningIn)) return <AuthCard compact><Unlock /></AuthCard>;
   return (

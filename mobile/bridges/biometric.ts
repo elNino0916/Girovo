@@ -160,6 +160,59 @@ export async function unlock(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Girovo 7: the profile above all banks (lib/profile.ts). A random key is
+// kept behind the fingerprint, as the PINs are, and the profile has a lock
+// for it: the fingerprint opens the profile as Windows Hello does on the
+// desktop. The key never stays in the page; only the profile's route sees it.
+
+/** The name the profile's key goes by behind the fingerprint: a hash, like a login's. */
+const PROFILE_ID = idOf('profile', 'girovo');
+
+const base64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes));
+
+/** A new key behind the fingerprint (Android asks for it); the profile is then sealed under it too. */
+export async function profileEnroll(texts: PromptTexts): Promise<{ result: 'enrolled'; key: string } | { result: 'canceled' | 'failed' }> {
+  const key = base64(crypto.getRandomValues(new Uint8Array(32)));
+  try {
+    const { result } = await GirovoBiometric.enroll({ id: PROFILE_ID, items: [{ id: PROFILE_ID, secret: key, verified: true }], ...texts });
+    return result === 'enrolled' ? { result, key } : { result: 'canceled' };
+  } catch {
+    return { result: 'failed' };
+  }
+}
+
+/** The profile's key after a fingerprint; 'invalidated': a new finger was enrolled, and the key went with it. */
+export async function profileUnlock(texts: PromptTexts): Promise<{ result: 'unlocked'; key: string } | { result: 'canceled' | 'invalidated' | 'missing' | 'failed' }> {
+  try {
+    const { result, secret } = await GirovoBiometric.unlock({ id: PROFILE_ID, ...texts });
+    if (result !== 'unlocked') return { result };
+    return secret ? { result, key: secret } : { result: 'missing' };
+  } catch {
+    return { result: 'failed' };
+  }
+}
+
+/**
+ * Of these logins, the ones whose PIN the check for new Umsätze saw refused
+ * (BiometricPlugin.refused): the profile must not send those again. An older
+ * app without the method answers none.
+ */
+export async function profileRefused(logins: readonly { blz: string; userId: string }[]): Promise<{ blz: string; userId: string }[]> {
+  try {
+    const { ids } = await GirovoBiometric.refused();
+    const noted = new Set(ids);
+    return logins.filter((l) => noted.has(idOf(l.blz, l.userId))).map(({ blz, userId }) => ({ blz, userId }));
+  } catch {
+    return [];
+  }
+}
+
+/** The fingerprint no longer opens the profile (switched off, or the profile deleted). */
+export async function profileForget(): Promise<void> {
+  await GirovoBiometric.remove({ id: PROFILE_ID }).catch(() => {});
+}
+
 /** Everything sealed for this login, and its PIN wherever it is kept beside another login. */
 export async function forget(blz: string, userId: string): Promise<void> {
   await GirovoBiometric.remove({ id: idOf(blz, userId) }).catch(() => {});

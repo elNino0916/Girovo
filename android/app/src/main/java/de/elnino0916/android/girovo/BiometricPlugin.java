@@ -292,6 +292,23 @@ public class BiometricPlugin extends Plugin {
         call.resolve(result);
     }
 
+    /**
+     * Girovo 7, the profile above all banks (lib/profile.ts): the logins whose
+     * PIN the check for new Umsätze saw refused, by their names. The profile
+     * keeps its PINs in a file of its own, out of this store's reach, so the
+     * page asks before it sends one and drops a refused one there. Asking
+     * changes nothing; a note goes as before, with remove() once the login's
+     * new PIN is kept.
+     */
+    @PluginMethod
+    public void refused(PluginCall call) {
+        JSArray ids = new JSArray();
+        for (String id : timesOf(notes(), REFUSED).keySet()) ids.put(id);
+        JSObject result = new JSObject();
+        result.put("ids", ids);
+        call.resolve(result);
+    }
+
     /** A new entry for `id`, after a fingerprint: a new key, a new data key, and `items` sealed with it — `id`'s own among them. */
     @PluginMethod
     public void enroll(PluginCall call) {

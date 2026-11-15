@@ -87,6 +87,15 @@ export function linkedUnlockServed(): boolean {
   return !IS_ANDROID && (process.env.GIROVO_DESKTOP === '1' || process.env.NODE_ENV === 'development');
 }
 
+/**
+ * Whether this server keeps a profile above all banks (lib/profile.ts): where
+ * it keeps PINs (above), and on the phone, whose fingerprint opens it
+ * (mobile/bridges/biometric.ts profileEnroll).
+ */
+export function profileServed(): boolean {
+  return linkedUnlockServed() || IS_ANDROID;
+}
+
 /** The shell's secret from a request: exactly SECRET_BYTES in base64, else null. */
 export function parseSecret(value: unknown): Buffer | null {
   if (typeof value !== 'string' || value.length > 64 || !/^[A-Za-z0-9+/]+={0,2}$/.test(value)) return null;

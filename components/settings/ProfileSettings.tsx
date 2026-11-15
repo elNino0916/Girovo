@@ -9,6 +9,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { PROFILE_PASSWORD_MIN } from '@/lib/profile-client';
 import { useT } from '@/lib/i18n/react';
+import { IS_ANDROID } from '@/lib/platform';
 import { helloAvailable } from '@/lib/windows-hello-client';
 import { useFints } from '../FintsProvider';
 import { FingerprintIcon, LockIcon, PencilIcon, TrashIcon, UserIcon } from '../icons';
@@ -21,11 +22,15 @@ const MIN = PROFILE_PASSWORD_MIN;
 const charCount = (s: string) => Array.from(s).length;
 
 /** Whether Windows Hello can open the profile here: asked once per mount. */
+/** Whether Windows Hello (the desktop) or a fingerprint (the phone) can open the profile here: asked once per mount. */
 function useHelloAvailable(): boolean {
   const [on, setOn] = useState(false);
   useEffect(() => {
     let live = true;
-    void helloAvailable().then((v) => { if (live) setOn(v); });
+    const ask = IS_ANDROID
+      ? (window.girovoMobile?.biometric.state().then((s) => s.available) ?? Promise.resolve(false))
+      : helloAvailable();
+    void ask.catch(() => false).then((v) => { if (live) setOn(v); });
     return () => { live = false; };
   }, []);
   return on;
@@ -57,8 +62,8 @@ export function ProfileGroup() {
       {(hello || profile.hello) && (
         <SwitchItem
           icon={<FingerprintIcon />}
-          title={words.hello}
-          summary={words.helloHint}
+          title={IS_ANDROID ? words.fingerprint : words.hello}
+          summary={IS_ANDROID ? words.fingerprintHint : words.helloHint}
           checked={profile.hello}
           disabled={switching}
           onChange={(next) => {
@@ -331,7 +336,7 @@ function CreateForm({ suggested, hello, words, other, create }: {
           }}
         />
       </Field>
-      {hello && <Checkbox label={words.hello} checked={withHello} onChange={(e) => setWithHello(e.target.checked)} disabled={busy} />}
+      {hello && <Checkbox label={IS_ANDROID ? words.fingerprint : words.hello} checked={withHello} onChange={(e) => setWithHello(e.target.checked)} disabled={busy} />}
       <Alert tone="info" className="mt-3">{words.noReset}</Alert>
       {error && <Alert tone="error" className="mt-3">{error}</Alert>}
     </Dialog>

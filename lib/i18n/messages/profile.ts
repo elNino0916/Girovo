@@ -16,6 +16,9 @@ export const de = {
     /** While the banks log in after the unlock. */
     signingIn: (bank: string) => `Anmelden bei ${bank} …`,
     helloFailed: 'Windows Hello hat nicht geklappt. Gib dein Passwort ein.',
+    /** The phone: the fingerprint in place of Windows Hello. */
+    fingerprint: 'Mit Fingerabdruck entsperren',
+    fingerprintFailed: 'Der Fingerabdruck hat nicht geklappt. Gib dein Passwort ein.',
     key: 'Mit Sicherheitsschlüssel entsperren',
     keyFailed: 'Der Schlüssel hat nicht geklappt. Gib dein Passwort ein.',
     /** Between the password and the other ways in. */
@@ -44,12 +47,14 @@ export const de = {
     tooShort: (n: number) => `Das Passwort braucht mindestens ${n} Zeichen.`,
     noName: 'Gib deinem Profil einen Namen.',
     hello: 'Auch mit Windows Hello entsperren',
+    fingerprint: 'Auch mit Fingerabdruck entsperren',
     noReset: 'Merk dir das Passwort gut. Girovo kann es nicht zurücksetzen.',
     submit: 'Profil anlegen',
     /** Only where this computer cannot keep a profile (no secret from the shell). */
     later: 'Später',
     done: 'Profil angelegt.',
     helloLater: 'Profil angelegt. Windows Hello kannst du in den Einstellungen einschalten.',
+    fingerprintLater: 'Profil angelegt. Den Fingerabdruck kannst du in den Einstellungen einschalten.',
   },
   /** Einstellungen → Profil. */
   settings: {
@@ -65,6 +70,11 @@ export const de = {
     changed: 'Passwort geändert.',
     hello: 'Mit Windows Hello entsperren',
     helloHint: 'Gesicht, Fingerabdruck oder Windows-PIN statt Passwort.',
+    fingerprint: 'Mit Fingerabdruck entsperren',
+    fingerprintHint: 'Dein Finger statt des Passworts.',
+    fingerprintOn: 'Dein Fingerabdruck entsperrt jetzt dein Profil.',
+    fingerprintOff: 'Fingerabdruck ist aus.',
+    fingerprintFailed: 'Der Fingerabdruck ließ sich nicht einrichten.',
     helloOn: 'Windows Hello entsperrt jetzt dein Profil.',
     helloOff: 'Windows Hello ist aus.',
     helloFailed: 'Windows Hello ließ sich nicht einschalten.',
@@ -81,6 +91,12 @@ export const de = {
     deleteText: 'Dein Profil mit allen Banken und PINs wird von diesem Rechner gelöscht, ebenso Kontonamen, Kategorien, Notizen, Vorlagen, Umsätze, Belege und Kontoauszüge. Bei deinen Banken ändert sich nichts. Das lässt sich nicht rückgängig machen.',
     deleteConfirm: 'Gib zum Löschen dein Passwort ein.',
     deleted: 'Profil gelöscht.',
+  },
+  /** Android's fingerprint prompt for the profile. */
+  prompt: {
+    unlockTitle: 'Girovo entsperren',
+    enrollTitle: 'Fingerabdruck einrichten',
+    subtitle: 'Für dein Profil und alle Banken',
   },
   /** A bank's kept PIN turned down by the bank. */
   pinRefused: (bank: string) => `Die PIN für ${bank} stimmt nicht mehr. Melde dich dort neu an.`,
@@ -117,6 +133,8 @@ export const en: typeof de = {
     lock: 'Lock profile',
     signingIn: (bank) => `Signing in to ${bank} …`,
     helloFailed: 'Windows Hello didn\'t work. Enter your password.',
+    fingerprint: 'Unlock with fingerprint',
+    fingerprintFailed: 'The fingerprint didn\'t work. Enter your password.',
     key: 'Unlock with a security key',
     keyFailed: 'The key didn\'t work. Enter your password.',
     or: 'or',
@@ -141,11 +159,13 @@ export const en: typeof de = {
     tooShort: (n) => `The password needs at least ${n} characters.`,
     noName: 'Give your profile a name.',
     hello: 'Also unlock with Windows Hello',
+    fingerprint: 'Also unlock with fingerprint',
     noReset: 'Remember this password. Girovo can\'t reset it.',
     submit: 'Create profile',
     later: 'Later',
     done: 'Profile created.',
     helloLater: 'Profile created. You can turn on Windows Hello in Settings.',
+    fingerprintLater: 'Profile created. You can turn on the fingerprint in Settings.',
   },
   settings: {
     section: 'Profile',
@@ -160,6 +180,11 @@ export const en: typeof de = {
     changed: 'Password changed.',
     hello: 'Unlock with Windows Hello',
     helloHint: 'Face, fingerprint or Windows PIN instead of the password.',
+    fingerprint: 'Unlock with fingerprint',
+    fingerprintHint: 'Your finger instead of the password.',
+    fingerprintOn: 'Your fingerprint now unlocks your profile.',
+    fingerprintOff: 'Fingerprint is off.',
+    fingerprintFailed: 'The fingerprint couldn\'t be set up.',
     helloOn: 'Windows Hello now unlocks your profile.',
     helloOff: 'Windows Hello is off.',
     helloFailed: 'Windows Hello couldn\'t be turned on.',
@@ -175,6 +200,11 @@ export const en: typeof de = {
     deleteText: 'Your profile with all banks and PINs is deleted from this PC, along with account names, categories, notes, templates, bookings, receipts and statements. Nothing changes at your banks. This can\'t be undone.',
     deleteConfirm: 'Enter your password to delete it.',
     deleted: 'Profile deleted.',
+  },
+  prompt: {
+    unlockTitle: 'Unlock Girovo',
+    enrollTitle: 'Set up fingerprint',
+    subtitle: 'For your profile and all banks',
   },
   pinRefused: (bank) => `The PIN for ${bank} no longer works. Sign in there again.`,
   removeFirst: 'Girovo then signs you out. Your other banks sign in the next time you unlock.',

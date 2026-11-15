@@ -386,6 +386,9 @@ function useFintsState() {
   const profileKeepRef = useRef(new Map<string, { name: string; accounts: string[]; asking: boolean }>());
   // "Später" in the create dialog, offered only where this computer cannot keep a profile: not again this run.
   const profileDeferredRef = useRef(false);
+  // The phone: a newly enrolled finger took the profile's key. Its lock goes on the
+  // server with the next unlock (the profile must be open for that).
+  const helloGoneRef = useRef(false);
   // The desktop: whether the first login opens with Windows Hello
   // (lib/windows-hello.ts) — null until the login says, and where Windows
   // has none — and the login this session came in with: its BLZ and name,
@@ -2955,8 +2958,15 @@ function useFintsState() {
     try {
       const r = await post<{ pin: boolean; banks: LinkedBankRef[] }>('/api/profile', { op: 'keep', sessionId: sid, name, accounts });
       profileBanksRef.current = r.banks;
-      if (r.pin) waiting.delete(sid);
-      else waiting.set(sid, { name, accounts, asking: false });
+      if (r.pin) {
+        waiting.delete(sid);
+        // The phone: a note of a refused PIN is settled now, and the PINs 6.x kept behind the fingerprint
+        // for this bank go (the profile keeps them now; after "Passwort vergessen" they are typed again).
+        const link = linksRef.current.find((l) => l.sessionId === sid);
+        const login = link ? { blz: link.bank.blz, userId: link.userId }
+          : sid === sessionRef.current && bankRef.current ? { blz: bankRef.current.blz, userId: userIdRef.current } : null;
+        if (IS_ANDROID && login) void window.girovoMobile?.biometric.forget(login.blz, login.userId);
+      } else waiting.set(sid, { name, accounts, asking: false });
     } catch {
       waiting.set(sid, { name, accounts, asking: false });
     }
@@ -3069,7 +3079,7 @@ function useFintsState() {
   const addProfileKey = useCallback(async (password: string) => {
     const said = msgs().settings.securityKeys;
     const shell = securityKeyShell();
-    const secret = await linkedUnlockSecret();
+    const secret = await profileSecret();
     if (!shell || !secret) return toast(said.failed, 'error');
     try {
       const { keySalt } = await post<{ keySalt: string }>('/api/profile', { op: 'keySalt', password, secret });
@@ -3473,6 +3483,11 @@ function useFintsState() {
     // click) must not restart the clock, reload and announce everything again.
     if (!sid || readySidRef.current === sid) return;
     readySidRef.current = sid;
+    // Girovo 7 on the phone, which has no pinTaken: the bank joins the
+    // profile now, its PIN once the bank has taken it (asked again after reads).
+    if (IS_ANDROID && profileRef.current.open && bankRef.current) {
+      void keepInProfile(sid, bankRef.current.name, list.map((a) => a.accountNumber));
+    }
     const now = Date.now();
     setAccounts(list);
     accountsRef.current = list;
@@ -3636,9 +3651,14 @@ function useFintsState() {
 
   /** Whether there is a profile and how it stands; only where the desktop shell can keep one. */
   const refreshProfile = useCallback(async () => {
-    if (IS_ANDROID || typeof window === 'undefined') return;
-    // No shell to keep one: asked, and none (the login waits for this answer, Login.tsx).
-    if (!window.electronLinkedUnlock) {
+    if (typeof window === 'undefined') return;
+    // No shell to keep one, or a phone Girovo keeps nothing on (lib/device-integrity.ts):
+    // asked, and none; the bank's login as before (the login waits for this answer, Login.tsx).
+    const phone = IS_ANDROID ? window.girovoMobile : undefined;
+    const none = IS_ANDROID
+      ? !phone || keepsNothing(await phone.integrity().catch(() => null))
+      : !window.electronLinkedUnlock;
+    if (none) {
       setProfileBoth(() => ({ ...NO_PROFILE, checked: true }));
       return;
     }
@@ -3681,6 +3701,14 @@ function useFintsState() {
    */
   const startProfileLogins = useCallback(async (banks: UnlockedBank[]) => {
     let left = [...banks];
+    // The phone: a PIN the check for new Umsätze saw refused goes from the profile before anything is sent with it.
+    const refused = IS_ANDROID ? await window.girovoMobile?.biometric.profileRefused(left.filter((b) => b.pin)).catch(() => []) ?? [] : [];
+    for (const login of refused) {
+      void post('/api/profile', { op: 'forgetPin', login }).catch(() => {});
+      left = left.map((b) => (sameLogin(b, login) ? (({ pin: _gone, ...rest }) => rest)(b) : b));
+      const named = left.find((b) => sameLogin(b, login));
+      if (named) toast(msgs().profile.pinRefused(named.name), 'error', 15_000);
+    }
     for (;;) {
       const plan = loginPlan(left);
       if (!plan.first) break;
@@ -3718,11 +3746,24 @@ function useFintsState() {
    */
   const unlockProfile = useCallback(async (way: UnlockWay): Promise<string | null> => {
     const said = msgs().profile;
-    const secret = await linkedUnlockSecret();
+    const secret = await profileSecret();
     if (!secret) return said.server.noKey;
     let key: string | undefined;
     let credential: string | undefined;
-    if ('via' in way && way.via === 'hello') {
+    if ('via' in way && way.via === 'hello' && IS_ANDROID) {
+      // The phone: the fingerprint opens the profile's key (mobile/bridges/biometric.ts).
+      const opened = await window.girovoMobile?.biometric.profileUnlock(fingerprintTexts(false)).catch(() => null);
+      if (opened?.result === 'canceled') return '';
+      if (opened?.result !== 'unlocked') {
+        // A newly enrolled finger took the key with it: the switch is off now, the password stays.
+        if (opened?.result === 'invalidated' || opened?.result === 'missing') {
+          helloGoneRef.current = true;
+          setProfileBoth((p) => ({ ...p, hello: false }));
+        }
+        return said.unlock.fingerprintFailed;
+      }
+      key = opened.key;
+    } else if ('via' in way && way.via === 'hello') {
       const shell = helloShell();
       const gesture = shell ? await shell.unlock().catch(() => null) : null;
       if (gesture?.result === 'canceled' || gesture?.result === 'busy') return '';
@@ -3749,26 +3790,40 @@ function useFintsState() {
       // and no bank's own login form (with its own Windows Hello) flashes in between.
       const first = loginPlan(r.banks).first;
       if (first) setProfileSigningIn(first.name);
-      setProfileBoth((p) => ({ ...p, open: true, name: r.name, hello: r.hello }));
+      // The fingerprint's lock that no key opens any more goes now that the profile is open.
+      const helloGone = helloGoneRef.current && r.hello;
+      helloGoneRef.current = false;
+      if (helloGone) void post('/api/profile', { op: 'hello', key: null, secret }).catch(() => {});
+      setProfileBoth((p) => ({ ...p, open: true, name: r.name, hello: r.hello && !helloGone }));
       void startProfileLogins(r.banks);
       return null;
     } catch (err) {
-      // A Windows Hello key or security key that no longer opens it: not the password's fault.
+      // A Windows Hello key, fingerprint or security key that no longer opens it: not the password's fault.
       if (credential) return said.unlock.keyFailed;
-      if (key) return said.unlock.helloFailed;
+      if (key) return IS_ANDROID ? said.unlock.fingerprintFailed : said.unlock.helloFailed;
       return (err as Error).message || said.server.wrong;
     }
   }, [setProfileBoth, startProfileLogins]);
 
   /** Windows Hello opens the profile from now on: Windows asks for the gesture (and sets its key up the first time). */
   const enrollProfileHello = useCallback(async (): Promise<boolean> => {
-    const shell = helloShell();
-    const secret = await linkedUnlockSecret();
-    if (!shell || !secret) return false;
-    const gesture = await shell.enroll().catch(() => null);
-    if (gesture?.result !== 'enrolled' || !gesture.key) return false;
+    const secret = await profileSecret();
+    if (!secret) return false;
+    let key: string;
+    if (IS_ANDROID) {
+      // The phone: a new key behind the fingerprint (Android asks for it).
+      const made = await window.girovoMobile?.biometric.profileEnroll(fingerprintTexts(true)).catch(() => null);
+      if (made?.result !== 'enrolled') return false;
+      key = made.key;
+    } else {
+      const shell = helloShell();
+      if (!shell) return false;
+      const gesture = await shell.enroll().catch(() => null);
+      if (gesture?.result !== 'enrolled' || !gesture.key) return false;
+      key = gesture.key;
+    }
     try {
-      await post('/api/profile', { op: 'hello', key: gesture.key, secret });
+      await post('/api/profile', { op: 'hello', key, secret });
       setProfileBoth((p) => ({ ...p, hello: true }));
       return true;
     } catch {
@@ -3788,7 +3843,7 @@ function useFintsState() {
     const own = bankRef.current;
     if (!sid || !own) return null;
     const said = msgs().profile;
-    const secret = await linkedUnlockSecret();
+    const secret = await profileSecret();
     if (!secret) return said.server.noKey;
     // The saved data is still being read: the profile would begin without it.
     // The saved data must have been read: an unreadable file (another PIN at
@@ -3826,7 +3881,7 @@ function useFintsState() {
       // A PIN its bank had not taken yet was left out: each joins once it has.
       void keepInProfile(sid, own.name, primaryNumbers());
       for (const l of links) if (l.sessionId) void keepInProfile(l.sessionId, l.bank.name, []);
-      if (input.hello) toast((await enrollProfileHello()) ? said.create.done : said.create.helloLater, 'success');
+      if (input.hello) toast((await enrollProfileHello()) ? said.create.done : IS_ANDROID ? said.create.fingerprintLater : said.create.helloLater, 'success');
       else toast(said.create.done, 'success');
       return null;
     } catch (err) {
@@ -3846,7 +3901,7 @@ function useFintsState() {
   }, [setProfileBoth]);
 
   const changeProfilePassword = useCallback(async (current: string, next: string): Promise<string | null> => {
-    const secret = await linkedUnlockSecret();
+    const secret = await profileSecret();
     if (!secret) return msgs().profile.server.noKey;
     try {
       await post('/api/profile', { op: 'password', current, next, secret });
@@ -3861,15 +3916,16 @@ function useFintsState() {
     const said = msgs().profile.settings;
     if (on) {
       const done = await enrollProfileHello();
-      toast(done ? said.helloOn : said.helloFailed, done ? 'success' : 'error');
+      toast(done ? (IS_ANDROID ? said.fingerprintOn : said.helloOn) : IS_ANDROID ? said.fingerprintFailed : said.helloFailed, done ? 'success' : 'error');
       return;
     }
-    const secret = await linkedUnlockSecret();
+    const secret = await profileSecret();
     if (!secret) return;
     try {
       await post('/api/profile', { op: 'hello', key: null, secret });
+      if (IS_ANDROID) void window.girovoMobile?.biometric.profileForget();
       setProfileBoth((p) => ({ ...p, hello: false }));
-      toast(said.helloOff, 'info');
+      toast(IS_ANDROID ? said.fingerprintOff : said.helloOff, 'info');
     } catch (err) {
       toast((err as Error).message, 'error');
     }
@@ -3877,7 +3933,7 @@ function useFintsState() {
 
   /** "Profil löschen": gone from this computer, and the session with it. Resolves null when done. */
   const deleteProfile = useCallback(async (password: string): Promise<string | null> => {
-    const secret = await linkedUnlockSecret();
+    const secret = await profileSecret();
     if (!secret) return msgs().profile.server.noKey;
     // Saved first, then every way to write the vault shut before the request
     // (as wipeVaultWith does): a save landing after the profile is gone would
@@ -3907,11 +3963,19 @@ function useFintsState() {
       void shellSchedule(false);
     }
     if (syncRef.current?.place === 'lan') void window.electronSync?.lan(false);
-    for (const b of profileBanksRef.current) store.del(`fints.userId.${b.blz}`);
+    const banksBefore = profileBanksRef.current;
+    for (const b of banksBefore) store.del(`fints.userId.${b.blz}`);
     store.del('fints.lastBank');
     profileBanksRef.current = [];
     vaultDirtyRef.current = false;
     setVaultStatusBoth('unavailable');
+    if (IS_ANDROID) {
+      const phone = window.girovoMobile;
+      void phone?.biometric.profileForget();
+      for (const b of banksBefore) void phone?.biometric.forget(b.blz, b.userId);
+      widgetClearedRef.current = true;
+      void phone?.widget?.clear();
+    }
     setProfileBoth((p) => ({ ...p, exists: false, open: false, name: '', hello: false }));
     toast(msgs().profile.settings.deleted, 'info');
     void logoutRef.current('user');
@@ -6748,6 +6812,21 @@ const withoutReminder = (v: VaultData, id: string): VaultData => {
   const { contractReminders: _all, ...rest } = v;
   return Object.keys(left).length ? { ...rest, contractReminders: left } : rest;
 };
+
+/**
+ * What the profile's locks take beside the way in (lib/profile.ts): the desktop
+ * shell's DPAPI secret; on the phone the server keeps the device's own and
+ * needs none from the page (app/api/profile), so any word stands in for it.
+ */
+async function profileSecret(): Promise<string | null> {
+  return IS_ANDROID ? 'phone' : linkedUnlockSecret();
+}
+
+/** Android's fingerprint prompt for the profile: opening it, or setting the fingerprint up for it. */
+function fingerprintTexts(enroll: boolean) {
+  const said = msgs().profile.prompt;
+  return { title: enroll ? said.enrollTitle : said.unlockTitle, subtitle: said.subtitle, cancel: msgs().common.cancel };
+}
 
 /** The desktop shell's secret for the further banks' PINs (src-tauri/src/secret.rs); null anywhere else. */
 async function linkedUnlockSecret(): Promise<string | null> {
