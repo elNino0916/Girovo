@@ -10,22 +10,20 @@
 //   - Apps: each allowed app with its icon, name, publisher and last use, its
 //     permissions as switches, and "Zugriff entziehen";
 //   - Mit KI-Assistenten verbinden: where Girovo MCP lies on this computer
-//     and Claude Desktop's configuration for it, to copy (phase 3);
+//     (phase 3);
 //   - Verlauf: the newest calls, what and when, and why one was not answered;
 //     a call that changed something with a pencil, the setting it changed,
 //     and a transfer request with how it ended (phase 2);
 //   - Für Entwickler: the documentation, later on girovo.de.
 // Grants and the Verlauf are this computer's (lib/api/grants.ts), never synced.
 
-import { createElement, useContext, useEffect, useId, useRef, useState } from 'react';
+import { createElement, useContext, useEffect, useId, useState } from 'react';
 import { intlLocale } from '@/lib/i18n';
 import { useT } from '@/lib/i18n/react';
-import { copyText } from '@/lib/clipboard';
 import { appName, grantKey, withPermission, withoutGrant } from '@/lib/api/grants';
-import { claudeDesktopConfig } from '@/lib/api/mcp';
 import { isWriteMethod, type ApiGrant, type ApiLogEntry, type ApiPermission } from '@/lib/api/types';
 import { useFints } from '../FintsProvider';
-import { CheckIcon, CodeIcon, CopyIcon, EyeIcon, HistoryIcon, InfoIcon, LockIcon, PencilIcon, TransferIcon } from '../icons';
+import { CodeIcon, EyeIcon, HistoryIcon, InfoIcon, LockIcon, PencilIcon, TransferIcon } from '../icons';
 import { GroupHeading, MainSwitch, SettingItem, SettingsGroup, SwitchItem } from '../settings/rows';
 import { Button } from '../ui';
 import { AppIcon } from './ApiConsent';
@@ -153,16 +151,13 @@ function AppGroup({ grant, setGrants }: { grant: ApiGrant; setGrants: (fn: (g: A
 
 /**
  * Mit KI-Assistenten verbinden: Girovo MCP's real path (the shell's
- * api_mcp_path) and Claude Desktop's configuration naming it, with a copy
- * button. Shells without the command show nothing here.
+ * api_mcp_path). Shells without the command show nothing here.
  */
 function McpSection({ on }: { on: boolean }) {
   const t = useT();
   const words = t.api.mcp;
   // undefined while the shell is asked, and in shells without the command; null: no helper in this build.
   const [path, setPath] = useState<string | null | undefined>(undefined);
-  const [copied, setCopied] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     const ask = window.electronGirovoApi?.mcpPath;
@@ -171,47 +166,19 @@ function McpSection({ on }: { on: boolean }) {
     ask().then((p) => live && setPath(p || null), () => live && setPath(null));
     return () => {
       live = false;
-      clearTimeout(timer.current);
     };
   }, []);
 
   if (path === undefined) return null;
-  const snippet = path ? claudeDesktopConfig(path) : null;
-  const copy = async () => {
-    if (!snippet || !(await copyText(snippet))) return;
-    setCopied(true);
-    clearTimeout(timer.current);
-    timer.current = setTimeout(() => setCopied(false), 1600);
-  };
   return (
     <SettingsGroup title={words.title} note={words.cloud}>
       <SettingItem icon={<InfoIcon />} title={words.hint} summary={on ? undefined : words.needsApi} />
-      {path && snippet ? (
-        <>
-          <SettingItem
-            icon={<CodeIcon />}
-            title={words.helper}
-            below={<span className="block font-mono text-[12px] leading-4 break-all text-ink-2" data-mcp-path>{path}</span>}
-          />
-          <SettingItem
-            icon={<CopyIcon />}
-            title={words.config}
-            summary={words.configHint}
-            below={(
-              <span className="mt-2 flex flex-col items-start gap-2">
-                <code className="block w-full overflow-x-auto rounded-[8px] bg-inset px-3 py-2 font-mono text-[12px] leading-[18px] whitespace-pre text-ink" data-mcp-config>{snippet}</code>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  iconLeft={copied ? <CheckIcon size={16} strokeWidth={2.2} /> : <CopyIcon size={16} />}
-                  onClick={() => void copy()}
-                >
-                  {copied ? words.copied : words.copy}
-                </Button>
-              </span>
-            )}
-          />
-        </>
+      {path ? (
+        <SettingItem
+          icon={<CodeIcon />}
+          title={words.helper}
+          below={<span className="block font-mono text-[12px] leading-4 break-all text-ink-2" data-mcp-path>{path}</span>}
+        />
       ) : (
         <SettingItem icon={<CodeIcon />} title={words.missing} />
       )}

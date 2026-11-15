@@ -289,9 +289,7 @@ to the signing job.
 
 **Einstellungen → Girovo API → Mit KI-Assistenten verbinden** (desktop app):
 the helper's path from `api_mcp_path` (bridge `mcpPath()`; an AppImage gets a
-copy in the data folder, since its mount moves every start), Claude
-Desktop's `claude_desktop_config.json` snippet
-`{"mcpServers":{"girovo":{"command":"<path>"}}}` with a copy button, and the
+copy in the data folder, since its mount moves every start) and the
 note that a cloud assistant sends what it reads to its provider.
 
 ## Phases

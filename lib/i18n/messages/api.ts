@@ -177,10 +177,6 @@ export const de = {
     needsApi: 'Dafür muss Girovo API an sein.',
     helper: 'Girovo MCP',
     missing: 'In dieser Version ist Girovo MCP nicht dabei.',
-    config: 'Für Claude Desktop',
-    configHint: 'In claude_desktop_config.json einfügen und Claude neu starten.',
-    copy: 'Kopieren',
-    copied: 'Kopiert',
     cloud: 'Was ein Assistent liest, geht an seinen Anbieter, außer er läuft auf deinem Rechner.',
   },
 
@@ -335,10 +331,6 @@ export const en: typeof de = {
     needsApi: 'Girovo API has to be on for this.',
     helper: 'Girovo MCP',
     missing: 'Girovo MCP is not part of this version.',
-    config: 'For Claude Desktop',
-    configHint: 'Paste into claude_desktop_config.json and restart Claude.',
-    copy: 'Copy',
-    copied: 'Copied',
     cloud: 'What an assistant reads goes to its provider, unless it runs on your computer.',
   },
 
