@@ -15,6 +15,7 @@
 		"desktop:build": "node scripts/build-desktop.mjs && tauri build",
 		"desktop:debug": "node scripts/build-desktop.mjs --dev && tauri build --debug --no-bundle",
 		"desktop:dist": "node scripts/dist-desktop.mjs",
+		"store:dist": "node scripts/dist-store.mjs",
 		"android": "node scripts/build-android.mjs --install",
 		"android:build": "node scripts/build-android.mjs",
 		"android:release": "node scripts/build-android.mjs --release && node scripts/build-android.mjs --release --flavor fdroid && node scripts/build-android.mjs --release --flavor play",

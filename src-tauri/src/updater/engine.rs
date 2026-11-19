@@ -348,7 +348,7 @@ impl Config {
       kind,
       cache_dir,
       install_dir: None,
-      auto_check: kind != InstallKind::Dev,
+      auto_check: kind != InstallKind::Dev && kind != InstallKind::Store,
       feed_url: logic::FEED_URL.to_string(),
       manifest_base: Some(trust::MANIFEST_BASE.to_string()),
       keys: trust::Keys::builtin(),
@@ -1578,6 +1578,10 @@ impl Updater {
   /// Asks GitHub; a check already running is answered by its own result.
   /// `manual`: the user asked, so a failure is said.
   pub async fn check(&self, manual: bool) -> UpdateState {
+    // The Microsoft Store brings the updates of its copy: nothing to ask GitHub.
+    if self.cfg.kind == InstallKind::Store {
+      return self.state();
+    }
     let Ok(_running) = self.check_lock.try_lock() else {
       let _wait = self.check_lock.lock().await;
       return self.state();

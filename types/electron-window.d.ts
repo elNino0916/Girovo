@@ -28,9 +28,10 @@ declare global {
     current: string;
     /**
      * nsis: installed · manual: other packaging (the Linux packages) · dev: unpackaged ·
-     * android: the Android app from GitHub (mobile/bridges/updates.ts provides this bridge there).
+     * android: the Android app from GitHub (mobile/bridges/updates.ts provides this bridge there) ·
+     * store: the Microsoft Store's MSIX package, whose updates the Store brings (the page shows none).
      */
-    kind: 'nsis' | 'manual' | 'dev' | 'android';
+    kind: 'nsis' | 'manual' | 'dev' | 'android' | 'store';
     /** Automatic checks (at start, then every 6 hours). */
     auto: boolean;
     /**

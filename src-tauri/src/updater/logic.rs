@@ -73,6 +73,9 @@ pub enum InstallKind {
   Manual,
   /// Not packaged at all (a debug build).
   Dev,
+  /// Installed from the Microsoft Store (an MSIX package): the Store brings
+  /// every update, so the app never asks GitHub and shows no update at all.
+  Store,
 }
 
 /// A channel of Einstellungen → Update-Kanal: which releases are offered and
@@ -972,7 +975,7 @@ pub fn install_kind(packaged: bool, windows: bool, exe: &Path, exists: impl Fn(&
 pub fn install_args(kind: InstallKind) -> Option<Vec<String>> {
   match kind {
     InstallKind::Nsis => Some(["/S", "/UPDATE", "/R", "/ARGS", "--updated", "--force-run"].map(String::from).to_vec()),
-    InstallKind::Manual | InstallKind::Dev => None,
+    InstallKind::Manual | InstallKind::Dev | InstallKind::Store => None,
   }
 }
 

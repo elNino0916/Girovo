@@ -36,6 +36,7 @@ mod secret_migration;
 mod security_key;
 mod shell;
 mod splash;
+mod store;
 mod sync_lan;
 mod telemetry;
 mod telemetry_scrub;

@@ -1,0 +1,7 @@
+{
+  "name": "<Paket/Identität/Name aus Partner Center, z. B. 12345MT-Media.Girovo>",
+  "publisher": "<Paket/Identität/Herausgeber aus Partner Center, z. B. CN=1A2B3C4D-...>",
+  "publisherDisplayName": "MT-Media",
+  "displayName": "Girovo",
+  "description": "Banking für deutsche Banken über FinTS"
+}

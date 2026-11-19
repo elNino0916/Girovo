@@ -524,6 +524,9 @@ fn install_kind() -> &'static str {
   if cfg!(debug_assertions) {
     return "dev";
   }
+  if crate::store::installed_from_store() {
+    return "store";
+  }
   let beside = std::env::current_exe().ok().and_then(|exe| exe.parent().map(|d| d.join("uninstall.exe")));
   if cfg!(windows) && beside.is_some_and(|f| f.is_file()) { "nsis" } else { "manual" }
 }

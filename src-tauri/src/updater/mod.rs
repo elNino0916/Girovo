@@ -247,6 +247,7 @@ fn config(app: &AppHandle) -> Config {
   let kind = match (test_feed.as_ref(), std::env::var("GIROVO_UPDATE_KIND").ok().as_deref()) {
     (Some(_), Some("nsis")) => InstallKind::Nsis,
     (Some(_), Some("manual")) => InstallKind::Manual,
+    _ if crate::store::installed_from_store() => InstallKind::Store,
     _ => logic::install_kind(!cfg!(debug_assertions), cfg!(windows), exe.as_deref().unwrap_or(Path::new("")), Path::is_file),
   };
   let mut cfg = Config::new(version, kind, cache_dir(test_feed.is_some()));

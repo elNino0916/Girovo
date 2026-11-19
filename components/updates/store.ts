@@ -45,7 +45,9 @@ const bridge = () => (typeof window === 'undefined' ? undefined : window.electro
 
 /** Every answer from the main process is the whole state; a null is a refusal and changes nothing. */
 const take = (state: UpdateState | null | undefined) => {
-  if (state && typeof state === 'object') commit({ state });
+  // The Microsoft Store copy: the Store brings its updates, so the page shows
+  // none, as with Play and F-Droid (the state stays null).
+  if (state && typeof state === 'object' && state.kind !== 'store') commit({ state });
 };
 
 function attach() {
