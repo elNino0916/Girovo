@@ -61,7 +61,7 @@ index 0dc0042..a39993d 100644
                  mandateReference: mandateId,
                  additionalInformation: additionalEntryInfo,
 diff --git a/node_modules/lib-fints/dist/dialog.js b/node_modules/lib-fints/dist/dialog.js
-index 0022e5d..fafb06a 100644
+index 0022e5d..0d455c3 100644
 --- a/node_modules/lib-fints/dist/dialog.js
 +++ b/node_modules/lib-fints/dist/dialog.js
 @@ -8,7 +8,22 @@ import { PARTED } from './partedSegment.js';
@@ -97,7 +97,39 @@ index 0022e5d..fafb06a 100644
              await this.handlePartedMessages(message, responseMessage, this.currentInteraction);
              clientResponse = this.currentInteraction.handleClientResponse(responseMessage);
              this.checkEnded(clientResponse);
-@@ -206,7 +224,10 @@ export class Dialog {
+@@ -171,14 +189,28 @@ export class Dialog {
+         return message;
+     }
+     getTanMediaName() {
+-        const requirement = this.config.selectedTanMethod?.tanMediaRequirement ?? TanMediaRequirement.NotAllowed;
++        const tanMethod = this.config.selectedTanMethod;
++        const requirement = tanMethod?.tanMediaRequirement ?? TanMediaRequirement.NotAllowed;
+         if (requirement === TanMediaRequirement.NotAllowed) {
+             return undefined;
+         }
++        // Girovo: the device names the bank listed (HKTAB, which a dialog asks
++        // right after its init), or the ones a remembered device kept.
++        const listed = tanMethod?.activeTanMedia ?? [];
++        const name = this.config.tanMediaName;
++        // A name the bank's list no longer holds is not sent: the bank does not
++        // know it (9955 "Die Gerätebezeichnung ist unbekannt"), say after the
++        // pushTAN app was set up again under another name.
++        if (name && (listed.length === 0 || listed.includes(name))) {
++            return name;
++        }
+         if (requirement === TanMediaRequirement.Required) {
+-            return this.config.tanMediaName ?? 'default';
++            // Never the placeholder 'default', which a bank that checks the name
++            // refuses with that same 9955: the one device the bank lists, or
++            // none, and a bank with a single device takes that one.
++            return listed.length === 1 ? listed[0] : undefined;
+         }
+-        return this.config.tanMediaName;
++        return undefined;
+     }
+     /**
+      * Collects a response that the bank spreads over several messages.
+@@ -206,7 +238,10 @@ export class Dialog {
          // the last one we happen to receive.
          const callersMessage = responseMessage;
          const rawPortions = partedSegments.map((segment) => segment.rawData);
@@ -109,7 +141,7 @@ index 0022e5d..fafb06a 100644
              const answers = responseMessage.getBankAnswers();
              const segmentWithContinuation = message.segments.find((s) => s.header.segId === interaction.segId);
              if (!segmentWithContinuation) {
-@@ -216,6 +237,12 @@ export class Dialog {
+@@ -216,6 +251,12 @@ export class Dialog {
              if (!answer || !answer.params || answer.params.length === 0) {
                  throw new Error('Expected bank answer to contain continuation mark parameters (code 3040)');
              }
@@ -122,7 +154,7 @@ index 0022e5d..fafb06a 100644
              segmentWithContinuation.continuationMark = answer.params[0];
              const hnhbkSegment = message.findSegment(HNHBK.Id);
              if (!hnhbkSegment) {
-@@ -228,6 +255,16 @@ export class Dialog {
+@@ -228,6 +269,16 @@ export class Dialog {
                  .map((segment) => segment.rawData));
              responseMessage = nextResponseMessage;
          }
@@ -139,7 +171,7 @@ index 0022e5d..fafb06a 100644
          // Every PARTED placeholder gives way to the decoded portions, at the position of
          // the first one so the segment order stays intact.
          const index = callersMessage.segments.indexOf(partedSegments[0]);
-@@ -235,6 +272,21 @@ export class Dialog {
+@@ -235,6 +286,21 @@ export class Dialog {
          withoutPlaceholders.splice(index, 0, ...rawPortions.map((raw) => decode(raw)));
          callersMessage.segments = withoutPlaceholders;
      }

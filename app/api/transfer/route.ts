@@ -23,6 +23,7 @@ import { isDefiniteRefusal } from '@/lib/bank-answer';
 import { msgs } from '@/lib/i18n';
 import { bankAnswerCodes, bankAnswerText, logResp, serializeVop, tanPayload } from '@/lib/serialize';
 import { getSession } from '@/lib/session';
+import { noteTanMediumAnswer } from '@/lib/tan-media';
 import { lookupBlz } from '@/lib/banks';
 import {
   INSTANT_SEG, TRANSFER_SEG,
@@ -156,6 +157,7 @@ export const POST = wrap(async (req: Request) => {
   logResp('transfer', s, resp);
 
   const codes = bankAnswerCodes(resp);
+  noteTanMediumAnswer(s, codes);
   // Read the collector, not the response: when the bank spreads the check
   // result over several messages the VOP-ID lands in a later one.
   const vopResult = interaction.vop?.result || null;

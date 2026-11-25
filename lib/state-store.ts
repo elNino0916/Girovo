@@ -148,6 +148,12 @@ export type OpenedProfile = { state: ProfileState; data: DeviceProfile | null };
  * profile asks here (app/api/connect).
  */
 export function openProfile(blz: string, userId: string, pin: string): OpenedProfile {
+  const { state, data } = openWithAge(blz, userId, pin);
+  return { state, data };
+}
+
+/** openProfile, and when the device was remembered where it opens. */
+function openWithAge(blz: string, userId: string, pin: string): OpenedProfile & { savedAt?: number } {
   const no = (state: ProfileState): OpenedProfile => ({ state, data: null });
   let text: string;
   try {
@@ -171,9 +177,42 @@ export function openProfile(blz: string, userId: string, pin: string): OpenedPro
     const parsed = JSON.parse(plaintext.toString('utf8')) as { savedAt?: unknown; data?: DeviceProfile } | null;
     if (!parsed || typeof parsed.savedAt !== 'number' || !parsed.data) return no('damaged');
     if (Date.now() - parsed.savedAt > PROFILE_MAX_AGE_MS) return no('expired');
-    return { state: 'opens', data: parsed.data };
+    return { state: 'opens', data: parsed.data, savedAt: parsed.savedAt };
   } catch {
     return no('damaged');
+  }
+}
+
+/**
+ * Takes a TAN medium's name out of the remembered device of (blz, userId),
+ * where this PIN opens it: as the selected one and from the methods' lists of
+ * names (lib/tan-media.ts noteTanMediumAnswer). The device keeps its age, so it
+ * still asks for a full login when it would have. False where nothing opens,
+ * nothing changed or the file could not be written.
+ */
+export function dropTanMedium(blz: string, userId: string, pin: string, name: string): boolean {
+  const opened = openWithAge(blz, userId, pin);
+  const { data, savedAt } = opened;
+  if (opened.state !== 'opens' || !data || savedAt === undefined) return false;
+  let changed = false;
+  if (data.tanMediaName === name) {
+    delete data.tanMediaName;
+    changed = true;
+  }
+  for (const method of data.bankingInformation?.bpd?.supportedTanMethods ?? []) {
+    if (method.activeTanMedia?.includes(name)) {
+      method.activeTanMedia = method.activeTanMedia.filter((n) => n !== name);
+      changed = true;
+    }
+  }
+  if (!changed) return false;
+  try {
+    const plaintext = Buffer.from(JSON.stringify({ savedAt, data }), 'utf8');
+    writeWhole(profileFile(blz, userId), JSON.stringify(sealWithPin(String(pin), plaintext)));
+    return true;
+  } catch (err) {
+    console.warn('[state] could not update device profile:', (err as Error)?.message || err);
+    return false;
   }
 }
 

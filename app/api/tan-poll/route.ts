@@ -11,6 +11,7 @@ import {
 } from '@/lib/serialize';
 import { noteDelivery } from '@/lib/history-store';
 import { getSession, saveSessionProfile } from '@/lib/session';
+import { noteTanMediumAnswer } from '@/lib/tan-media';
 import { cleanTan, isPlausibleTan } from '@/lib/tan-entry';
 import { msgs } from '@/lib/i18n';
 import { PENDING_SEG } from '@/lib/fints-pending';
@@ -88,6 +89,7 @@ export const POST = wrap(async (req: Request) => {
   }
 
   logResp('tan-poll', s, resp);
+  noteTanMediumAnswer(s, bankAnswerCodes(resp));
 
   if (resp.requiresTan) {
     // Not approved yet — keep the same reference and ask the client to poll again.

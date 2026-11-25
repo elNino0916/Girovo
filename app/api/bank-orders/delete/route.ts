@@ -17,6 +17,7 @@ import { ORDER_UNANSWERED_STATUS, OrderUnanswered, startOrder } from '@/lib/fint
 import type { DeleteOrderResponse } from '@/lib/fints-types';
 import { bankAnswerCodes, bankAnswerText, logResp, tanPayload } from '@/lib/serialize';
 import { getSession } from '@/lib/session';
+import { noteTanMediumAnswer } from '@/lib/tan-media';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -50,6 +51,7 @@ export const POST = wrap(async (req: Request) => {
     return fail(resp.message, ORDER_UNANSWERED_STATUS);
   }
   logResp('order-delete', s, resp);
+  noteTanMediumAnswer(s, bankAnswerCodes(resp));
 
   if (resp.requiresTan) {
     s.pending = { type: 'orderDelete', tanReference: resp.tanReference, accountNumber, segId: interaction.segId, ref: ref as string };

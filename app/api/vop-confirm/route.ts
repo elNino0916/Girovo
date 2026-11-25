@@ -11,6 +11,7 @@ import { isDefiniteRefusal } from '@/lib/bank-answer';
 import { msgs } from '@/lib/i18n';
 import { bankAnswerCodes, bankAnswerText, logResp, tanPayload } from '@/lib/serialize';
 import { getSession } from '@/lib/session';
+import { noteTanMediumAnswer } from '@/lib/tan-media';
 import { orderInteraction } from '@/lib/fints-orders';
 import { ORDER_UNANSWERED_STATUS, OrderUnanswered, startOrder } from '@/lib/fints-order';
 import type { TransferResponse } from '@/lib/fints-types';
@@ -56,6 +57,7 @@ export const POST = wrap(async (req: Request) => {
     return fail(resp.message, ORDER_UNANSWERED_STATUS);
   }
   logResp('vop-confirm', s, resp);
+  noteTanMediumAnswer(s, bankAnswerCodes(resp));
 
   // The hold is spent either way: a VOP-ID may only be used once.
   s.vopHold = null;
