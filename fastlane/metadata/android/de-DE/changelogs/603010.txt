@@ -1,0 +1,1 @@
+Sparkasse: Überweisungen scheitern nicht mehr an „Die Gerätebezeichnung ist unbekannt“. Die Gerätesicherheit erkennt mehr Anzeichen für ein gerootetes Telefon.

@@ -1,0 +1,8 @@
+<en-US>
+• Sparkasse: transfers no longer fail with "Die Gerätebezeichnung ist unbekannt"
+• Device security spots more signs of a rooted phone
+</en-US>
+<de-DE>
+• Sparkasse: Überweisungen scheitern nicht mehr an „Die Gerätebezeichnung ist unbekannt“
+• Die Gerätesicherheit erkennt mehr Anzeichen für ein gerootetes Telefon
+</de-DE>

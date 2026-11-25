@@ -1,0 +1,1 @@
+Sparkasse: transfers no longer fail with "Die Gerätebezeichnung ist unbekannt". Device security spots more signs of a rooted phone.
