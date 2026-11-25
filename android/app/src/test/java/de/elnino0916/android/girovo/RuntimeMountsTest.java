@@ -15,10 +15,12 @@ public class RuntimeMountsTest {
         RuntimeMounts.Scan scan = RuntimeMounts.scan(STOCK, true);
         assertTrue(scan.complete);
         assertTrue(scan.findings.isEmpty());
+        assertTrue(scan.covers.isEmpty());
     }
 
     @Test public void capturedDeletedHostsIsAFindingButStackedYoutubeCoversAreNot() {
-        // A preinstalled app hidden under tmpfs (the owner's S26) gives no app root.
+        // A preinstalled app hidden under tmpfs (the owner's S26) gives no app
+        // root: a cover, which counts only beside another weak sign.
         String modified = STOCK
             + "299 53 0:53 / /product/app/YouTube rw,relatime shared:66 - tmpfs none rw,seclabel\n"
             + "301 42 254:81 /adb/modules/bindhosts/system/etc/hosts//deleted /system/etc/hosts rw,nosuid,nodev,noatime shared:48 - f2fs /dev/block/dm-81 rw,seclabel\n"
@@ -28,6 +30,9 @@ public class RuntimeMountsTest {
         assertTrue(scan.complete);
         assertEquals(1, scan.findings.size());
         assertTrue(scan.findings.get(0).contains("hosts//deleted"));
+        // Three stacked covers of one folder are one cover.
+        assertEquals(1, scan.covers.size());
+        assertEquals("/product/app/YouTube", scan.covers.get(0));
     }
 
     @Test public void tmpfsOverExecutablesOrLibrariesIsAFinding() {
@@ -37,6 +42,25 @@ public class RuntimeMountsTest {
             + "312 53 0:62 / /system/priv-app/Bloat rw - tmpfs none rw\n", true);
         assertTrue(scan.complete);
         assertEquals(2, scan.findings.size());
+        // The covered app folder is a cover; covered code is a finding and no cover as well.
+        assertEquals(1, scan.covers.size());
+        assertEquals("/system/priv-app/Bloat", scan.covers.get(0));
+    }
+
+    @Test public void onlyMemoryOverAnAppFolderIsACover() {
+        RuntimeMounts.Scan scan = RuntimeMounts.scan(STOCK
+            + "320 42 0:70 / /mnt rw - tmpfs tmpfs rw\n"
+            + "321 42 0:71 / /data/user/0 rw - tmpfs tmpfs rw\n"
+            + "322 42 0:72 / /systemfoo rw - tmpfs tmpfs rw\n"
+            // Inside a system partition, and no app folder: uncounted, as before covers existed.
+            + "323 42 0:73 / /system/etc/security rw - tmpfs tmpfs rw\n"
+            + "324 53 0:74 / /product/overlay rw - tmpfs tmpfs rw\n"
+            + "325 53 0:75 / /product/application rw - tmpfs tmpfs rw\n"
+            // An overlay over an app folder is the makers' way (HyperOS), and RuntimeMounts.rootOverlay's to judge.
+            + "326 53 0:76 / /product/app ro - overlay overlay ro,lowerdir=/mnt/vendor/mi_ext/product/app:/product/app\n", true);
+        assertTrue(scan.complete);
+        assertTrue(scan.findings.isEmpty());
+        assertTrue(scan.covers.toString(), scan.covers.isEmpty());
     }
 
     @Test public void malformedEmptyAndTruncatedReadsAreNotCompleteNegatives() {

@@ -10,7 +10,7 @@
 // where each renders nothing.
 
 import { useEffect, useState } from 'react';
-import { keepsNothing, mayAllowSaving, unsafePhone } from '@/lib/device-integrity';
+import { integrityClass, keepsNothing, mayAllowSaving, unsafePhone } from '@/lib/device-integrity';
 import { fmtBytes } from '@/lib/format';
 import { useIntegrity } from './IntegrityNotice';
 import { HoldButton, SaveAnywayWarning } from './SaveAnyway';
@@ -225,13 +225,15 @@ export function IntegrityRow() {
   const kept = !!integrity?.savingAllowed && mayAllowSaving(integrity);
   // Held for 10 s, "Schließen" opens the warning — only where saving may be allowed and is not.
   const canAllow = nothing && mayAllowSaving(integrity);
-  // The verdict as the row's mark: a check in Credit Green for a phone its
-  // hardware vouches for, a cross in Soll Red for a modified phone or a
-  // foreign copy, and the warning's orange mark for one that cannot prove
-  // anything (amber is Vorgemerkt's alone).
+  // The verdict as the row's mark, one for each of its three answers
+  // (integrityClass): a check in Credit Green for a phone its hardware
+  // vouches for, a cross in Soll Red for a modified phone or a foreign copy,
+  // and the warning's orange mark where neither is shown: a phone that cannot
+  // prove anything, or one with a sign of root beside its proof (amber is
+  // Vorgemerkt's alone).
   const mark = bad
     ? <XCircleIcon className="text-red" strokeWidth={2} />
-    : device === 'unknown'
+    : integrityClass(device) === 'insufficient'
       ? <AlertCircleIcon className="text-emphasis" strokeWidth={2} />
       : <CheckCircleIcon className="text-green" strokeWidth={2} />;
   return (
@@ -262,6 +264,8 @@ export function IntegrityRow() {
           <div className="flex flex-col gap-3 text-[15px] leading-normal text-ink-2">
             {/* A modified phone is said in Soll Red, as the login's warning says it. */}
             <p className={cx(device === 'modified' && 'text-red')}>{m[device]}</p>
+            {/* What was found, where the user can do something about it: an app they can remove. */}
+            {device === 'inconclusive' && integrity?.doubt?.includes('manager') && <p>{m.inconclusiveManager}</p>}
             {foreign && <p className="text-red">{m.foreign}</p>}
             {integrity?.copy === 'development' && <p>{m.development}</p>}
             {nothing && <p className="text-ink">{m.keepsNothing}</p>}

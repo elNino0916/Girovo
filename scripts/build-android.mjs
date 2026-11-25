@@ -23,6 +23,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { staleWarning } from './attestation-revoked.mjs';
 import { buildMobile } from './build-mobile.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -46,6 +47,10 @@ if (RELEASE && !WEB_ONLY && !fs.existsSync(path.join(ANDROID, 'keystore.properti
   console.error('✗ a release build is signed with android/keystore.properties — see android/README.md');
   process.exit(1);
 }
+// A release ships the list of revoked attestation keys as it stands in the
+// repository (scripts/attestation-revoked.mjs). An old one still builds.
+const STALE_LIST = RELEASE ? staleWarning() : null;
+if (STALE_LIST) console.warn(`! ${STALE_LIST}`);
 
 function run(cmd, args, opts = {}) {
   const result = spawnSync(cmd, args, { stdio: 'inherit', shell: process.platform === 'win32', ...opts });
@@ -139,6 +144,9 @@ if (RELEASE) {
   console.log(`› dist/${name}
   sha256 ${digest}`);
 }
+
+// Said again under the build's long output, where it is read.
+if (STALE_LIST) console.warn(`! ${STALE_LIST}`);
 
 if (has('--install') && kind === 'apk') {
   const sdk = process.env.ANDROID_HOME ?? path.join(os.homedir(), 'AppData', 'Local', 'Android', 'Sdk');

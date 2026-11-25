@@ -78,6 +78,10 @@ export const de = {
     custom: 'Auf diesem Telefon läuft ein eigenes, geschütztes Android wie GrapheneOS. Sicher, solange du diesem System vertraust.',
     modified: 'Das System dieses Telefons ist verändert oder nicht geprüft. Eine App mit Root-Rechten könnte mitlesen, was du eintippst, auch deine PIN.',
     unknown: 'Dieses Telefon kann nicht nachweisen, dass es unverändert ist.',
+    /** A proven boot with one sign of a root tool beside it (lib/device-integrity.ts doubtSigns). */
+    inconclusive: 'Das Android dieses Telefons ist bestätigt. Es gibt aber Anzeichen für Root-Zugriff, die Girovo nicht prüfen kann.',
+    /** …where that sign is a root manager app, which the user can remove. */
+    inconclusiveManager: 'Gefunden: eine App zur Root-Verwaltung. Ohne Root kannst du sie entfernen und Girovo neu starten.',
     foreign: 'Diese App stammt nicht von Girovo. Lade Girovo nur von GitHub (elNino0916/Girovo) oder aus Google Play.',
     development: 'Eine Testversion: Ihre Herkunft wird nicht geprüft.',
     /** The verdict in a few words, on the Einstellungen row; the sentences above are its dialog. */
@@ -85,6 +89,7 @@ export const de = {
       trusted: 'Sicher, vom Telefon bestätigt',
       custom: 'Eigenes Android, geschützt',
       modified: 'Verändert, nicht sicher',
+      inconclusive: 'Anzeichen für Root',
       unknown: 'Nicht nachweisbar',
     },
     foreignShort: 'Keine offizielle Girovo-App',
@@ -108,6 +113,7 @@ export const de = {
       title: 'Daten auf einem unsicheren Telefon speichern?',
       leadModified: 'Dieses Telefon ist gerootet oder verändert. Apps mit Root-Rechten können alles lesen, was Girovo hier ablegt.',
       leadUnknown: 'Dieses Telefon kann nicht nachweisen, dass es unverändert ist. Ist es gerootet, können Apps mit Root-Rechten alles lesen, was Girovo hier ablegt.',
+      leadInconclusive: 'Auf diesem Telefon gibt es Anzeichen für Root-Zugriff. Ist es gerootet, können Apps mit Root-Rechten alles lesen, was Girovo hier ablegt.',
       risks: [
         'Kontostände, Umsätze, IBANs, Notizen und Dokumente liegen dann lesbar für jede App mit Root-Rechten.',
         'Ein gemerktes Gerät erspart die Freigabe beim Anmelden, dir und jedem, der dein Telefon samt PIN in die Hände bekommt.',
@@ -234,12 +240,15 @@ export const en: typeof de = {
     custom: 'This phone runs its own protected Android, such as GrapheneOS. Safe as long as you trust that system.',
     modified: 'This phone’s system is modified or unverified. An app with root rights could read what you type, including your PIN.',
     unknown: 'This phone can’t prove that it is unmodified.',
+    inconclusive: 'This phone’s Android is confirmed. But there are signs of root access that Girovo can’t check.',
+    inconclusiveManager: 'Found: an app that manages root access. Without root you can remove it and restart Girovo.',
     foreign: 'This app doesn’t come from Girovo. Only get Girovo from GitHub (elNino0916/Girovo) or Google Play.',
     development: 'A test version: where it comes from isn’t checked.',
     short: {
       trusted: 'Safe, confirmed by the phone',
       custom: 'Own Android, protected',
       modified: 'Modified, not safe',
+      inconclusive: 'Signs of root',
       unknown: "Can't be proven",
     },
     foreignShort: 'Not the official Girovo app',
@@ -258,6 +267,7 @@ export const en: typeof de = {
       title: 'Keep data on an unsafe phone?',
       leadModified: 'This phone is rooted or modified. Apps with root rights can read everything Girovo keeps here.',
       leadUnknown: "This phone can't prove it is unmodified. If it is rooted, apps with root rights can read everything Girovo keeps here.",
+      leadInconclusive: 'There are signs of root access on this phone. If it is rooted, apps with root rights can read everything Girovo keeps here.',
       risks: [
         'Balances, transactions, IBANs, notes and documents become readable to any app with root rights.',
         'A remembered device skips the approval at login, for you and for anyone who gets hold of your phone and your PIN.',

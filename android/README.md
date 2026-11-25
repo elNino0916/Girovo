@@ -104,11 +104,14 @@ A debug build's WebView can be inspected from Chrome on the computer:
 ### Runtime integrity
 
 At start, `RuntimeIntegrity.java` reads `/proc/self/mountinfo`, the hosts
-file's metadata, a fixed set of root-interface path metadata and exact
-manager-package queries from Girovo's own process. It never executes a root
-binary, requests root, reads the manager's private files or inventories apps.
-The mount-table read is bounded to 256 KiB. The manifest declares only the
-four manager packages being queried.
+file's metadata, the names of what is loaded into its own process
+(`/proc/self/maps`), a fixed set of root-interface path metadata, `su` and
+the root tools' own programs in every `PATH` folder, the SELinux mode and
+exact manager-package queries, all from Girovo's own process. It never
+executes a root binary, requests root, reads the manager's private files or
+inventories apps. The mount-table read is bounded to 256 KiB. The manifest
+declares only the nine manager packages being queried (KernelSU, KernelSU
+Next, SukiSU Ultra, Magisk, Magisk Alpha, Kitsune, APatch, SuperSU, LSPosed).
 
 Each check returns `found`, `nothing seen` or `unavailable`, with a bounded
 explanation. `EACCES`/`EPERM`, failed reads and incomplete mount tables are
@@ -116,14 +119,49 @@ unavailable, not clean. A negative package query is scoped to the current
 profile and declared query. A missing path is scoped to the app's own view.
 These local probes cannot prove the absence of root on a modified kernel.
 
-Any `found` result of the system checks (mounts, hosts, `su` paths)
-overrides even a verified, locked boot in `lib/device-integrity.ts`: the
-device is `modified`, the settings row shows the red cross, the login warns,
-and the existing storage refusal applies. An installed root manager app alone
-is logged but decides nothing — it runs without root, as on the owner's S26
-(KernelSU's manager beside a locked, verified boot and no module mounts).
-A tmpfs over an app folder (`/app`, `/priv-app`) hides a preinstalled app and
-is no finding either; one over `bin` or `lib` folders is.
+Any `found` result of the system checks overrides even a verified, locked
+boot in `lib/device-integrity.ts` (`strongSigns`): the device is `modified`,
+the settings row shows the red cross, the login warns, and the existing
+storage refusal applies. These are `mounts`, `hosts`, the `su` paths, and
+since November 2026:
+
+- `tools`: `su`, `magisk`, `resetprop`, `magiskpolicy`, `supolicy`, `ksud` or
+  `apd` in a folder a shell searches. A folder the app may not look into
+  counts as nothing.
+- `maps`: code of a root framework in Girovo's own process (Zygisk, Magisk,
+  LSPosed, Xposed, Riru, Frida, Substrate, anything loaded from `/data/adb`).
+  That is the hook that would read a PIN as it is typed. Only a mapping's own
+  name is matched, never the folders above it: an installed app's folder ends
+  in random letters, and the system has `libvndksupport.so`.
+- `selinux`: the kernel enforces no access rules. On an enforcing phone the
+  app is refused the answer, which is the normal `unavailable`.
+
+Some signs prove nothing alone (`weakSigns`): a root manager app (it is an
+app, and runs without root), memory mounted over an app folder (`covers`: a
+module hides a preinstalled app that way, and it gives no app root),
+Samsung's Knox bit, and an attestation key Google has revoked. One of them
+never makes a phone `modified`. Two of different kinds do, where one is a
+root tool's (`modifiedByPair`): a manager app or a cover, beside each other
+or beside the Knox bit or a revoked key. The Knox bit beside a revoked key is
+no such pair; a second-hand Galaxy back on Samsung's system can have both. A
+tmpfs over `bin` or `lib` folders is a finding by itself, as before. The
+keys a system is signed with (`Build.TAGS`) are only logged: the emulator's
+Play image is `user` with `dev-keys`.
+
+A manager app, alone beside an attestation that passes, makes the phone
+`inconclusive` (`doubtSigns`): its boot is proven, and what runs on it now
+is not. That is neither a verified phone nor a modified one. Girovo handles
+it as a phone that cannot prove itself: nothing is kept until the user
+allows it, no PIN goes behind the fingerprint, and the login shows no red
+warning. `docs/integrity-verdicts.md` has the three answers, the other ways
+to handle this one, and what each costs.
+
+A cover alone changes no verdict yet. No stock phone is known to mount
+memory over an app folder, and none is proven not to; a wrong guess would
+mark a whole model line, as the overlay rule did with HyperOS. It is logged
+(`covers` in the `GirovoIntegrity` lines), and can join `doubtSigns` once
+logs from stock phones show it never appears there.
+
 An overlay over a system partition counts only when a root tool made it: its
 source names one (KSU, Magisk, APatch), a layer lies in writable storage or
 memory (`/data`, `/debug_ramdisk`, `/sbin`, `/dev`, `/mnt` …), or it has a
@@ -157,6 +195,67 @@ metadata and `su` was absent; `/data/adb/ksu/bin/ksud` returned permission
 denied and was correctly reported as unavailable. ADB's privileged view
 must not be substituted for these app-process results.
 
+That phone is rooted through a kernel exploit, without unlocking the
+bootloader, so its attestation is true. A manager app and a cover are the
+two weak signs that now read as `modified` together.
+
+### Forged attestation
+
+Root tools answer the attestation themselves, with a leaked key, and report
+a locked, verified boot on a phone that has neither. Two things are held
+against that, both on the phone:
+
+- Google's list of revoked attestation keys, as a copy inside the app
+  (`res/raw/attestation_revoked.txt`, 2,222 serial numbers in November 2026).
+  `DeviceIntegrity.java` looks up every certificate of the chain
+  (`RevokedKeys.java`). A listed key makes the phone `unknown`: it can prove
+  nothing. It does not make it `modified`, because factory keys are shared by
+  a batch of phones and a revoked batch has honest phones in it. The phone
+  asks Google nothing. The copy is as old as the release, so refresh it
+  before one with
+
+  ```bash
+  npm run android:revoked
+  ```
+
+  and commit the file. A release build warns when the copy is older than 45
+  days. Serials are matched as Google lists them, in lowercase hex. Close to
+  half the entries are digits only and look decimal; Google's documentation
+  says they are hex as well ("in base 16, not base 10").
+- What the system says of itself (`system` in the facts). The boot state in
+  `ro.boot.verifiedbootstate` and `ro.boot.vbmeta.device_state` comes from
+  the bootloader, as the attested record does. Where the attestation reads
+  locked or verified and the properties say unlocked, orange, yellow or red,
+  the phone is `modified`. So is a system that is not a `user` build, or is
+  debuggable (not in a debug build of Girovo, which runs on the emulator). A
+  phone that leaves a property out says nothing.
+
+### What the check cannot see
+
+Everything above is read on the phone that is being judged. On 24 November
+2026 the same SM-S948B was rooted again through a kernel exploit (KernelSU
+loaded into the running kernel), with no modules installed. Read over adb
+from the running app's own process (UID 10460, `untrusted_app_34`):
+
+- the attestation was true (locked, verified), and every property was clean
+  (`user`, `release-keys`, green, locked, Knox bit 0);
+- its mount table had no tmpfs, overlay or module mount in a system partition;
+- its 4,209 mappings held no root framework;
+- KernelSU showed `su` to root only, and kept its kernel module out of
+  `/sys/module`;
+- the phone's policy refuses an app `/sys/fs/selinux` (so it cannot ask
+  whether the `ksu` domain exists, which it does), `/data/adb`, and
+  `ro.debuggable`. The build and boot properties it may read.
+
+All that was left in the app's view was the manager app. That is one weak
+sign: no proof of root, so the phone is not `modified`, and reason enough
+not to call it verified, so it reads as `inconclusive`. With the manager app
+removed it would read as `trusted`, and nothing on the phone would say
+otherwise.
+A verdict made off the phone (Play Integrity, read on a server) reaches
+further against forged attestations, and a kernel exploit on a locked phone
+can pass that one too.
+
 ## Release builds
 
 A release is signed with your own upload key. Create it once and keep it
@@ -178,10 +277,13 @@ keyPassword=…
 Then
 
 ```bash
+npm run android:revoked
 npm run android:release
 ```
 
-writes the releases to `dist/`:
+The first refreshes the list of revoked attestation keys the app ships
+(Runtime integrity, above); commit it with the release. The second writes
+the releases to `dist/`:
 
 | File | Where it goes |
 |------|---------------|

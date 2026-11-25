@@ -21,11 +21,12 @@
 //
 // ?plus=free|active|inactive|unavailable is Girovo Plus as the Play build sees it.
 //
-// ?integrity=modified|unknown|kept gives the integrity check an answer instead
-// (kept: a rooted phone the user lets keep its data anyway), for Gerätesicherheit's
+// ?integrity=modified|unknown|inconclusive|kept gives the integrity check an
+// answer instead (inconclusive: a proven boot with a root manager app beside it;
+// kept: a rooted phone the user lets keep its data anyway), for Gerätesicherheit's
 // dialog, its 10-second "Schließen" and the warning it opens.
 
-export const INTEGRITY_SCENARIOS = ['modified', 'unknown', 'kept'] as const;
+export const INTEGRITY_SCENARIOS = ['modified', 'unknown', 'inconclusive', 'kept'] as const;
 export const PLUS_SCENARIOS = ['free', 'active', 'inactive', 'unavailable'] as const;
 export const isPlusScenario = (s: string): s is PlusState => (PLUS_SCENARIOS as readonly string[]).includes(s);
 
@@ -193,7 +194,8 @@ export function installFakeNano(
     openAICore: async () => { window.open('https://play.google.com/store/apps/details?id=com.google.android.aicore', '_blank'); },
     integrity: async () => (integrityScenario
       ? {
-        device: integrityScenario === 'unknown' ? 'unknown' : 'modified', copy: 'official', level: 'tee', runtime: [],
+        device: integrityScenario === 'unknown' || integrityScenario === 'inconclusive' ? integrityScenario : 'modified',
+        copy: 'official', level: 'tee', runtime: [], doubt: integrityScenario === 'inconclusive' ? ['manager'] : [],
         savingAllowed: integrityScenario === 'kept',
       }
       : null),

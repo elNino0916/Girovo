@@ -22,7 +22,7 @@
 //                  &update=available|ready|…  a fake desktop updater (./updater.ts)
 //                  &terms=ask                 the login before the terms of use are agreed to (lib/terms.ts)
 //                  &nano=working|unsupported|…  Android: a fake Gemini Nano (./nano.ts)
-//                  &integrity=modified|unknown|kept  Android: the integrity check's answer (./nano.ts)
+//                  &integrity=modified|unknown|inconclusive|kept Android: the integrity check's answer (./nano.ts)
 //                  &plus=free|active|inactive|unavailable  Android: Girovo Plus as the Play build sees it
 //                  &updateDialog=1            …with its dialog open
 //                  &page=security|notifications|accounts|devices|appearance|privacy|about   Einstellungen on that page

@@ -7,6 +7,16 @@ import java.util.List;
 final class RuntimeMounts {
     static final class Scan {
         final List<String> findings = new ArrayList<>();
+        /**
+         * Memory mounted over a preinstalled app's folder: a module that
+         * hides or replaces the app does that (/product/app/YouTube on the
+         * owner's S26). It gives no app root by itself, so it is a weak sign
+         * (lib/device-integrity.ts): logged alone, a finding beside a second
+         * sign. App folders only, which is what was seen on a rooted phone.
+         * Memory over other folders of a system partition stays uncounted,
+         * as before.
+         */
+        final List<String> covers = new ArrayList<>();
         boolean complete;
 
         Scan(boolean complete) { this.complete = complete; }
@@ -45,6 +55,11 @@ final class RuntimeMounts {
                 || within(root, "/sbin/.magisk") || within(root, "/debug_ramdisk/.magisk");
             boolean hosts = target.equals("/system/etc/hosts") || target.equals("/etc/hosts");
             boolean codeCover = type.equals("tmpfs") && protectedTree && codeTree(target);
+            if (type.equals("tmpfs") && appFolder(target)) {
+                // Stacked covers of one folder are one cover.
+                String cover = shorten(target);
+                if (result.covers.size() < 8 && !result.covers.contains(cover)) result.covers.add(cover);
+            }
             // A partition root or its code remounted writable; vendors keep writable
             // firmware and persist folders under /vendor, which say nothing.
             boolean writableSystem = protectedTree
@@ -115,14 +130,22 @@ final class RuntimeMounts {
 
     /**
      * Executables and libraries only. An app folder under tmpfs
-     * (/product/app/YouTube on the owner's S26) hides a preinstalled app —
-     * phone makers and debloating do that too — and gives no app root.
+     * (/product/app/YouTube on the owner's S26) hides a preinstalled app
+     * and gives no app root: that is a cover (Scan.covers), not a finding.
      */
     private static boolean codeTree(String path) {
         for (String partition : PARTITIONS) {
             for (String dir : new String[] { "/bin", "/xbin", "/lib", "/lib64" }) {
                 if (within(path, partition + dir)) return true;
             }
+        }
+        return false;
+    }
+
+    /** Where a partition keeps its preinstalled apps: app and priv-app, or anything below them. */
+    private static boolean appFolder(String path) {
+        for (String partition : PARTITIONS) {
+            if (within(path, partition + "/app") || within(path, partition + "/priv-app")) return true;
         }
         return false;
     }

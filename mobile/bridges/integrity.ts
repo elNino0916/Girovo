@@ -8,7 +8,9 @@
 // a phone refuses to write), for the verdict it was made on; it counts from
 // the next start, when the phone server decides whether to load /data.
 
-import { integrityOf, keepsNothing, type DeviceVerdict, type Integrity } from '../../lib/device-integrity.ts';
+import {
+  bootContradicted, integrityClass, integrityOf, keepsNothing, strongSigns, weakSigns, type DeviceVerdict, type Integrity,
+} from '../../lib/device-integrity.ts';
 import { GirovoDevice } from '../native';
 
 /** The verdict the user let Girovo save on despite the warning. */
@@ -19,7 +21,7 @@ let once: Promise<Integrity | null> | null = null;
 function allowedFor(): DeviceVerdict | null {
   try {
     const v = window.localStorage.getItem(CHOICE_KEY);
-    return v === 'modified' || v === 'unknown' ? v : null;
+    return v === 'modified' || v === 'unknown' || v === 'inconclusive' ? v : null;
   } catch {
     return null;
   }
@@ -28,8 +30,10 @@ function allowedFor(): DeviceVerdict | null {
 export function integrity(): Promise<Integrity | null> {
   once ??= GirovoDevice.integrity().then((facts) => {
     const result = integrityOf(facts, allowedFor());
+    // Why the phone reads as it does, by check names only (no banking data, nothing of what is installed).
     console.info('[GirovoIntegrity]', JSON.stringify({
       device: result.device, copy: result.copy, keepsNothing: keepsNothing(result), savingAllowed: !!result.savingAllowed,
+      class: integrityClass(result.device), strong: strongSigns(facts), weak: weakSigns(facts), contradicted: bootContradicted(facts),
     }));
     return result;
   }, () => null);

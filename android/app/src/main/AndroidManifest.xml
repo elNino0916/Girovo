@@ -5,9 +5,14 @@
     <!-- Exact read-only integrity queries; no QUERY_ALL_PACKAGES permission. -->
     <queries>
         <package android:name="me.weishu.kernelsu" />
+        <package android:name="com.rifsxd.ksunext" />
+        <package android:name="com.sukisu.ultra" />
         <package android:name="com.topjohnwu.magisk" />
+        <package android:name="io.github.vvb2060.magisk" />
+        <package android:name="io.github.huskydg.magisk" />
         <package android:name="me.bmax.apatch" />
         <package android:name="eu.chainfire.supersu" />
+        <package android:name="org.lsposed.manager" />
         <!-- The banks' approval apps, for "Freigabe-App öffnen" (lib/brands.ts APPROVAL_PACKAGES). -->
         <package android:name="com.starfinanz.mobile.android.pushtan" />
         <package android:name="de.fiduciagad.securego.wl" />

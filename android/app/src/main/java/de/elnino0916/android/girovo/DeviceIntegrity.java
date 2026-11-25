@@ -1,5 +1,6 @@
 package de.elnino0916.android.girovo;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
@@ -12,6 +13,7 @@ import android.util.Log;
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 
+import java.io.InputStream;
 import java.security.KeyPairGenerator;
 import java.security.KeyStore;
 import java.security.MessageDigest;
@@ -27,7 +29,7 @@ import java.util.List;
  * Whether this phone and this copy of Girovo are what they claim to be,
  * found out on the phone alone — no server of Girovo's and no request to
  * Google (Play Integrity's verdict can only be read on a server, and Girovo
- * has none). Three inputs:
+ * has none). Four inputs:
  *
  *   - Key attestation. A fresh key made in the phone's secure hardware comes
  *     with a certificate chain that hardware signs, ending at one of Google's
@@ -37,6 +39,15 @@ import java.util.List;
  *     (self-signed: a custom system such as GrapheneOS), or one nobody
  *     vouches for. Rooting or flashing a phone cannot rewrite that record
  *     without the hardware's key.
+ *     A leaked attestation key signs whatever its holder likes, and root
+ *     tools use such keys to attest a locked, verified boot on a phone that
+ *     has neither. Google revokes the keys it learns of; the chain is looked
+ *     up in the copy of that list the app ships (RevokedKeys), so the phone
+ *     still asks Google nothing. A key leaked or revoked after the release
+ *     passes until the next one.
+ *   - What the system says of itself: its build type and keys, and the boot
+ *     state in its own properties. A system that contradicts the attested
+ *     boot gives the forgery away.
  *   - Read-only runtime observations in this app's own sandbox. A verified
  *     boot does not exclude a kernel compromised after boot.
  *   - The certificate this copy of the app is signed with, and who installed it.
@@ -46,9 +57,11 @@ import java.util.List;
  * is no longer one a PIN is safe on. The facts go to the page as they are;
  * lib/device-integrity.ts decides what they mean.
  *
- * Not checked: Google's list of revoked attestation keys, which would be a
- * request to Google on every start. A phone whose attestation key has leaked
- * can pass as unmodified.
+ * All of it is read on a phone that may lie. A root tool that hides itself
+ * from this app's view, forges the attestation with a key nobody has
+ * reported and sets the properties to match passes. So does a root gained
+ * through a kernel exploit on a locked phone, whose attestation is true
+ * (android/README.md, "What the check cannot see").
  */
 final class DeviceIntegrity {
 
@@ -78,9 +91,15 @@ final class DeviceIntegrity {
         for (int i = 0; i < runtime.length(); i++) {
             Log.i("GirovoIntegrity", process + " runtime=" + runtime.optJSONObject(i));
         }
-        attest(result);
+        attest(context, result);
         Log.i("GirovoIntegrity", process + " boot=" + result.optString("bootState", "unavailable")
-            + " locked=" + result.opt("deviceLocked") + " attestation=" + result.optString("attestation", "unavailable"));
+            + " locked=" + result.opt("deviceLocked") + " attestation=" + result.optString("attestation", "unavailable")
+            + " chain=" + result.optString("chain", "unavailable") + " root=" + result.optString("chainRoot", "unavailable")
+            + " certificates=" + result.opt("chainLength") + " revoked=" + result.opt("revoked")
+            + (result.has("error") ? " error=" + result.optString("error") : ""));
+        JSObject system = system();
+        result.put("system", system);
+        Log.i("GirovoIntegrity", process + " system=" + system);
         signing(context, result);
         result.put("debug", BuildConfig.DEBUG);
         result.put("flavor", BuildConfig.DISTRIBUTION);
@@ -91,7 +110,7 @@ final class DeviceIntegrity {
     // ---------------------------------------------------------------------
     // Key attestation
 
-    private static void attest(JSObject result) {
+    private static void attest(Context context, JSObject result) {
         try {
             KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
             keyStore.load(null);
@@ -118,12 +137,45 @@ final class DeviceIntegrity {
             X509Certificate[] chain = new X509Certificate[raw.length];
             for (int i = 0; i < raw.length; i++) chain[i] = (X509Certificate) raw[i];
             result.put("chain", chainVerdict(chain));
+            // For the log only, until real phones have shown what is normal: a key the phone
+            // fetched from Google ends at the P-384 root, in five certificates; a factory
+            // key, and with it every leaked one, ends at the RSA root, in four.
+            result.put("chainLength", chain.length);
+            result.put("chainRoot", rootName(chain[chain.length - 1]));
+            Boolean revoked = revoked(context, chain);
+            if (revoked != null) result.put("revoked", revoked.booleanValue());
             readKeyDescription(chain[0], challenge, result);
         } catch (Exception e) {
             // No attestation on this phone, or one that answers with nonsense:
             // nothing can be said about it either way.
             result.put("attestation", "error");
-            result.put("error", e.getClass().getSimpleName());
+            result.put("error", describe(e));
+        }
+    }
+
+    /**
+     * The failure's type, and the keystore's own error number where it gives
+     * one. 16 is "no attestation key at hand": a phone that fetches its keys
+     * from Google has none left and no network to get more.
+     */
+    private static String describe(Throwable e) {
+        String name = e.getClass().getSimpleName();
+        Throwable cause = e;
+        for (int depth = 0; cause != null && depth < 8; depth++, cause = cause.getCause()) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && cause instanceof android.security.KeyStoreException) {
+                return name + " keystore=" + ((android.security.KeyStoreException) cause).getNumericErrorCode();
+            }
+        }
+        return name;
+    }
+
+    /** Which of Google's roots a chain ends at: "rsa", "p384", or "other". */
+    private static String rootName(X509Certificate root) {
+        try {
+            String key = sha256(root.getPublicKey().getEncoded());
+            return GOOGLE_ROOTS[0].equals(key) ? "rsa" : GOOGLE_ROOTS[1].equals(key) ? "p384" : "other";
+        } catch (Exception e) {
+            return "other";
         }
     }
 
@@ -138,6 +190,26 @@ final class DeviceIntegrity {
             return "other";
         } catch (Exception e) {
             return "broken";
+        }
+    }
+
+    /**
+     * Whether Google has revoked a key of this chain, by the list the app
+     * ships (RevokedKeys). Null where the list cannot be read: then nothing
+     * is said, rather than every phone called unprovable over a broken file.
+     */
+    private static Boolean revoked(Context context, X509Certificate[] chain) {
+        try (InputStream list = context.getResources().openRawResource(R.raw.attestation_revoked)) {
+            RevokedKeys keys = RevokedKeys.read(list);
+            if (keys.size() == 0) return null;
+            // From the second certificate on: the first is the key made a moment ago, which
+            // is on no list, and whose serial number is the same small one on every phone.
+            for (int i = 1; i < chain.length; i++) {
+                if (keys.lists(chain[i].getSerialNumber())) return Boolean.TRUE;
+            }
+            return Boolean.FALSE;
+        } catch (Exception e) {
+            return null;
         }
     }
 
@@ -170,6 +242,54 @@ final class DeviceIntegrity {
     private static Der find(Der list, int tag) {
         for (Der entry : list.children()) if (entry.tagClass == 2 && entry.tag == tag) return entry;
         return null;
+    }
+
+    // ---------------------------------------------------------------------
+    // What the system says of itself
+
+    /**
+     * The system's own account, for lib/device-integrity.ts to hold against
+     * the attested one. Every phone sold runs a "user" build that is not
+     * debuggable; the boot properties come from the bootloader, as the
+     * attested record does, and on an honest phone the two agree. Root tools
+     * can rewrite all of these, and most that forge an attestation do: a
+     * mismatch is a finding, a match is none.
+     *
+     * What an app may read differs by Android release. On the owner's S26
+     * (Android 17) the build and boot properties are open to apps, and
+     * ro.debuggable and ro.secure are not; the build type says the same.
+     */
+    private static JSObject system() {
+        JSObject system = new JSObject();
+        system.put("type", Build.TYPE);
+        system.put("tags", Build.TAGS);
+        system.put("debuggable", property("ro.debuggable"));
+        system.put("secure", property("ro.secure"));
+        // green, yellow, orange or red; locked or unlocked.
+        system.put("bootState", property("ro.boot.verifiedbootstate"));
+        system.put("deviceState", property("ro.boot.vbmeta.device_state"));
+        // Samsung: "1" once the phone has started a system that was not Samsung's.
+        String warranty = property("ro.boot.warranty_bit");
+        system.put("warranty", warranty != null ? warranty : property("ro.warranty_bit"));
+        // The Android release the phone was sold with. For the log only: a phone sold with
+        // Android 16 or later fetches its attestation keys from Google and has no factory key.
+        system.put("firstApi", property("ro.product.first_api_level"));
+        return system;
+    }
+
+    /**
+     * A system property, or null where it is unset or kept from apps.
+     * android.os.SystemProperties is not in the public SDK, so it is reached
+     * by name; a phone that refuses that leaves these facts out.
+     */
+    @SuppressLint("PrivateApi")
+    private static String property(String name) {
+        try {
+            Object value = Class.forName("android.os.SystemProperties").getMethod("get", String.class).invoke(null, name);
+            return value instanceof String && !((String) value).isEmpty() ? (String) value : null;
+        } catch (Throwable e) {
+            return null;
+        }
     }
 
     // ---------------------------------------------------------------------

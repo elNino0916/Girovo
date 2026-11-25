@@ -103,7 +103,9 @@ export function SaveAnywayWarning({ verdict, onCancel }: { verdict: DeviceVerdic
           <AlertTriangleIcon size={88} strokeWidth={2.25} aria-hidden className="-ml-1" />
           <p className="mt-4 text-[13px] font-bold tracking-[0.12em] uppercase">{w.kicker}</p>
           <h2 id={titleId} ref={heading} tabIndex={-1} className="mt-1 text-[30px] leading-[1.1] font-extrabold outline-none">{w.title}</h2>
-          <p className="mt-3 text-[17px] leading-snug font-semibold">{verdict === 'modified' ? w.leadModified : w.leadUnknown}</p>
+          <p className="mt-3 text-[17px] leading-snug font-semibold">
+            {verdict === 'modified' ? w.leadModified : verdict === 'inconclusive' ? w.leadInconclusive : w.leadUnknown}
+          </p>
           <ul className="mt-4 flex list-disc flex-col gap-2 pl-5 text-[15px] leading-snug">
             {w.risks.map((r) => <li key={r}>{r}</li>)}
           </ul>
